@@ -1,12 +1,7 @@
-import NextAuth from "next-auth"
-import AzureADProvider from "next-auth/providers/azure-ad"
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import { PrismaClient } from "@prisma/client"
+import NextAuth from "next-auth";
+import AzureADProvider from "next-auth/providers/azure-ad";
 
-const prisma = new PrismaClient()
-
-const handler = NextAuth({
-  adapter: PrismaAdapter(prisma),
+export const authOptions = {
   providers: [
     AzureADProvider({
       clientId: process.env.AZURE_AD_CLIENT_ID!,
@@ -14,9 +9,8 @@ const handler = NextAuth({
       tenantId: process.env.AZURE_AD_TENANT_ID!,
     }),
   ],
-  session: {
-    strategy: "database",
-  },
-})
+};
 
-export { handler as GET, handler as POST }
+const handler = NextAuth(authOptions);
+
+export { handler as GET, handler as POST };
