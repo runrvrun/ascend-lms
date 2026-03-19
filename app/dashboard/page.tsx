@@ -43,10 +43,10 @@ export default async function DashboardPage() {
       select: { pathwayId: true },
     }),
 
-    // Total course count per pathway
-    prisma.pathwayCourse.groupBy({
-      by: ["pathwayId"],
-      _count: { courseId: true },
+    // Total published course count per pathway
+    prisma.pathwayCourse.findMany({
+      where: { course: { status: "PUBLISHED", deletedAt: null } },
+      select: { pathwayId: true },
     }),
   ])
 
@@ -55,9 +55,10 @@ export default async function DashboardPage() {
   for (const cp of courseProgressRecords) {
     completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
   }
-  const totalByPathway = Object.fromEntries(
-    pathwayCourseCounts.map((r) => [r.pathwayId, r._count.courseId])
-  )
+  const totalByPathway: Record<string, number> = {}
+  for (const pc of pathwayCourseCounts) {
+    totalByPathway[pc.pathwayId] = (totalByPathway[pc.pathwayId] ?? 0) + 1
+  }
 
   const enrollmentsWithCompletion = enrollments.map((e) => {
     const total = totalByPathway[e.pathwayId] ?? 0

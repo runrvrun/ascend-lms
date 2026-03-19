@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Tag } from "lucide-react"
+import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles } from "lucide-react"
 import { EnrollmentStatus } from "@prisma/client"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
 
@@ -20,6 +20,7 @@ type PathwayCard = {
   isCompleted: boolean
   completedCourses: number
   totalCourses: number
+  isRecommended: boolean
   _count: { courses: number }
   enrollment: EnrollmentInfo | null
 }
@@ -149,11 +150,17 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
 
   return (
     <>
-      <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+      <div className={`flex flex-col rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow ${pathway.isRecommended ? "border-amber-200 bg-amber-50/30" : "border-slate-200 bg-white"}`}>
+        {pathway.isRecommended && (
+          <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-amber-600">
+            <Sparkles size={13} />
+            Recommended for you
+          </div>
+        )}
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50">
-              <BookOpen size={17} className="text-blue-600" />
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${pathway.isRecommended ? "bg-amber-100" : "bg-blue-50"}`}>
+              <BookOpen size={17} className={pathway.isRecommended ? "text-amber-600" : "text-blue-600"} />
             </div>
             <h3 className="font-semibold text-slate-900 leading-snug">{pathway.name}</h3>
           </div>
@@ -264,8 +271,25 @@ export function PathwayList({ pathways }: { pathways: PathwayCard[] }) {
       )
     : pathways
 
+  const recommendations = pathways.filter((p) => p.isRecommended)
+
   return (
     <>
+      {!search && recommendations.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles size={16} className="text-amber-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Recommended for You</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {recommendations.map((p) => (
+              <PathwayCardItem key={p.id} pathway={p} />
+            ))}
+          </div>
+          <div className="mt-6 border-t border-slate-200" />
+        </section>
+      )}
+
       <div className="relative mb-6">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input

@@ -42,15 +42,16 @@ export default async function ProfessionalsPage() {
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.pathwayCourse.groupBy({
-      by: ["pathwayId"],
-      _count: { courseId: true },
+    prisma.pathwayCourse.findMany({
+      where: { course: { status: "PUBLISHED", deletedAt: null } },
+      select: { pathwayId: true },
     }),
   ])
 
-  const courseCountByPathway = Object.fromEntries(
-    pathwayCourseCounts.map((p) => [p.pathwayId, p._count.courseId])
-  )
+  const courseCountByPathway: Record<string, number> = {}
+  for (const pc of pathwayCourseCounts) {
+    courseCountByPathway[pc.pathwayId] = (courseCountByPathway[pc.pathwayId] ?? 0) + 1
+  }
 
   const professionalsWithStats = professionals.map((p) => {
     const enrolledPathwayIds = p.enrollments.map((e) => e.pathwayId)

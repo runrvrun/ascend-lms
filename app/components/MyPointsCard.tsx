@@ -64,7 +64,7 @@ export function MyPointsCard({
       </div>
 
       {recent.length === 0 ? (
-        <div className="px-6 pb-10 text-center text-sm text-slate-400">
+        <div className="px-6 pb-4 text-center text-sm text-slate-400">
           No points earned yet.
         </div>
       ) : (
@@ -84,6 +84,12 @@ export function MyPointsCard({
           </ul>
         </>
       )}
+
+      <div className="border-t border-slate-100 px-6 py-3 text-right">
+        <a href="/learning-history" className="text-xs font-medium text-blue-600 hover:underline">
+          View full history →
+        </a>
+      </div>
     </div>
   )
 }

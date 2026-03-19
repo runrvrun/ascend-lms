@@ -16,14 +16,14 @@ export default async function PathwaysPage() {
 
   const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts] = await Promise.all([
     prisma.pathway.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, status: "PUBLISHED" },
       select: {
         id: true,
         name: true,
         description: true,
         requiresApproval: true,
         tags: true,
-        _count: { select: { courses: true } },
+        _count: { select: { courses: true, pathwayEnrollments: true } },
       },
       orderBy: { name: "asc" },
     }),
@@ -40,9 +40,9 @@ export default async function PathwaysPage() {
       where: { userId, completed: true },
       select: { pathwayId: true },
     }),
-    prisma.pathwayCourse.groupBy({
-      by: ["pathwayId"],
-      _count: { courseId: true },
+    prisma.pathwayCourse.findMany({
+      where: { course: { status: "PUBLISHED", deletedAt: null } },
+      select: { pathwayId: true },
     }),
   ])
 
@@ -52,9 +52,11 @@ export default async function PathwaysPage() {
   for (const cp of courseProgressRecords) {
     completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
   }
-  const totalByPathway = Object.fromEntries(
-    pathwayCourseCounts.map((r) => [r.pathwayId, r._count.courseId])
-  )
+
+  const totalByPathway: Record<string, number> = {}
+  for (const pc of pathwayCourseCounts) {
+    totalByPathway[pc.pathwayId] = (totalByPathway[pc.pathwayId] ?? 0) + 1
+  }
 
   const pathwayCards = pathways.map((p) => {
     const total = totalByPathway[p.id] ?? 0
@@ -66,8 +68,26 @@ export default async function PathwaysPage() {
       isCompleted: total > 0 && completed >= total && isApproved,
       completedCourses: isApproved ? completed : 0,
       totalCourses: isApproved ? total : 0,
+      isRecommended: false,
     }
   })
+
+  // Top 2 recommendations: unenrolled/uncompleted, ranked by total enrollment count
+  const recommendedIds = new Set(
+    pathwayCards
+      .filter((p) => {
+        const status = p.enrollment?.status
+        return (!status || status === "REJECTED") && !p.isCompleted
+      })
+      .sort((a, b) => b._count.pathwayEnrollments - a._count.pathwayEnrollments)
+      .slice(0, 2)
+      .map((p) => p.id)
+  )
+
+  const pathwayCardsWithRec = pathwayCards.map((p) => ({
+    ...p,
+    isRecommended: recommendedIds.has(p.id),
+  }))
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">
@@ -79,7 +99,7 @@ export default async function PathwaysPage() {
           <p className="mt-1 text-sm text-slate-500">Browse and enroll in learning pathways</p>
         </div>
 
-        <PathwayList pathways={pathwayCards} />
+        <PathwayList pathways={pathwayCardsWithRec} />
       </main>
     </div>
   )

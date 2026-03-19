@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useTransition, useMemo } from "react"
-import { Plus, Pencil, Trash2, X, Building2, Search, UserCircle2, CheckSquare, Square, Users } from "lucide-react"
+import { useState, useTransition, useMemo, useRef, useEffect } from "react"
+import { Plus, Pencil, Trash2, X, Building2, Search, UserCircle2, CheckSquare, Square, Users, ChevronDown } from "lucide-react"
 import { createOffice, updateOffice, deleteOffice, assignUsersToOffice, removeUserFromOffice } from "./actions"
 
 type UserOption = {
@@ -23,6 +23,58 @@ type OfficeRow = {
 
 function formatEnum(val: string) {
   return val.replace(/_/g, " ").replace(/\w+/g, (w) => w[0] + w.slice(1).toLowerCase())
+}
+
+function ActionsMenu({ items }: {
+  items: { label: string; icon: React.ReactNode; onClick: () => void; variant?: "danger" }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
+  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setMenuStyle({ position: "fixed", bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right })
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
+        className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+      >
+        Actions
+        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div style={menuStyle} className="z-[9999] min-w-[160px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((item, i) => (
+            <button
+              key={i}
+              onClick={() => { item.onClick(); setOpen(false) }}
+              className={`flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50 ${item.variant === "danger" ? "text-red-600" : "text-slate-700"}`}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Add Users Modal ─────────────────────────────────────────────────────────
@@ -453,13 +505,13 @@ export function OfficeManagement({
         />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-5 py-3">Name</th>
               <th className="px-5 py-3 text-center">Users</th>
-              <th className="px-5 py-3" />
+              <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -471,7 +523,7 @@ export function OfficeManagement({
               </tr>
             )}
             {filtered.map((o) => (
-              <tr key={o.id} className="hover:bg-slate-50">
+              <tr key={o.id} className="group hover:bg-slate-50">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-2">
                     <Building2 size={15} className="shrink-0 text-blue-400" />
@@ -490,31 +542,13 @@ export function OfficeManagement({
                     <span className="text-slate-400">0</span>
                   )}
                 </td>
-                <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => setAddingUsers(o)}
-                      title="Add users"
-                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                    >
-                      <Users size={13} />
-                      Add Users
-                    </button>
-                    <button
-                      onClick={() => setEditing(o)}
-                      title="Edit office"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleting(o)}
-                      title="Delete office"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
+                  <ActionsMenu items={[
+                    { label: "View Members", icon: <Users size={14} />, onClick: () => setViewingMembers(o) },
+                    { label: "Add Users", icon: <UserCircle2 size={14} />, onClick: () => setAddingUsers(o) },
+                    { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(o) },
+                    { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(o), variant: "danger" },
+                  ]} />
                 </td>
               </tr>
             ))}

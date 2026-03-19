@@ -18,8 +18,13 @@ export type ContentFormData = {
 
 export async function createCourse(data: CourseFormData) {
   await prisma.course.create({
-    data: { name: data.name, description: data.description || null },
+    data: { name: data.name, description: data.description || null, status: "DRAFT" },
   })
+  revalidatePath("/admin/course")
+}
+
+export async function toggleCourseStatus(id: string, status: "DRAFT" | "PUBLISHED") {
+  await prisma.course.update({ where: { id }, data: { status } })
   revalidatePath("/admin/course")
 }
 

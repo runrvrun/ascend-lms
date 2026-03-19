@@ -17,6 +17,7 @@ export async function createPathway(data: PathwayFormData) {
       description: data.description || null,
       requiresApproval: data.requiresApproval,
       tags: data.tags,
+      status: "DRAFT",
     },
   })
   revalidatePath("/admin/pathway")
@@ -33,6 +34,12 @@ export async function updatePathway(id: string, data: PathwayFormData) {
     },
   })
   revalidatePath("/admin/pathway")
+}
+
+export async function togglePathwayStatus(id: string, status: "DRAFT" | "PUBLISHED") {
+  await prisma.pathway.update({ where: { id }, data: { status } })
+  revalidatePath("/admin/pathway")
+  revalidatePath("/pathways")
 }
 
 export async function deletePathway(id: string) {

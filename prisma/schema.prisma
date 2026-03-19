@@ -159,11 +159,12 @@ model CohortPathway {
 }
 
 model Pathway {
-  id                String   @id @default(dbgenerated("gen_random_uuid()::text"))
-  name              String   @unique
+  id                String        @id @default(dbgenerated("gen_random_uuid()::text"))
+  name              String        @unique
   description       String?
-  requiresApproval  Boolean  @default(false)
-  tags              String[] @default([])
+  requiresApproval  Boolean       @default(false)
+  tags              String[]      @default([])
+  status            PublishStatus @default(PUBLISHED)
 
   courses            PathwayCourse[]
   cohortPathways     CohortPathway[]
@@ -176,10 +177,16 @@ model Pathway {
   deletedAt DateTime?
 }
 
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+}
+
 model Course {
-  id          String  @id @default(dbgenerated("gen_random_uuid()::text"))
-  name        String  @unique
+  id          String        @id @default(dbgenerated("gen_random_uuid()::text"))
+  name        String        @unique
   description String?
+  status      PublishStatus @default(PUBLISHED)
   test     Test?
 
   contents Content[]

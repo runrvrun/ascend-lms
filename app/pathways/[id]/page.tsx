@@ -21,9 +21,10 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
 
   const [pathway, enrollment, completedRecords, courseProgressRecords] = await Promise.all([
     prisma.pathway.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, status: "PUBLISHED" },
       include: {
         courses: {
+          where: { course: { status: "PUBLISHED", deletedAt: null } },
           orderBy: { order: "asc" },
           include: {
             course: {

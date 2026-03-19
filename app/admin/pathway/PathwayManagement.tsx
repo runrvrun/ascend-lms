@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useTransition, useRef } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Tag } from "lucide-react"
-import { createPathway, updatePathway, deletePathway, PathwayFormData } from "./actions"
+import { useState, useTransition, useRef, useEffect } from "react"
+import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, ChevronDown } from "lucide-react"
+import { createPathway, updatePathway, deletePathway, togglePathwayStatus, PathwayFormData } from "./actions"
 
 type PathwayRow = {
   id: string
@@ -10,11 +10,76 @@ type PathwayRow = {
   description: string | null
   requiresApproval: boolean
   tags: string[]
+  status: "DRAFT" | "PUBLISHED"
   _count: { courses: number; pathwayEnrollments: number }
   createdAt: Date
 }
 
 const empty: PathwayFormData = { name: "", description: "", requiresApproval: false, tags: [] }
+
+function ActionsMenu({ items }: {
+  items: { label: string; icon: React.ReactNode; onClick?: () => void; href?: string; variant?: "danger" }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
+  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setMenuStyle({ position: "fixed", bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right })
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
+        className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+      >
+        Actions
+        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div style={menuStyle} className="z-[9999] min-w-[160px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((item, i) =>
+            item.href ? (
+              <a
+                key={i}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50"
+              >
+                {item.icon}
+                {item.label}
+              </a>
+            ) : (
+              <button
+                key={i}
+                onClick={() => { item.onClick?.(); setOpen(false) }}
+                className={`flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50 ${item.variant === "danger" ? "text-red-600" : "text-slate-700"}`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
   const [input, setInput] = useState("")
@@ -64,6 +129,26 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
       </div>
       <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add a tag</p>
     </div>
+  )
+}
+
+function StatusToggle({ id, status }: { id: string; status: "DRAFT" | "PUBLISHED" }) {
+  const [pending, startTransition] = useTransition()
+  const isOn = status === "PUBLISHED"
+  return (
+    <button
+      disabled={pending}
+      onClick={() => startTransition(() => togglePathwayStatus(id, isOn ? "DRAFT" : "PUBLISHED"))}
+      className="flex items-center gap-2 disabled:opacity-50"
+      title={isOn ? "Published — click to set Draft" : "Draft — click to Publish"}
+    >
+      <div className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${isOn ? "bg-green-500" : "bg-slate-300"}`}>
+        <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${isOn ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+      </div>
+      <span className={`text-xs font-medium ${isOn ? "text-green-700" : "text-slate-400"}`}>
+        {pending ? "…" : isOn ? "Published" : "Draft"}
+      </span>
+    </button>
   )
 }
 
@@ -231,22 +316,23 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
               <th className="px-5 py-3">Name</th>
               <th className="px-5 py-3">Description</th>
               <th className="px-5 py-3">Tags</th>
+              <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Enrollment</th>
               <th className="px-5 py-3 text-center">Courses</th>
               <th className="px-5 py-3 text-center">Enrollments</th>
-              <th className="px-5 py-3" />
+              <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
                   {pathways.length === 0 ? "No pathways yet. Add one above." : "No pathways match your search."}
                 </td>
               </tr>
             )}
             {filtered.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50">
+              <tr key={p.id} className="group hover:bg-slate-50">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-2">
                     <BookOpen size={15} className="shrink-0 text-blue-400" />
@@ -268,6 +354,9 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                   )}
                 </td>
                 <td className="px-5 py-3 text-center">
+                  <StatusToggle id={p.id} status={p.status} />
+                </td>
+                <td className="px-5 py-3 text-center">
                   {p.requiresApproval ? (
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">Approval required</span>
                   ) : (
@@ -276,31 +365,12 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                 </td>
                 <td className="px-5 py-3 text-center text-slate-600">{p._count.courses}</td>
                 <td className="px-5 py-3 text-center text-slate-600">{p._count.pathwayEnrollments}</td>
-                <td className="px-5 py-3 whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-1">
-                    <a
-                      href={`/admin/pathway/${p.id}`}
-                      title="Manage courses"
-                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                    >
-                      <GraduationCap size={13} />
-                      Courses
-                    </a>
-                    <button
-                      onClick={() => setEditing(p)}
-                      title="Edit pathway"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleting(p)}
-                      title="Delete pathway"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
+                  <ActionsMenu items={[
+                    { label: "Manage Courses", icon: <GraduationCap size={14} />, href: `/admin/pathway/${p.id}` },
+                    { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(p) },
+                    { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(p), variant: "danger" },
+                  ]} />
                 </td>
               </tr>
             ))}

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useRef, useEffect } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
-import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users } from "lucide-react"
+import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown } from "lucide-react"
 import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, UserFormData, BulkImportResult } from "./actions"
 
 type DevManager = { id: string; name: string | null }
@@ -38,6 +38,58 @@ const empty: UserFormData = {
   title: JobTitle.ANALYST,
   officeId: "",
   devManagerId: "",
+}
+
+function ActionsMenu({ items }: {
+  items: { label: string; icon: React.ReactNode; onClick: () => void; variant?: "danger" }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
+  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setMenuStyle({ position: "fixed", bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right })
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
+        className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+      >
+        Actions
+        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div style={menuStyle} className="z-[9999] min-w-[160px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((item, i) => (
+            <button
+              key={i}
+              onClick={() => { item.onClick(); setOpen(false) }}
+              className={`flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50 ${item.variant === "danger" ? "text-red-600" : "text-slate-700"}`}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function RoleBadge({ role }: { role: Role }) {
@@ -588,7 +640,7 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
@@ -598,7 +650,7 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
               <th className="px-5 py-3">Title</th>
               <th className="px-5 py-3">Office</th>
               <th className="px-5 py-3">Dev Manager</th>
-              <th className="px-5 py-3" />
+              <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -610,7 +662,7 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
               </tr>
             )}
             {filtered.map((u) => (
-              <tr key={u.id} className="hover:bg-slate-50">
+              <tr key={u.id} className="group hover:bg-slate-50">
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium text-slate-900">{u.name ?? "—"}</span>
@@ -622,37 +674,13 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
                 <td className="px-5 py-3 text-slate-600">{formatEnum(u.title)}</td>
                 <td className="px-5 py-3 text-slate-500">{u.office?.name ?? "—"}</td>
                 <td className="px-5 py-3 text-slate-600">{u.devManager?.name ?? "—"}</td>
-                <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => setAssigningCohorts(u)}
-                      title="Assign cohorts"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-green-50 hover:text-green-600"
-                    >
-                      <Users size={14} />
-                    </button>
-                    <button
-                      onClick={() => setAssigningRoles(u)}
-                      title="Assign roles"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-purple-50 hover:text-purple-600"
-                    >
-                      <ShieldCheck size={14} />
-                    </button>
-                    <button
-                      onClick={() => setEditing(u)}
-                      title="Edit user"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleting(u)}
-                      title="Delete user"
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
+                  <ActionsMenu items={[
+                    { label: "Assign Cohorts", icon: <Users size={14} />, onClick: () => setAssigningCohorts(u) },
+                    { label: "Assign Roles", icon: <ShieldCheck size={14} />, onClick: () => setAssigningRoles(u) },
+                    { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(u) },
+                    { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(u), variant: "danger" },
+                  ]} />
                 </td>
               </tr>
             ))}

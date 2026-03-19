@@ -1,17 +1,100 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search } from "lucide-react"
-import { createCourse, updateCourse, deleteCourse, CourseFormData } from "./actions"
+import { useState, useTransition, useRef, useEffect } from "react"
+import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown } from "lucide-react"
+import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, CourseFormData } from "./actions"
 
 type CourseRow = {
   id: string
   name: string
   description: string | null
+  status: "DRAFT" | "PUBLISHED"
   _count: { contents: number; pathways: number }
 }
 
-const empty: CourseFormData = { name: "", description: "" }
+function ActionsMenu({ items }: {
+  items: { label: string; icon: React.ReactNode; onClick?: () => void; href?: string; variant?: "danger" }[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
+  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setMenuStyle({ position: "fixed", bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right })
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
+        className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+      >
+        Actions
+        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div style={menuStyle} className="z-[9999] min-w-[160px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((item, i) =>
+            item.href ? (
+              <a
+                key={i}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50"
+              >
+                {item.icon}
+                {item.label}
+              </a>
+            ) : (
+              <button
+                key={i}
+                onClick={() => { item.onClick?.(); setOpen(false) }}
+                className={`flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50 ${item.variant === "danger" ? "text-red-600" : "text-slate-700"}`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatusToggle({ id, status }: { id: string; status: "DRAFT" | "PUBLISHED" }) {
+  const [pending, startTransition] = useTransition()
+  const isOn = status === "PUBLISHED"
+  return (
+    <button
+      disabled={pending}
+      onClick={() => startTransition(() => toggleCourseStatus(id, isOn ? "DRAFT" : "PUBLISHED"))}
+      className="flex items-center gap-2 disabled:opacity-50"
+      title={isOn ? "Published — click to set Draft" : "Draft — click to Publish"}
+    >
+      <div className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${isOn ? "bg-green-500" : "bg-slate-300"}`}>
+        <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${isOn ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+      </div>
+      <span className={`text-xs font-medium ${isOn ? "text-green-700" : "text-slate-400"}`}>
+        {pending ? "…" : isOn ? "Published" : "Draft"}
+      </span>
+    </button>
+  )
+}
 
 function CourseFormModal({
   title,
@@ -140,23 +223,24 @@ export function CourseManagement({ courses }: { courses: CourseRow[] }) {
         />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-5 py-3">Name</th>
               <th className="px-5 py-3">Description</th>
+              <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Contents</th>
               <th className="px-5 py-3 text-center">In Pathways</th>
-              <th className="px-5 py-3" />
+              <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
-              <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
+              <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
             )}
             {filtered.map((c) => (
-              <tr key={c.id} className="hover:bg-slate-50">
+              <tr key={c.id} className="group hover:bg-slate-50">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-2">
                     <BookOpen size={15} className="shrink-0 text-blue-400" />
@@ -166,24 +250,17 @@ export function CourseManagement({ courses }: { courses: CourseRow[] }) {
                 <td className="max-w-xs truncate px-5 py-3 text-slate-500">
                   {c.description ?? <span className="italic text-slate-300">No description</span>}
                 </td>
+                <td className="px-5 py-3 text-center">
+                  <StatusToggle id={c.id} status={c.status} />
+                </td>
                 <td className="px-5 py-3 text-center text-slate-600">{c._count.contents}</td>
                 <td className="px-5 py-3 text-center text-slate-600">{c._count.pathways}</td>
-                <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <a
-                      href={`/admin/course/${c.id}`}
-                      title="Manage contents"
-                      className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                    >
-                      Contents <ArrowRight size={12} />
-                    </a>
-                    <button onClick={() => setEditing(c)} title="Edit" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => setDeleting(c)} title="Delete" className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
+                  <ActionsMenu items={[
+                    { label: "Manage Contents", icon: <ArrowRight size={14} />, href: `/admin/course/${c.id}` },
+                    { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(c) },
+                    { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(c), variant: "danger" },
+                  ]} />
                 </td>
               </tr>
             ))}
@@ -192,7 +269,7 @@ export function CourseManagement({ courses }: { courses: CourseRow[] }) {
       </div>
 
       {creating && (
-        <CourseFormModal title="Add Course" initial={empty} onClose={() => setCreating(false)} onSubmit={(d) => createCourse(d)} />
+        <CourseFormModal title="Add Course" initial={{ name: "", description: "" }} onClose={() => setCreating(false)} onSubmit={(d) => createCourse(d)} />
       )}
       {editing && (
         <CourseFormModal
