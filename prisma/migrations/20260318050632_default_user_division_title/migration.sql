@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "division" SET DEFAULT 'MSD',
+ALTER COLUMN "title" SET DEFAULT 'ANALYST';

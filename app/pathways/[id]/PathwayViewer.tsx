@@ -1,0 +1,891 @@
+"use client"
+
+import { useState, useTransition } from "react"
+import {
+  ArrowLeft,
+  BookOpen,
+  FileText,
+  Link2,
+  Video,
+  ClipboardList,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  CheckCircle2,
+  Circle,
+  XCircle,
+  Trophy,
+  ChevronUp,
+  GripVertical,
+} from "lucide-react"
+import { ContentType } from "@prisma/client"
+import { toggleContentComplete, submitTest } from "../actions"
+
+type ContentItem = {
+  id: string
+  title: string
+  type: ContentType
+  value: string
+  order: number
+}
+
+type QuestionOption = {
+  id: string
+  text: string
+  isCorrect: boolean | null
+  matchKey: string | null
+  order: number | null
+}
+
+type Question = {
+  id: string
+  type: "MULTIPLE_CHOICE" | "TRUE_FALSE" | "FILL_BLANK" | "RANKING" | "MATCHING"
+  question: string
+  order: number
+  options: QuestionOption[]
+}
+
+type TestItem = {
+  id: string
+  passThreshold: number
+  questions: Question[]
+} | null
+
+type CourseEntry = {
+  order: number
+  course: {
+    id: string
+    name: string
+    contents: ContentItem[]
+    test: TestItem
+  }
+}
+
+type PathwayData = {
+  id: string
+  name: string
+  description: string | null
+  courses: CourseEntry[]
+}
+
+type Selection =
+  | { kind: "content"; content: ContentItem; courseId: string }
+  | { kind: "test"; test: NonNullable<TestItem>; courseId: string; courseName: string }
+
+type TestResult = {
+  score: number
+  passed: boolean
+  passThreshold: number
+  correct: number
+  total: number
+  courseCompleted: boolean
+  wrongAnswers: { question: string; userAnswer: string; correctAnswer: string }[]
+}
+
+// ─── Video embed helper ──────────────────────────────────────────────────────
+
+function getVideoEmbed(url: string): string | null {
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
+  const vimeo = url.match(/vimeo\.com\/(\d+)/)
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`
+  if (url.includes("sharepoint.com") || url.includes("microsoftstream.com")) return url
+  return null
+}
+
+// ─── Ranking question ────────────────────────────────────────────────────────
+
+function RankingInput({
+  options,
+  value,
+  onChange,
+}: {
+  options: QuestionOption[]
+  value: string[]
+  onChange: (val: string[]) => void
+}) {
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [overIdx, setOverIdx] = useState<number | null>(null)
+
+  const optMap = Object.fromEntries(options.map((o) => [o.id, o.text]))
+
+  function move(idx: number, dir: -1 | 1) {
+    const next = [...value]
+    const target = idx + dir
+    if (target < 0 || target >= next.length) return
+    ;[next[idx], next[target]] = [next[target], next[idx]]
+    onChange(next)
+  }
+
+  function onDragStart(idx: number) {
+    setDragIdx(idx)
+  }
+
+  function onDragEnter(idx: number) {
+    if (dragIdx === null || dragIdx === idx) return
+    setOverIdx(idx)
+    const next = [...value]
+    const [item] = next.splice(dragIdx, 1)
+    next.splice(idx, 0, item)
+    setDragIdx(idx)
+    onChange(next)
+  }
+
+  function onDragEnd() {
+    setDragIdx(null)
+    setOverIdx(null)
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-slate-500 mb-1">
+        Drag items to reorder, or use the arrow buttons.
+      </p>
+      {value.map((id, idx) => (
+        <div
+          key={id}
+          draggable
+          onDragStart={() => onDragStart(idx)}
+          onDragEnter={() => onDragEnter(idx)}
+          onDragOver={(e) => e.preventDefault()}
+          onDragEnd={onDragEnd}
+          className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-3 transition-all select-none ${
+            dragIdx === idx
+              ? "opacity-50 border-blue-400 shadow-md scale-[1.02]"
+              : overIdx === idx
+              ? "border-blue-300 bg-blue-50"
+              : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+          }`}
+        >
+          {/* Drag handle */}
+          <GripVertical size={16} className="shrink-0 cursor-grab text-slate-300 active:cursor-grabbing" />
+
+          {/* Position badge */}
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+            {idx + 1}
+          </span>
+
+          {/* Label */}
+          <span className="flex-1 text-sm text-slate-700">{optMap[id]}</span>
+
+          {/* Arrow buttons */}
+          <div className="flex shrink-0 flex-col gap-0.5">
+            <button
+              type="button"
+              onClick={() => move(idx, -1)}
+              disabled={idx === 0}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25 disabled:cursor-not-allowed"
+            >
+              <ChevronUp size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => move(idx, 1)}
+              disabled={idx === value.length - 1}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25 disabled:cursor-not-allowed"
+            >
+              <ChevronDown size={16} />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Matching question ───────────────────────────────────────────────────────
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function MatchingInput({
+  options,
+  value,
+  onChange,
+}: {
+  options: QuestionOption[]
+  value: string
+  onChange: (val: string) => void
+}) {
+  const [shuffledOptions] = useState(() => shuffle(options))
+  const [shuffledKeys] = useState(() =>
+    shuffle([...new Set(options.map((o) => o.matchKey).filter(Boolean))] as string[])
+  )
+
+  const current: Record<string, string> = (() => {
+    try {
+      return JSON.parse(value)
+    } catch {
+      return {}
+    }
+  })()
+
+  function updateMatch(optId: string, mk: string) {
+    onChange(JSON.stringify({ ...current, [optId]: mk }))
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-500">Match each item on the left to the correct option on the right.</p>
+      {shuffledOptions.map((opt) => (
+        <div key={opt.id} className="flex items-center gap-3">
+          <span className="flex-1 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">{opt.text}</span>
+          <span className="text-slate-400 text-xs">→</span>
+          <select
+            value={current[opt.id] ?? ""}
+            onChange={(e) => updateMatch(opt.id, e.target.value)}
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          >
+            <option value="">Select…</option>
+            {shuffledKeys.map((mk) => (
+              <option key={mk} value={mk}>
+                {mk}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Single question renderer ─────────────────────────────────────────────────
+
+function QuestionCard({
+  question,
+  index,
+  answer,
+  onChange,
+}: {
+  question: Question
+  index: number
+  answer: string | string[] | undefined
+  onChange: (val: string | string[]) => void
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 p-5">
+      <p className="mb-4 font-medium text-slate-900">
+        <span className="mr-2 text-slate-400">{index + 1}.</span>
+        {question.question}
+      </p>
+
+      {(question.type === "MULTIPLE_CHOICE" || question.type === "TRUE_FALSE") && (
+        <div className="flex flex-col gap-2">
+          {question.options.map((opt) => (
+            <label
+              key={opt.id}
+              className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-slate-50"
+            >
+              <input
+                type="radio"
+                name={question.id}
+                value={opt.id}
+                checked={answer === opt.id}
+                onChange={() => onChange(opt.id)}
+                className="h-4 w-4 accent-blue-600"
+              />
+              <span className="text-sm text-slate-700">{opt.text}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {question.type === "FILL_BLANK" && (
+        <input
+          type="text"
+          value={typeof answer === "string" ? answer : ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Type your answer…"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        />
+      )}
+
+      {question.type === "RANKING" && (
+        <RankingInput
+          options={question.options}
+          value={Array.isArray(answer) ? answer : question.options.map((o) => o.id)}
+          onChange={onChange}
+        />
+      )}
+
+      {question.type === "MATCHING" && (
+        <MatchingInput
+          options={question.options}
+          value={typeof answer === "string" ? answer : "{}"}
+          onChange={onChange}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Test viewer ──────────────────────────────────────────────────────────────
+
+function TestViewer({
+  test,
+  courseId,
+  pathwayId,
+  courseName,
+  isAlreadyPassed,
+}: {
+  test: NonNullable<TestItem>
+  courseId: string
+  pathwayId: string
+  courseName: string
+  isAlreadyPassed: boolean
+}) {
+  const [phase, setPhase] = useState<"idle" | "taking" | "result">("idle")
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
+  const [result, setResult] = useState<TestResult | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  function initAnswers() {
+    const init: Record<string, string | string[]> = {}
+    test.questions.forEach((q) => {
+      if (q.type === "RANKING") {
+        const ids = q.options.map((o) => o.id)
+        for (let i = ids.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          ;[ids[i], ids[j]] = [ids[j], ids[i]]
+        }
+        init[q.id] = ids
+      }
+    })
+    return init
+  }
+
+  function handleStart() {
+    setAnswers(initAnswers())
+    setPhase("taking")
+  }
+
+  function handleRetry() {
+    setAnswers(initAnswers())
+    setResult(null)
+    setPhase("taking")
+  }
+
+  function handleSubmit() {
+    startTransition(async () => {
+      const res = await submitTest(test.id, courseId, pathwayId, answers)
+      setResult(res)
+      setPhase("result")
+    })
+  }
+
+  const canSubmit = test.questions.every((q) => {
+    const a = answers[q.id]
+    if (a === undefined) return false
+    if (q.type === "MATCHING") {
+      try {
+        const m = JSON.parse(a as string)
+        return q.options.every((o) => m[o.id])
+      } catch {
+        return false
+      }
+    }
+    if (q.type === "FILL_BLANK") return typeof a === "string" && a.trim() !== ""
+    if (q.type === "RANKING") return Array.isArray(a) && a.length === q.options.length
+    return typeof a === "string" && a !== ""
+  })
+
+  // ── Idle phase ─────────────────────────────────────────────────────────────
+  if (phase === "idle") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-5 p-8 text-center">
+        <div
+          className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
+            isAlreadyPassed ? "bg-green-100" : "bg-blue-100"
+          }`}
+        >
+          {isAlreadyPassed ? (
+            <CheckCircle2 size={28} className="text-green-600" />
+          ) : (
+            <ClipboardList size={26} className="text-blue-600" />
+          )}
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">{courseName} — Test</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {test.questions.length} question{test.questions.length !== 1 ? "s" : ""} · Pass:{" "}
+            {test.passThreshold}%
+          </p>
+        </div>
+        {isAlreadyPassed ? (
+          <div className="flex items-center gap-2 rounded-xl bg-green-100 px-5 py-2.5 text-sm font-semibold text-green-700">
+            <CheckCircle2 size={15} />
+            Test Passed
+          </div>
+        ) : (
+          <button
+            onClick={handleStart}
+            className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Start Test
+          </button>
+        )}
+        {isAlreadyPassed && (
+          <button
+            onClick={handleStart}
+            className="text-xs text-slate-400 hover:text-slate-600 underline"
+          >
+            Retake test
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // ── Result phase ───────────────────────────────────────────────────────────
+  if (phase === "result" && result) {
+    return (
+      <div className="h-full overflow-y-auto p-6 md:p-8">
+        {/* Score summary */}
+        <div className="flex flex-col items-center text-center gap-4 mb-8">
+          <div
+            className={`flex h-16 w-16 items-center justify-center rounded-2xl ${
+              result.passed ? "bg-green-100" : "bg-red-100"
+            }`}
+          >
+            {result.passed ? (
+              <CheckCircle2 size={32} className="text-green-600" />
+            ) : (
+              <XCircle size={32} className="text-red-500" />
+            )}
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">
+              {result.passed ? "You Passed!" : "Not Quite"}
+            </h2>
+            <p className="mt-1 text-slate-500">
+              {result.correct} of {result.total} correct
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center gap-1">
+            <span
+              className={`text-5xl font-bold ${result.passed ? "text-green-600" : "text-red-500"}`}
+            >
+              {result.score}%
+            </span>
+            <span className="text-sm text-slate-500">Pass threshold: {result.passThreshold}%</span>
+          </div>
+
+          {result.passed ? (
+            <div className="rounded-xl bg-green-50 px-5 py-3 text-sm text-green-700">
+              {result.courseCompleted
+                ? "This course has been marked as completed."
+                : "Test passed! Complete all content items to finish the course."}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-sm text-slate-500">
+                You need {result.passThreshold}% to pass. You can reattempt as many times as you like.
+              </p>
+              <button
+                onClick={handleRetry}
+                className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Wrong answers review */}
+        {result.wrongAnswers.length > 0 && (
+          <div className="mx-auto max-w-2xl">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Questions to Review ({result.wrongAnswers.length})
+            </h3>
+            <div className="flex flex-col gap-3">
+              {result.wrongAnswers.map((w, i) => (
+                <div key={i} className="rounded-xl border border-red-100 bg-red-50 p-4">
+                  <p className="mb-3 text-sm font-medium text-slate-800">{w.question}</p>
+                  <div className="flex flex-col gap-1.5 text-sm">
+                    <div className="flex gap-2">
+                      <span className="shrink-0 font-medium text-red-500">Your answer:</span>
+                      <span className="text-slate-600">{w.userAnswer}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="shrink-0 font-medium text-green-600">Correct answer:</span>
+                      <span className="text-slate-700 font-medium">{w.correctAnswer}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {result.passed && (
+              <button
+                onClick={handleRetry}
+                className="mt-5 rounded-xl border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Retake to improve your score
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Taking phase ───────────────────────────────────────────────────────────
+  return (
+    <div className="h-full overflow-y-auto p-6 md:p-8">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-slate-900">{courseName} — Test</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          {test.questions.length} question{test.questions.length !== 1 ? "s" : ""} · Pass:{" "}
+          {test.passThreshold}%
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-5">
+        {test.questions.map((q, idx) => (
+          <QuestionCard
+            key={q.id}
+            question={q}
+            index={idx}
+            answer={answers[q.id]}
+            onChange={(val) => setAnswers((prev) => ({ ...prev, [q.id]: val }))}
+          />
+        ))}
+      </div>
+
+      <div className="mt-8">
+        <button
+          disabled={pending || !canSubmit}
+          onClick={handleSubmit}
+          className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {pending ? "Submitting…" : "Submit Test"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Content viewer ───────────────────────────────────────────────────────────
+
+const TYPE_ICON: Record<ContentType, React.ReactNode> = {
+  TEXT: <FileText size={13} />,
+  VIDEO: <Video size={13} />,
+  LINK: <Link2 size={13} />,
+}
+
+function ContentViewer({
+  selection,
+  pathwayId,
+  completedContentIds,
+  completedCourseIds,
+}: {
+  selection: Selection | null
+  pathwayId: string
+  completedContentIds: Set<string>
+  completedCourseIds: Set<string>
+}) {
+  const [pending, startTransition] = useTransition()
+
+  function CompleteButton({ contentId }: { contentId: string }) {
+    const done = completedContentIds.has(contentId)
+    return (
+      <button
+        disabled={pending}
+        onClick={() =>
+          startTransition(() => toggleContentComplete(contentId, pathwayId, !done))
+        }
+        className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+          done
+            ? "bg-green-100 text-green-700 hover:bg-green-200"
+            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+        }`}
+      >
+        {done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+        {done ? "Completed" : "Mark as Completed"}
+      </button>
+    )
+  }
+
+  if (!selection) {
+    return (
+      <div className="flex h-full items-center justify-center text-slate-400 text-sm">
+        Select a content item from the left to begin.
+      </div>
+    )
+  }
+
+  if (selection.kind === "test") {
+    return (
+      <TestViewer
+        test={selection.test}
+        courseId={selection.courseId}
+        pathwayId={pathwayId}
+        courseName={selection.courseName}
+        isAlreadyPassed={completedCourseIds.has(selection.courseId)}
+      />
+    )
+  }
+
+  const { content } = selection
+
+  if (content.type === "TEXT") {
+    return (
+      <div className="h-full overflow-y-auto p-6 md:p-8">
+        <h2 className="mb-4 text-xl font-bold text-slate-900">{content.title}</h2>
+        <div className="prose prose-slate max-w-none whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+          {content.value}
+        </div>
+        <div className="mt-8">
+          <CompleteButton contentId={content.id} />
+        </div>
+      </div>
+    )
+  }
+
+  if (content.type === "VIDEO") {
+    const embedUrl = getVideoEmbed(content.value)
+    return (
+      <div className="h-full overflow-y-auto p-6 md:p-8">
+        <h2 className="mb-4 text-xl font-bold text-slate-900">{content.title}</h2>
+        {embedUrl ? (
+          <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+            <iframe
+              src={embedUrl}
+              className="absolute inset-0 h-full w-full rounded-xl"
+              allowFullScreen
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            />
+          </div>
+        ) : (
+          <video src={content.value} controls className="w-full rounded-xl bg-black" />
+        )}
+        <div className="mt-6">
+          <CompleteButton contentId={content.id} />
+        </div>
+      </div>
+    )
+  }
+
+  // LINK
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+        <Link2 size={26} className="text-slate-500" />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
+        <p className="mt-1 max-w-sm text-sm text-slate-500 break-all">{content.value}</p>
+      </div>
+      <a
+        href={content.value}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+      >
+        Open Link
+        <ExternalLink size={14} />
+      </a>
+      <CompleteButton contentId={content.id} />
+    </div>
+  )
+}
+
+// ─── Course section (sidebar) ─────────────────────────────────────────────────
+
+function CourseSection({
+  entry,
+  selectedId,
+  completedContentIds,
+  completedCourseIds,
+  onSelect,
+}: {
+  entry: CourseEntry
+  selectedId: string | null
+  completedContentIds: Set<string>
+  completedCourseIds: Set<string>
+  onSelect: (sel: Selection) => void
+}) {
+  const [open, setOpen] = useState(true)
+  const { course } = entry
+  const courseCompleted = completedCourseIds.has(course.id)
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-100"
+      >
+        {open ? (
+          <ChevronDown size={13} className="shrink-0 text-slate-400" />
+        ) : (
+          <ChevronRight size={13} className="shrink-0 text-slate-400" />
+        )}
+        {courseCompleted ? (
+          <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+        ) : (
+          <BookOpen size={13} className="shrink-0 text-blue-500" />
+        )}
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-700 truncate">
+          {course.name}
+        </span>
+      </button>
+
+      {open && (
+        <div className="pb-1">
+          {course.contents.map((c) => {
+            const active = selectedId === c.id
+            const done = completedContentIds.has(c.id)
+            return (
+              <button
+                key={c.id}
+                onClick={() => onSelect({ kind: "content", content: c, courseId: course.id })}
+                className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                  active
+                    ? "bg-blue-50 text-blue-700 font-medium"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {done ? (
+                  <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+                ) : (
+                  <span className={active ? "text-blue-500" : "text-slate-400"}>
+                    {TYPE_ICON[c.type]}
+                  </span>
+                )}
+                <span className="truncate">{c.title}</span>
+              </button>
+            )
+          })}
+
+          {course.test && (
+            <button
+              onClick={() =>
+                onSelect({
+                  kind: "test",
+                  test: course.test!,
+                  courseId: course.id,
+                  courseName: course.name,
+                })
+              }
+              className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                selectedId === `test-${course.test.id}`
+                  ? "bg-blue-50 text-blue-700 font-medium"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {courseCompleted ? (
+                <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+              ) : (
+                <span
+                  className={
+                    selectedId === `test-${course.test.id}` ? "text-blue-500" : "text-slate-400"
+                  }
+                >
+                  <ClipboardList size={13} />
+                </span>
+              )}
+              <span className="truncate">Test</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Pathway viewer (root) ────────────────────────────────────────────────────
+
+export function PathwayViewer({
+  pathway,
+  completedContentIds,
+  completedCourseIds,
+  isPathwayComplete,
+}: {
+  pathway: PathwayData
+  completedContentIds: Set<string>
+  completedCourseIds: Set<string>
+  isPathwayComplete: boolean
+}) {
+  const firstCourse = pathway.courses[0]?.course
+  const firstContent = firstCourse?.contents[0]
+  const [selected, setSelected] = useState<Selection | null>(
+    firstContent
+      ? { kind: "content", content: firstContent, courseId: firstCourse!.id }
+      : null
+  )
+
+  const selectedId =
+    selected?.kind === "content"
+      ? selected.content.id
+      : selected?.kind === "test"
+      ? `test-${selected.test.id}`
+      : null
+
+  return (
+    <div className="flex h-screen flex-col">
+      {/* Top bar */}
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 md:px-6">
+        <a href="/pathways" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
+          <ArrowLeft size={15} />
+          Pathways
+        </a>
+        <span className="text-slate-300">/</span>
+        <span className="text-sm font-semibold text-slate-800 truncate">{pathway.name}</span>
+        {isPathwayComplete && (
+          <span className="ml-auto flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+            <Trophy size={12} />
+            Completed
+          </span>
+        )}
+      </div>
+
+      {/* Completion banner */}
+      {isPathwayComplete && (
+        <div className="flex shrink-0 items-center justify-center gap-2 bg-green-600 px-4 py-2 text-sm font-semibold text-white">
+          <Trophy size={15} />
+          Congratulations! You have completed the {pathway.name} pathway.
+        </div>
+      )}
+
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left sidebar */}
+        <aside className="hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white md:flex">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contents</p>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {pathway.courses.map((entry) => (
+              <CourseSection
+                key={entry.course.id}
+                entry={entry}
+                selectedId={selectedId}
+                completedContentIds={completedContentIds}
+                completedCourseIds={completedCourseIds}
+                onSelect={setSelected}
+              />
+            ))}
+          </div>
+        </aside>
+
+        {/* Right content area */}
+        <main className="flex-1 overflow-hidden bg-white">
+          <ContentViewer
+            selection={selected}
+            pathwayId={pathway.id}
+            completedContentIds={completedContentIds}
+            completedCourseIds={completedCourseIds}
+          />
+        </main>
+      </div>
+    </div>
+  )
+}

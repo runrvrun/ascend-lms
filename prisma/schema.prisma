@@ -7,25 +7,87 @@ datasource db {
 }
 
 model User {
-  id            String  @id @default(cuid())
+  id            String     @id @default(dbgenerated("gen_random_uuid()::text"))
   name          String?
-  email         String? @unique
+  email         String?    @unique
+  emailVerified DateTime?
   image         String?
-  accounts      Account[]
-  sessions      Session[]
+  status        UserStatus @default(ACTIVE)
+
+  //employee data
+  division     Division @default(MSD)
+  title        JobTitle @default(ANALYST)
+  officeId     String?
+  devManagerId String?
+
+  accounts       Account[]
+  sessions       Session[]
+  roles          UserRole[]
+  cohorts        CohortUser[]
+  enrollments    PathwayEnrollment[]
+  approvalsGiven PathwayEnrollment[] @relation("Approver")
+  requestsMade   PathwayEnrollment[] @relation("Requester")
+  courseProgress    CourseProgress[]
+  contentProgresses ContentProgress[]
+  points            UserPoint[]
+  managedUsers   User[]              @relation("DevManager")
+  devManager     User?               @relation("DevManager", fields: [devManagerId], references: [id])
+  office         Office?             @relation(fields: [officeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum Division {
+  MSD
+  DXD
+  ISD
+  SCD
+  SSD
+  OXD
+  OPD
+  FIN
+}
+
+enum JobTitle {
+  ANALYST
+  ASSOCIATE
+  MANAGER
+  DIRECTOR
+  PARTNER
+  MANAGING_PARTNER
+}
+
+model Office {
+  id   String @id @default(dbgenerated("gen_random_uuid()::text"))
+  name String @unique
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
+  id                String  @id @default(dbgenerated("gen_random_uuid()::text"))
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  ext_expires_in    Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id])
 
@@ -33,10 +95,289 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(dbgenerated("gen_random_uuid()::text"))
   sessionToken String   @unique
   userId       String
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id])
+}
+
+model UserRole {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  userId String
+  role   Role
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, role]) // prevent duplicate roles
+}
+
+enum Role {
+  ADMIN
+  DEVMANAGER
+}
+
+model Cohort {
+  id   String @id @default(dbgenerated("gen_random_uuid()::text"))
+  name String @unique
+
+  users       CohortUser[]
+  pathways    CohortPathway[]
+  enrollments PathwayEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+}
+
+model CohortUser {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  cohortId String
+  userId   String
+
+  cohort Cohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortId, userId])
+}
+
+model CohortPathway {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  cohortId  String
+  pathwayId String
+
+  cohort  Cohort  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  pathway Pathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortId, pathwayId])
+}
+
+model Pathway {
+  id                String  @id @default(dbgenerated("gen_random_uuid()::text"))
+  name              String  @unique
+  description       String?
+  requiresApproval  Boolean @default(false)
+
+  courses            PathwayCourse[]
+  cohortPathways     CohortPathway[]
+  pathwayEnrollments PathwayEnrollment[]
+  courseProgresses   CourseProgress[]
+  contentProgresses  ContentProgress[]
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt DateTime?
+}
+
+model Course {
+  id          String  @id @default(dbgenerated("gen_random_uuid()::text"))
+  name        String  @unique
+  description String?
+  test     Test?
+
+  contents Content[]
+  pathways PathwayCourse[]
+  courseProgresses CourseProgress[]
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt DateTime?
+}
+
+model PathwayCourse {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  pathwayId String
+  courseId  String
+
+  order  Int // enforce sequence
+  points Int @default(10)
+
+  pathway Pathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([pathwayId, courseId])
+  @@unique([pathwayId, order]) // no duplicate order
+}
+
+model Content {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  courseId String
+  title    String
+  type     ContentType
+  value    String // text OR URL (SharePoint link, video, etc.)
+
+  order Int
+
+  course            Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  contentProgresses ContentProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@unique([courseId, order])
+}
+
+enum ContentType {
+  TEXT
+  LINK
+  VIDEO
+}
+
+model Test {
+  id       String @id @default(dbgenerated("gen_random_uuid()::text"))
+  courseId String @unique
+
+  passThreshold Int // percentage (e.g., 70)
+
+  questions Question[]
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+}
+
+model Question {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  testId   String
+  type     QuestionType
+  question String
+
+  order Int
+
+  test    Test             @relation(fields: [testId], references: [id], onDelete: Cascade)
+  options QuestionOption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@unique([testId, order])
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  FILL_BLANK
+  RANKING
+  MATCHING
+}
+
+model QuestionOption {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  questionId String
+  text       String
+  isCorrect  Boolean?
+
+  // for ranking / matching flexibility
+  matchKey String?
+  order    Int?
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model PathwayEnrollment {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  userId    String
+  pathwayId String
+  cohortId  String?
+
+  type   EnrollmentType
+  status EnrollmentStatus
+
+  deadline DateTime?
+
+  requestedById String?
+  approvedById  String?
+
+  note            String?
+  rejectionReason String?
+
+  user      User    @relation(fields: [userId], references: [id])
+  cohort    Cohort? @relation(fields: [cohortId], references: [id])
+  requester User?   @relation("Requester", fields: [requestedById], references: [id])
+  approver  User?   @relation("Approver", fields: [approvedById], references: [id])
+  pathway   Pathway @relation(fields: [pathwayId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, pathwayId])
+}
+
+enum EnrollmentType {
+  SELF_ENROLL
+  ASSIGNED
+  USER_REQUEST
+}
+
+enum EnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CourseProgress {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  userId    String
+  courseId  String
+  pathwayId String
+
+  completed Boolean @default(false)
+  score     Float?
+
+  completedAt DateTime?
+
+  user    User    @relation(fields: [userId], references: [id])
+  course  Course  @relation(fields: [courseId], references: [id])
+  pathway Pathway @relation(fields: [pathwayId], references: [id])
+
+  @@unique([userId, courseId, pathwayId])
+}
+
+model ContentProgress {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  userId    String
+  contentId String
+  pathwayId String
+
+  completedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  content Content @relation(fields: [contentId], references: [id])
+  pathway Pathway @relation(fields: [pathwayId], references: [id])
+
+  @@unique([userId, contentId, pathwayId])
+}
+
+model UserPoint {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  userId      String
+  points      Int
+  source      PointSource
+  referenceId String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+enum PointSource {
+  COURSE_COMPLETION
 }
