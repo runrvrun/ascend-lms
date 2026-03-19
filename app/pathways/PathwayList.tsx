@@ -18,6 +18,8 @@ type PathwayCard = {
   requiresApproval: boolean
   tags: string[]
   isCompleted: boolean
+  completedCourses: number
+  totalCourses: number
   _count: { courses: number }
   enrollment: EnrollmentInfo | null
 }
@@ -174,15 +176,33 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
           </div>
         )}
 
-        <div className="mb-4 flex items-center gap-2">
-          <p className="text-xs text-slate-400">{pathway._count.courses} course{pathway._count.courses !== 1 ? "s" : ""}</p>
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <p>{pathway._count.courses} course{pathway._count.courses !== 1 ? "s" : ""}</p>
           {pathway.isCompleted && (
-            <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+            <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
               <CheckCircle2 size={11} />
               Completed
             </span>
           )}
         </div>
+
+        {/* Progress bar — only for approved, in-progress enrollments */}
+        {enrollment?.status === "APPROVED" && !pathway.isCompleted && pathway.totalCourses > 0 && (
+          <div className="mt-3 mb-1">
+            <div className="mb-1 flex justify-between text-xs text-slate-500">
+              <span>{pathway.completedCourses}/{pathway.totalCourses} courses done</span>
+              <span>{Math.round((pathway.completedCourses / pathway.totalCourses) * 100)}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-100">
+              <div
+                className="h-1.5 rounded-full bg-blue-500"
+                style={{ width: `${Math.round((pathway.completedCourses / pathway.totalCourses) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="mb-1" />
 
         {enrollmentStatus === "REJECTED" && enrollment?.rejectionReason && (
           <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs text-red-700">

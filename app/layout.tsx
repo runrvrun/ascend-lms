@@ -2,8 +2,11 @@ import "./globals.css"
 import { Providers } from "./providers"
 
 export const metadata = {
-  title: "Ascend | Sign In",
-  description: "YCP Ascend sign in",
+  title: {
+    template: "Ascend | %s",
+    default: "Ascend | Sign In",
+  },
+  description: "YCP Ascend Training Platform",
   icons: {
     icon: "/favicon-global.png",
   },

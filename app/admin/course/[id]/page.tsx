@@ -1,8 +1,15 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
 import { ContentManagement } from "./ContentManagement"
 import { TestManagement } from "./TestManagement"
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const course = await prisma.course.findUnique({ where: { id }, select: { name: true } })
+  return { title: course ? `${course.name} — Course` : "Course" }
+}
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

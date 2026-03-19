@@ -1,3 +1,6 @@
+import type { Metadata } from "next"
+export const metadata: Metadata = { title: "Cohort Management" }
+
 import { prisma } from "../../lib/prisma"
 import { CohortManagement } from "./CohortManagement"
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useMemo } from "react"
-import { X, UserCircle2, Plus, CheckCircle2, Star, Search } from "lucide-react"
+import { X, UserCircle2, Plus, CheckCircle2, Star, Search, BarChart2 } from "lucide-react"
 import { assignPathway } from "./actions"
 
 type PathwayOption = {
@@ -212,13 +212,20 @@ export function ProfessionalsList({
                     </div>
                   </td>
                   <td className="px-5 py-3">
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-end gap-2">
+                      <a
+                        href={`/devmanager/professionals/${p.id}`}
+                        className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        <BarChart2 size={13} />
+                        Progress
+                      </a>
                       <button
                         onClick={() => setAssigning(p)}
                         className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
                       >
                         <Plus size={13} />
-                        Assign Pathway
+                        Assign
                       </button>
                     </div>
                   </td>

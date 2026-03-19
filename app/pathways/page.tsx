@@ -1,3 +1,6 @@
+import type { Metadata } from "next"
+export const metadata: Metadata = { title: "Pathways" }
+
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
@@ -56,10 +59,13 @@ export default async function PathwaysPage() {
   const pathwayCards = pathways.map((p) => {
     const total = totalByPathway[p.id] ?? 0
     const completed = completedByPathway[p.id] ?? 0
+    const isApproved = enrollmentMap[p.id]?.status === "APPROVED"
     return {
       ...p,
       enrollment: enrollmentMap[p.id] ?? null,
-      isCompleted: total > 0 && completed >= total && (enrollmentMap[p.id]?.status === "APPROVED"),
+      isCompleted: total > 0 && completed >= total && isApproved,
+      completedCourses: isApproved ? completed : 0,
+      totalCourses: isApproved ? total : 0,
     }
   })
 

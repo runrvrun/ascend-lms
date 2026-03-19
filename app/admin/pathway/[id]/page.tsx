@@ -1,7 +1,14 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
 import { PathwayCourseManagement } from "./PathwayCourseManagement"
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const pathway = await prisma.pathway.findUnique({ where: { id }, select: { name: true } })
+  return { title: pathway ? `${pathway.name} — Pathway` : "Pathway" }
+}
 
 export default async function PathwayDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

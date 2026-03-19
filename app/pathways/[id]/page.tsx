@@ -1,9 +1,16 @@
+import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { DashboardSidebar } from "../../components/DashboardSidebar"
 import { PathwayViewer } from "./PathwayViewer"
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const pathway = await prisma.pathway.findUnique({ where: { id }, select: { name: true } })
+  return { title: pathway?.name ?? "Pathway" }
+}
 
 export default async function PathwayDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

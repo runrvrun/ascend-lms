@@ -1,7 +1,14 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
 import { CohortMemberManagement } from "./CohortMemberManagement"
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const cohort = await prisma.cohort.findUnique({ where: { id }, select: { name: true } })
+  return { title: cohort ? `${cohort.name} — Cohort` : "Cohort" }
+}
 
 export default async function CohortDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

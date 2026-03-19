@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
+import { sendNewEnrollmentRequest } from "../lib/email"
 
 async function getSession() {
   const session = await getServerSession(authOptions)
@@ -233,13 +234,35 @@ export async function requestPathway(pathwayId: string, note: string) {
   const session = await getSession()
   const userId = (session.user as any).id as string
 
-  await prisma.pathwayEnrollment.upsert({
-    where: { userId_pathwayId: { userId, pathwayId } },
-    create: { userId, pathwayId, type: "USER_REQUEST", status: "PENDING", note },
-    update: { type: "USER_REQUEST", status: "PENDING", note, rejectionReason: null },
-  })
+  const [, user, pathway] = await Promise.all([
+    prisma.pathwayEnrollment.upsert({
+      where: { userId_pathwayId: { userId, pathwayId } },
+      create: { userId, pathwayId, type: "USER_REQUEST", status: "PENDING", note },
+      update: { type: "USER_REQUEST", status: "PENDING", note, rejectionReason: null },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        name: true,
+        email: true,
+        devManager: { select: { name: true, email: true } },
+      },
+    }),
+    prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
+  ])
+
   revalidatePath("/pathways")
   revalidatePath("/dashboard")
+
+  if (user?.devManager?.email && pathway) {
+    await sendNewEnrollmentRequest(
+      user.devManager.email,
+      user.devManager.name ?? user.devManager.email,
+      user.name ?? user.email ?? "A team member",
+      pathway.name,
+      note
+    )
+  }
 }
 
 export async function unenrollPathway(pathwayId: string) {

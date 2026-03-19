@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
-import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2 } from "lucide-react"
+import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3 } from "lucide-react"
 
 interface DashboardSidebarProps {
   session: Session | null
@@ -110,6 +110,10 @@ export function DashboardSidebar({ session }: DashboardSidebarProps) {
                   <Building2 size={14} />
                   Offices
                 </a>
+                <a href="/admin/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                  <BarChart3 size={14} />
+                  Analytics
+                </a>
               </div>
             )}
           </div>
@@ -133,6 +137,10 @@ export function DashboardSidebar({ session }: DashboardSidebarProps) {
                 <a href="/devmanager/pathway-request" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <ClipboardList size={14} />
                   Pathway Requests
+                </a>
+                <a href="/devmanager/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                  <BarChart3 size={14} />
+                  Analytics
                 </a>
               </div>
             )}

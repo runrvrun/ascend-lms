@@ -23,3 +23,14 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
   revalidatePath("/devmanager/professionals")
   revalidatePath("/dashboard")
 }
+
+export async function updateDeadline(enrollmentId: string, deadline: string | null) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) throw new Error("Not authenticated")
+  await prisma.pathwayEnrollment.update({
+    where: { id: enrollmentId },
+    data: { deadline: deadline ? new Date(deadline) : null },
+  })
+  revalidatePath("/devmanager/professionals")
+  revalidatePath("/dashboard")
+}
