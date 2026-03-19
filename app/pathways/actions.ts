@@ -241,3 +241,14 @@ export async function requestPathway(pathwayId: string, note: string) {
   revalidatePath("/pathways")
   revalidatePath("/dashboard")
 }
+
+export async function unenrollPathway(pathwayId: string) {
+  const session = await getSession()
+  const userId = (session.user as any).id as string
+
+  await prisma.pathwayEnrollment.delete({
+    where: { userId_pathwayId: { userId, pathwayId } },
+  })
+  revalidatePath("/pathways")
+  revalidatePath("/dashboard")
+}

@@ -12,7 +12,7 @@ export default async function DashboardPage() {
 
   const userId = (session.user as any).id as string
 
-  const [enrollments, totalAgg, recentPoints] = await Promise.all([
+  const [enrollments, totalAgg, recentPoints, courseProgressRecords, pathwayCourseCounts] = await Promise.all([
     prisma.pathwayEnrollment.findMany({
       where: { userId, status: { not: "REJECTED" } },
       include: {
@@ -31,9 +31,36 @@ export default async function DashboardPage() {
     prisma.userPoint.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 5,
+      take: 3,
+    }),
+
+    // Completed courses per pathway for this user
+    prisma.courseProgress.findMany({
+      where: { userId, completed: true },
+      select: { pathwayId: true },
+    }),
+
+    // Total course count per pathway
+    prisma.pathwayCourse.groupBy({
+      by: ["pathwayId"],
+      _count: { courseId: true },
     }),
   ])
+
+  // Build completion map: pathwayId → { completed, total }
+  const completedByPathway: Record<string, number> = {}
+  for (const cp of courseProgressRecords) {
+    completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
+  }
+  const totalByPathway = Object.fromEntries(
+    pathwayCourseCounts.map((r) => [r.pathwayId, r._count.courseId])
+  )
+
+  const enrollmentsWithCompletion = enrollments.map((e) => {
+    const total = totalByPathway[e.pathwayId] ?? 0
+    const completed = completedByPathway[e.pathwayId] ?? 0
+    return { ...e, isCompleted: total > 0 && completed >= total }
+  })
 
   // Parse courseId:pathwayId from referenceId and resolve names in one batch
   const completionRefs = recentPoints
@@ -75,7 +102,7 @@ export default async function DashboardPage() {
         <h1 className="mb-6 text-2xl font-bold text-slate-900">Dashboard</h1>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <MyPathwaysCard enrollments={enrollments} />
+          <MyPathwaysCard enrollments={enrollmentsWithCompletion} />
           <MyPointsCard total={totalAgg._sum.points ?? 0} recent={pointItems} />
         </div>
       </main>

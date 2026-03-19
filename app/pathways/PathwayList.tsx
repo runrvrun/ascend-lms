@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight } from "lucide-react"
+import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut } from "lucide-react"
 import { EnrollmentStatus } from "@prisma/client"
-import { enrollPathway, requestPathway } from "./actions"
+import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
 
 type EnrollmentInfo = {
   status: EnrollmentStatus
@@ -79,7 +79,9 @@ function RequestModal({
 
 function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
   const [requesting, setRequesting] = useState(false)
+  const [unenrollConfirming, setUnenrollConfirming] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [unenrollPending, startUnenrollTransition] = useTransition()
   const { enrollment } = pathway
 
   function handleEnroll() {
@@ -88,7 +90,14 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
     })
   }
 
+  function handleUnenroll() {
+    startUnenrollTransition(async () => {
+      await unenrollPathway(pathway.id)
+    })
+  }
+
   const enrollmentStatus = enrollment?.status
+  const isEnrolled = enrollmentStatus === "APPROVED" || enrollmentStatus === "PENDING"
 
   function ActionButton() {
     if (enrollmentStatus === "APPROVED") {
@@ -164,8 +173,37 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
           </div>
         )}
 
-        <div className="mt-auto flex items-center justify-between">
+        <div className="mt-auto flex items-center justify-between gap-2">
           <ActionButton />
+
+          {isEnrolled && (
+            unenrollConfirming ? (
+              <div className="flex items-center gap-1.5 text-sm">
+                <span className="text-slate-500">Unenroll?</span>
+                <button
+                  disabled={unenrollPending}
+                  onClick={handleUnenroll}
+                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {unenrollPending ? "…" : "Yes"}
+                </button>
+                <button
+                  onClick={() => setUnenrollConfirming(false)}
+                  className="rounded-lg px-2.5 py-1 text-xs text-slate-400 hover:bg-slate-100"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setUnenrollConfirming(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              >
+                <LogOut size={12} />
+                Unenroll
+              </button>
+            )
+          )}
         </div>
       </div>
 
