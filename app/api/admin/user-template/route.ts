@@ -37,9 +37,9 @@ export async function GET() {
   wsValid["!cols"] = [{ wch: 18 }, { wch: 20 }]
   xlsx.utils.book_append_sheet(wb, wsValid, "Valid Values")
 
-  const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer
+  const buf: Uint8Array = xlsx.write(wb, { type: "buffer", bookType: "xlsx" })
 
-  return new NextResponse(buf, {
+  return new NextResponse(buf.buffer as ArrayBuffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": 'attachment; filename="user-import-template.xlsx"',
