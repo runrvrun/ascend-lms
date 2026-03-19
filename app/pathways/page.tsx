@@ -11,7 +11,7 @@ export default async function PathwaysPage() {
 
   const userId = (session.user as any).id as string
 
-  const [pathways, enrollments] = await Promise.all([
+  const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts] = await Promise.all([
     prisma.pathway.findMany({
       where: { deletedAt: null },
       select: {
@@ -19,6 +19,7 @@ export default async function PathwaysPage() {
         name: true,
         description: true,
         requiresApproval: true,
+        tags: true,
         _count: { select: { courses: true } },
       },
       orderBy: { name: "asc" },
@@ -32,16 +33,35 @@ export default async function PathwaysPage() {
         rejectionReason: true,
       },
     }),
+    prisma.courseProgress.findMany({
+      where: { userId, completed: true },
+      select: { pathwayId: true },
+    }),
+    prisma.pathwayCourse.groupBy({
+      by: ["pathwayId"],
+      _count: { courseId: true },
+    }),
   ])
 
-  const enrollmentMap = Object.fromEntries(
-    enrollments.map((e) => [e.pathwayId, e])
+  const enrollmentMap = Object.fromEntries(enrollments.map((e) => [e.pathwayId, e]))
+
+  const completedByPathway: Record<string, number> = {}
+  for (const cp of courseProgressRecords) {
+    completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
+  }
+  const totalByPathway = Object.fromEntries(
+    pathwayCourseCounts.map((r) => [r.pathwayId, r._count.courseId])
   )
 
-  const pathwayCards = pathways.map((p) => ({
-    ...p,
-    enrollment: enrollmentMap[p.id] ?? null,
-  }))
+  const pathwayCards = pathways.map((p) => {
+    const total = totalByPathway[p.id] ?? 0
+    const completed = completedByPathway[p.id] ?? 0
+    return {
+      ...p,
+      enrollment: enrollmentMap[p.id] ?? null,
+      isCompleted: total > 0 && completed >= total && (enrollmentMap[p.id]?.status === "APPROVED"),
+    }
+  })
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">

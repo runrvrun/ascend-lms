@@ -159,10 +159,11 @@ model CohortPathway {
 }
 
 model Pathway {
-  id                String  @id @default(dbgenerated("gen_random_uuid()::text"))
-  name              String  @unique
+  id                String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  name              String   @unique
   description       String?
-  requiresApproval  Boolean @default(false)
+  requiresApproval  Boolean  @default(false)
+  tags              String[] @default([])
 
   courses            PathwayCourse[]
   cohortPathways     CohortPathway[]

@@ -7,6 +7,7 @@ export type PathwayFormData = {
   name: string
   description: string
   requiresApproval: boolean
+  tags: string[]
 }
 
 export async function createPathway(data: PathwayFormData) {
@@ -15,6 +16,7 @@ export async function createPathway(data: PathwayFormData) {
       name: data.name,
       description: data.description || null,
       requiresApproval: data.requiresApproval,
+      tags: data.tags,
     },
   })
   revalidatePath("/admin/pathway")
@@ -27,6 +29,7 @@ export async function updatePathway(id: string, data: PathwayFormData) {
       name: data.name,
       description: data.description || null,
       requiresApproval: data.requiresApproval,
+      tags: data.tags,
     },
   })
   revalidatePath("/admin/pathway")

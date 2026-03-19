@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search } from "lucide-react"
+import { useState, useTransition, useRef } from "react"
+import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Tag } from "lucide-react"
 import { createPathway, updatePathway, deletePathway, PathwayFormData } from "./actions"
 
 type PathwayRow = {
@@ -9,11 +9,63 @@ type PathwayRow = {
   name: string
   description: string | null
   requiresApproval: boolean
+  tags: string[]
   _count: { courses: number; pathwayEnrollments: number }
   createdAt: Date
 }
 
-const empty: PathwayFormData = { name: "", description: "", requiresApproval: false }
+const empty: PathwayFormData = { name: "", description: "", requiresApproval: false, tags: [] }
+
+function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
+  const [input, setInput] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function addTag(value: string) {
+    const trimmed = value.trim()
+    if (trimmed && !tags.includes(trimmed)) {
+      onChange([...tags, trimmed])
+    }
+    setInput("")
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault()
+      addTag(input)
+    } else if (e.key === "Backspace" && !input && tags.length > 0) {
+      onChange(tags.slice(0, -1))
+    }
+  }
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-slate-600">Tags</label>
+      <div
+        className="flex min-h-[38px] flex-wrap gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 cursor-text focus-within:ring-2 focus-within:ring-blue-500"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {tags.map((tag) => (
+          <span key={tag} className="flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+            {tag}
+            <button type="button" onClick={() => onChange(tags.filter((t) => t !== tag))} className="hover:text-blue-900">
+              <X size={10} />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => addTag(input)}
+          placeholder={tags.length === 0 ? "Type and press Enter or comma…" : ""}
+          className="min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400"
+        />
+      </div>
+      <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add a tag</p>
+    </div>
+  )
+}
 
 function PathwayFormModal({
   title,
@@ -92,6 +144,8 @@ function PathwayFormModal({
               </div>
             </label>
           </div>
+
+          <TagInput tags={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
 
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
@@ -176,6 +230,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
             <tr>
               <th className="px-5 py-3">Name</th>
               <th className="px-5 py-3">Description</th>
+              <th className="px-5 py-3">Tags</th>
               <th className="px-5 py-3 text-center">Enrollment</th>
               <th className="px-5 py-3 text-center">Courses</th>
               <th className="px-5 py-3 text-center">Enrollments</th>
@@ -185,7 +240,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
                   {pathways.length === 0 ? "No pathways yet. Add one above." : "No pathways match your search."}
                 </td>
               </tr>
@@ -200,6 +255,17 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                 </td>
                 <td className="px-5 py-3 max-w-xs text-slate-500 truncate">
                   {p.description ?? <span className="italic text-slate-300">No description</span>}
+                </td>
+                <td className="px-5 py-3">
+                  {p.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {p.tags.map((tag) => (
+                        <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{tag}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="italic text-slate-300 text-xs">No tags</span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-center">
                   {p.requiresApproval ? (
@@ -254,7 +320,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
       {editing && (
         <PathwayFormModal
           title="Edit Pathway"
-          initial={{ name: editing.name, description: editing.description ?? "", requiresApproval: editing.requiresApproval }}
+          initial={{ name: editing.name, description: editing.description ?? "", requiresApproval: editing.requiresApproval, tags: editing.tags }}
           onClose={() => setEditing(null)}
           onSubmit={(data) => updatePathway(editing.id, data)}
         />
