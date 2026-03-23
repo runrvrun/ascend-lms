@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
-import { DashboardSidebar } from "../components/DashboardSidebar"
+import { SidebarWithStats } from "../components/SidebarWithStats"
 import { CheckCircle2, BookOpen, Map, Star } from "lucide-react"
 
 function formatDate(date: Date | string) {
@@ -65,7 +65,7 @@ export default async function LearningHistoryPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">
-      <DashboardSidebar session={session} />
+      <SidebarWithStats session={session} />
 
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
         <div className="mb-8">

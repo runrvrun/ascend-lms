@@ -3,10 +3,12 @@
 import { useState } from "react"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
-import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3 } from "lucide-react"
+import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star } from "lucide-react"
 
 interface DashboardSidebarProps {
   session: Session | null
+  streak?: number
+  totalPoints?: number
 }
 
 const sidebarBackground = {
@@ -39,7 +41,7 @@ function UserAvatar({ name, image }: { name?: string | null; image?: string | nu
   )
 }
 
-export function DashboardSidebar({ session }: DashboardSidebarProps) {
+export function DashboardSidebar({ session, streak = 0, totalPoints = 0 }: DashboardSidebarProps) {
   const roles = ((session?.user as any)?.roles as string[]) ?? []
   const isAdmin = roles.includes("ADMIN")
   const isDevManager = roles.includes("DEVMANAGER")
@@ -149,16 +151,28 @@ export function DashboardSidebar({ session }: DashboardSidebarProps) {
       </div>
 
       <div className="px-4 pb-6 pt-2">
-        <div className="flex items-center gap-3 rounded-xl bg-white/10 p-3">
-          <UserAvatar name={session?.user?.name} image={session?.user?.image} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white">{session?.user?.name ?? "Unknown"}</p>
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              className="text-xs text-blue-200 hover:text-white"
-            >
-              Sign out
-            </button>
+        <div className="rounded-xl bg-white/10 p-3">
+          <div className="flex items-center gap-3">
+            <UserAvatar name={session?.user?.name} image={session?.user?.image} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white">{session?.user?.name ?? "Unknown"}</p>
+              <button
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="text-xs text-blue-200 hover:text-white"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${streak > 0 ? "bg-orange-500/30 text-orange-200" : "bg-white/10 text-white/40"}`}>
+              <Flame size={11} className={streak > 0 ? "text-orange-300" : ""} />
+              {streak > 0 ? `${streak}-day streak` : "No streak"}
+            </div>
+            <div className="flex items-center gap-1 rounded-full bg-yellow-500/20 px-2.5 py-1 text-xs font-semibold text-yellow-200">
+              <Star size={11} className="text-yellow-300" />
+              {totalPoints.toLocaleString()} pts
+            </div>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
-import { DashboardSidebar } from "../../components/DashboardSidebar"
+import { SidebarWithStats } from "../../components/SidebarWithStats"
 import { PathwayViewer } from "./PathwayViewer"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -74,7 +74,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">
-      <DashboardSidebar session={session} />
+      <SidebarWithStats session={session} />
       <PathwayViewer
         pathway={pathway}
         completedContentIds={completedContentIds}

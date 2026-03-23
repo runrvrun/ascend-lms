@@ -609,7 +609,7 @@ function ContentViewer({
         }`}
       >
         {done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-        {done ? "Completed" : "Mark as Completed"}
+        {done ? "Completed" : pending ? "Marking as Completed…" : "Mark as Completed"}
       </button>
     )
   }
@@ -849,9 +849,15 @@ export function PathwayViewer({
 
       {/* Completion banner */}
       {isPathwayComplete && (
-        <div className="flex shrink-0 items-center justify-center gap-2 bg-green-600 px-4 py-2 text-sm font-semibold text-white">
+        <div className="flex shrink-0 items-center justify-center gap-3 bg-green-600 px-4 py-2 text-sm font-semibold text-white">
           <Trophy size={15} />
           Congratulations! You have completed the {pathway.name} pathway.
+          <a
+            href={`/pathways/${pathway.id}/certificate`}
+            className="ml-2 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-0.5 text-xs hover:bg-white/30"
+          >
+            View Certificate →
+          </a>
         </div>
       )}
 

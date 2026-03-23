@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { Plus, Pencil, Trash2, X, Users, Search, ChevronDown, BarChart2 } from "lucide-react"
+import { Plus, Pencil, Trash2, X, Users, Search, ChevronDown, BarChart2, BookOpen } from "lucide-react"
 import { createCohort, updateCohort, deleteCohort } from "./actions"
 
 type CohortRow = {
@@ -228,6 +228,7 @@ export function CohortManagement({ cohorts }: { cohorts: CohortRow[] }) {
                 <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
                   <ActionsMenu items={[
                     { label: "Members", icon: <Users size={14} />, href: `/admin/cohort/${c.id}` },
+                    { label: "Pathways", icon: <BookOpen size={14} />, href: `/admin/cohort/${c.id}/pathways` },
                     { label: "View Progress", icon: <BarChart2 size={14} />, href: `/admin/cohort/${c.id}/progress` },
                     { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(c) },
                     { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(c), variant: "danger" },

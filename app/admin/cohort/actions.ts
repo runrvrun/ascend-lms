@@ -39,3 +39,15 @@ export async function removeUserFromCohort(id: string, cohortId: string) {
   await prisma.cohortUser.delete({ where: { id } })
   revalidatePath(`/admin/cohort/${cohortId}`)
 }
+
+// ── Cohort Pathways ───────────────────────────────────────────────────────────
+
+export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
+  await prisma.cohortPathway.create({ data: { cohortId, pathwayId } })
+  revalidatePath(`/admin/cohort/${cohortId}`)
+}
+
+export async function removePathwayFromCohort(id: string, cohortId: string) {
+  await prisma.cohortPathway.delete({ where: { id } })
+  revalidatePath(`/admin/cohort/${cohortId}`)
+}

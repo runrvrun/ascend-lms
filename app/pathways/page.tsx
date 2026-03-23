@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
-import { DashboardSidebar } from "../components/DashboardSidebar"
+import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
 
 export default async function PathwaysPage() {
@@ -14,7 +14,7 @@ export default async function PathwaysPage() {
 
   const userId = (session.user as any).id as string
 
-  const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts] = await Promise.all([
+  const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts, currentUser, divisionEnrollments] = await Promise.all([
     prisma.pathway.findMany({
       where: { deletedAt: null, status: "PUBLISHED" },
       select: {
@@ -44,6 +44,14 @@ export default async function PathwaysPage() {
       where: { course: { status: "PUBLISHED", deletedAt: null } },
       select: { pathwayId: true },
     }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { division: true },
+    }),
+    prisma.pathwayEnrollment.findMany({
+      where: { status: "APPROVED" },
+      select: { pathwayId: true, user: { select: { division: true } } },
+    }),
   ])
 
   const enrollmentMap = Object.fromEntries(enrollments.map((e) => [e.pathwayId, e]))
@@ -72,14 +80,23 @@ export default async function PathwaysPage() {
     }
   })
 
-  // Top 2 recommendations: unenrolled/uncompleted, ranked by total enrollment count
+  // Count approved enrollments per pathway scoped to the current user's division
+  const userDivision = currentUser?.division
+  const divisionEnrollmentCount: Record<string, number> = {}
+  for (const e of divisionEnrollments) {
+    if (e.user.division === userDivision) {
+      divisionEnrollmentCount[e.pathwayId] = (divisionEnrollmentCount[e.pathwayId] ?? 0) + 1
+    }
+  }
+
+  // Top 2 recommendations: unenrolled/uncompleted, ranked by same-division enrollment count
   const recommendedIds = new Set(
     pathwayCards
       .filter((p) => {
         const status = p.enrollment?.status
         return (!status || status === "REJECTED") && !p.isCompleted
       })
-      .sort((a, b) => b._count.pathwayEnrollments - a._count.pathwayEnrollments)
+      .sort((a, b) => (divisionEnrollmentCount[b.id] ?? 0) - (divisionEnrollmentCount[a.id] ?? 0))
       .slice(0, 2)
       .map((p) => p.id)
   )
@@ -91,7 +108,7 @@ export default async function PathwaysPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">
-      <DashboardSidebar session={session} />
+      <SidebarWithStats session={session} />
 
       <main className="mx-auto min-h-screen w-full max-w-5xl p-6 md:p-10">
         <div className="mb-6">

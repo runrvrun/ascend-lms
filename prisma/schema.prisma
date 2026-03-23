@@ -389,3 +389,27 @@ model UserPoint {
 enum PointSource {
   COURSE_COMPLETION
 }
+
+model ContentProgress {
+  @@index([userId, pathwayId])   // progress page: filter by user+pathway
+  @@index([pathwayId])           // cohort progress aggregation
+}
+model CourseProgress {
+  @@index([userId, pathwayId])
+  @@index([pathwayId, completed])
+}
+model PathwayEnrollment {
+  @@index([userId, status])
+  @@index([pathwayId, status])
+  @@index([cohortId])
+}
+model CohortUser {
+  @@index([cohortId])
+  @@index([userId])
+}
+model PathwayCourse {
+  @@index([pathwayId])
+}
+model UserPoint {
+  @@index([userId])
+}

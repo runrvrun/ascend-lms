@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
-import { DashboardSidebar } from "../components/DashboardSidebar"
+import { SidebarWithStats } from "../components/SidebarWithStats"
 
 export default async function DevManagerLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -12,7 +12,7 @@ export default async function DevManagerLayout({ children }: { children: React.R
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">
-      <DashboardSidebar session={session} />
+      <SidebarWithStats session={session} />
       {children}
     </div>
   )
