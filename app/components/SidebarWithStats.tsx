@@ -43,7 +43,7 @@ function computeStreak(dates: Date[]): number {
 export async function SidebarWithStats({ session }: { session: Session | null }) {
   const userId = (session?.user as any)?.id as string | undefined
 
-  const [progressDates, pointsAgg] = userId
+  const [progressDates, pointsAgg, unreadCount] = userId
     ? await Promise.all([
         prisma.contentProgress.findMany({
           where: { userId },
@@ -53,11 +53,14 @@ export async function SidebarWithStats({ session }: { session: Session | null })
           where: { userId },
           _sum: { points: true },
         }),
+        prisma.notification.count({
+          where: { userId, read: false },
+        }),
       ])
-    : [[], { _sum: { points: null } }]
+    : [[], { _sum: { points: null } }, 0]
 
   const streak = computeStreak(progressDates.map((r) => r.completedAt))
   const totalPoints = pointsAgg._sum.points ?? 0
 
-  return <DashboardSidebar session={session} streak={streak} totalPoints={totalPoints} />
+  return <DashboardSidebar session={session} streak={streak} totalPoints={totalPoints} unreadNotifications={unreadCount} />
 }

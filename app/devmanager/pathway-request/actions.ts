@@ -19,8 +19,19 @@ export async function approveRequest(enrollmentId: string) {
     where: { id: enrollmentId },
     data: { status: "APPROVED", approvedById: devManagerId },
     select: {
+      userId: true,
+      pathwayId: true,
       user: { select: { name: true, email: true } },
-      pathway: { select: { name: true } },
+      pathway: { select: { id: true, name: true } },
+    },
+  })
+
+  await prisma.notification.create({
+    data: {
+      userId: enrollment.userId,
+      type: "ENROLLMENT_APPROVED",
+      message: `Your enrollment request for "${enrollment.pathway.name}" has been approved.`,
+      pathwayId: enrollment.pathway.id,
     },
   })
 
@@ -45,8 +56,10 @@ export async function rejectRequest(enrollmentId: string, rejectionReason: strin
       where: { id: enrollmentId },
       data: { status: "REJECTED", rejectionReason },
       select: {
+        userId: true,
+        pathwayId: true,
         user: { select: { name: true, email: true } },
-        pathway: { select: { name: true } },
+        pathway: { select: { id: true, name: true } },
       },
     }),
     prisma.user.findUnique({
@@ -54,6 +67,15 @@ export async function rejectRequest(enrollmentId: string, rejectionReason: strin
       select: { name: true },
     }),
   ])
+
+  await prisma.notification.create({
+    data: {
+      userId: enrollment.userId,
+      type: "ENROLLMENT_REJECTED",
+      message: `Your enrollment request for "${enrollment.pathway.name}" was not approved. Reason: ${rejectionReason}`,
+      pathwayId: enrollment.pathway.id,
+    },
+  })
 
   revalidatePath("/devmanager/pathway-request")
   revalidatePath("/pathways")

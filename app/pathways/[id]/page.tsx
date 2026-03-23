@@ -80,6 +80,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         completedContentIds={completedContentIds}
         completedCourseIds={completedCourseIds}
         isPathwayComplete={isPathwayComplete}
+        currentUserId={userId}
       />
     </div>
   )

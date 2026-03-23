@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
-import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star } from "lucide-react"
+import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell } from "lucide-react"
 
 interface DashboardSidebarProps {
   session: Session | null
   streak?: number
   totalPoints?: number
+  unreadNotifications?: number
 }
 
 const sidebarBackground = {
@@ -41,7 +42,7 @@ function UserAvatar({ name, image }: { name?: string | null; image?: string | nu
   )
 }
 
-export function DashboardSidebar({ session, streak = 0, totalPoints = 0 }: DashboardSidebarProps) {
+export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadNotifications = 0 }: DashboardSidebarProps) {
   const roles = ((session?.user as any)?.roles as string[]) ?? []
   const isAdmin = roles.includes("ADMIN")
   const isDevManager = roles.includes("DEVMANAGER")
@@ -163,6 +164,14 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0 }: Dashb
                 Sign out
               </button>
             </div>
+            <a href="/notifications" className="relative shrink-0 rounded-lg p-1.5 text-white/70 hover:bg-white/15 hover:text-white">
+              <Bell size={16} />
+              {unreadNotifications > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                </span>
+              )}
+            </a>
           </div>
           <div className="mt-2.5 flex items-center gap-2">
             <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${streak > 0 ? "bg-orange-500/30 text-orange-200" : "bg-white/10 text-white/40"}`}>

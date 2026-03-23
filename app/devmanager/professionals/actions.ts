@@ -10,16 +10,30 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
   if (!session?.user) throw new Error("Not authenticated")
   const devManagerId = (session.user as any).id as string
 
-  await prisma.pathwayEnrollment.create({
+  const [, manager, pathway] = await Promise.all([
+    prisma.pathwayEnrollment.create({
+      data: {
+        userId,
+        pathwayId,
+        type: "ASSIGNED",
+        status: "APPROVED",
+        approvedById: devManagerId,
+        deadline: deadline ? new Date(deadline) : null,
+      },
+    }),
+    prisma.user.findUnique({ where: { id: devManagerId }, select: { name: true } }),
+    prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
+  ])
+
+  await prisma.notification.create({
     data: {
       userId,
+      type: "PATHWAY_ASSIGNED",
+      message: `${manager?.name ?? "Your development manager"} assigned you to "${pathway?.name ?? "a pathway"}".`,
       pathwayId,
-      type: "ASSIGNED",
-      status: "APPROVED",
-      approvedById: devManagerId,
-      deadline: deadline ? new Date(deadline) : null,
     },
   })
+
   revalidatePath("/devmanager/professionals")
   revalidatePath("/dashboard")
 }

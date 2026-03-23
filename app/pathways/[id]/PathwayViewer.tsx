@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { toggleContentComplete, submitTest } from "../actions"
+import { ContentDiscussion } from "../../components/ContentDiscussion"
 
 type ContentItem = {
   id: string
@@ -586,11 +587,13 @@ function ContentViewer({
   pathwayId,
   completedContentIds,
   completedCourseIds,
+  currentUserId,
 }: {
   selection: Selection | null
   pathwayId: string
   completedContentIds: Set<string>
   completedCourseIds: Set<string>
+  currentUserId: string
 }) {
   const [pending, startTransition] = useTransition()
 
@@ -646,6 +649,7 @@ function ContentViewer({
         <div className="mt-8">
           <CompleteButton contentId={content.id} />
         </div>
+        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>
     )
   }
@@ -670,30 +674,34 @@ function ContentViewer({
         <div className="mt-6">
           <CompleteButton contentId={content.id} />
         </div>
+        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>
     )
   }
 
   // LINK
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-        <Link2 size={26} className="text-slate-500" />
+    <div className="h-full overflow-y-auto p-8">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+          <Link2 size={26} className="text-slate-500" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
+          <p className="mt-1 max-w-sm text-sm text-slate-500 break-all">{content.value}</p>
+        </div>
+        <a
+          href={content.value}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          Open Link
+          <ExternalLink size={14} />
+        </a>
+        <CompleteButton contentId={content.id} />
       </div>
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
-        <p className="mt-1 max-w-sm text-sm text-slate-500 break-all">{content.value}</p>
-      </div>
-      <a
-        href={content.value}
-        target="_blank"
-        rel="noreferrer"
-        className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-      >
-        Open Link
-        <ExternalLink size={14} />
-      </a>
-      <CompleteButton contentId={content.id} />
+      <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
     </div>
   )
 }
@@ -808,11 +816,13 @@ export function PathwayViewer({
   completedContentIds,
   completedCourseIds,
   isPathwayComplete,
+  currentUserId,
 }: {
   pathway: PathwayData
   completedContentIds: Set<string>
   completedCourseIds: Set<string>
   isPathwayComplete: boolean
+  currentUserId: string
 }) {
   const firstCourse = pathway.courses[0]?.course
   const firstContent = firstCourse?.contents[0]
@@ -889,6 +899,7 @@ export function PathwayViewer({
             pathwayId={pathway.id}
             completedContentIds={completedContentIds}
             completedCourseIds={completedCourseIds}
+            currentUserId={currentUserId}
           />
         </main>
       </div>

@@ -43,7 +43,27 @@ export async function removeUserFromCohort(id: string, cohortId: string) {
 // ── Cohort Pathways ───────────────────────────────────────────────────────────
 
 export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
-  await prisma.cohortPathway.create({ data: { cohortId, pathwayId } })
+  const [, cohort, pathway] = await Promise.all([
+    prisma.cohortPathway.create({ data: { cohortId, pathwayId } }),
+    prisma.cohort.findUnique({
+      where: { id: cohortId },
+      select: { name: true, users: { select: { userId: true } } },
+    }),
+    prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
+  ])
+
+  if (cohort && pathway && cohort.users.length > 0) {
+    await prisma.notification.createMany({
+      data: cohort.users.map((u) => ({
+        userId: u.userId,
+        type: "COHORT_PATHWAY_ASSIGNED" as const,
+        message: `A new pathway "${pathway.name}" has been assigned to your cohort "${cohort.name}".`,
+        pathwayId,
+      })),
+      skipDuplicates: true,
+    })
+  }
+
   revalidatePath(`/admin/cohort/${cohortId}`)
 }
 
