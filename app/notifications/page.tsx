@@ -8,6 +8,7 @@ import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { ArrowLeft, Bell, MessageCircle, CheckCircle2, XCircle, BookOpen, Users } from "lucide-react"
 import { markAllNotificationsRead } from "../discussions/actions"
+import { NotificationLink } from "./NotificationLink"
 
 function timeAgo(date: Date) {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
@@ -110,13 +111,14 @@ export default async function NotificationsPage() {
                       <div className="mt-1.5 flex items-center gap-3">
                         <span className="text-xs text-slate-400">{timeAgo(n.createdAt)}</span>
                         {pathway && (
-                          <a
+                          <NotificationLink
+                            notificationId={n.id}
                             href={`/pathways/${pathway.id}`}
                             className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
                           >
                             <BookOpen size={11} />
                             Open pathway
-                          </a>
+                          </NotificationLink>
                         )}
                       </div>
                     </div>
