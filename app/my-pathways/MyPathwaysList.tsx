@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { EnrollmentStatus, EnrollmentType } from "@prisma/client"
-import { Map, XCircle, ArrowRight, CheckCircle2, LogOut } from "lucide-react"
+import { Map, XCircle, ArrowRight, CheckCircle2, LogOut, Search } from "lucide-react"
 import { unenrollPathway } from "../pathways/actions"
 
 type PathwayEnrollmentItem = {
@@ -27,13 +27,10 @@ function enrollmentLabel(item: PathwayEnrollmentItem): string {
 
 function DeadlineChip({ deadline }: { deadline: Date | null }) {
   if (!deadline) return null
-
-  const days = Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const days = Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   const overdue = days < 0
-
   const label = overdue ? `${Math.abs(days)}d overdue` : `${days}d left`
   const cls = overdue ? "bg-red-100 text-red-700" : days <= 7 ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-600"
-
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
 }
 
@@ -110,53 +107,67 @@ function EnrollmentRow({ item }: { item: PathwayEnrollmentItem }) {
   )
 }
 
-export function MyPathwaysCard({ enrollments }: { enrollments: PathwayEnrollmentItem[] }) {
-  // Sort: Open (approved + not completed) → Awaiting Approval (pending) → Completed
+export function MyPathwaysList({ enrollments }: { enrollments: PathwayEnrollmentItem[] }) {
+  const [search, setSearch] = useState("")
+
   const sorted = [...enrollments].sort((a, b) => {
-    const rank = (e: PathwayEnrollmentItem) => {
-      if (e.isCompleted) return 2
-      if (e.status === "PENDING") return 1
-      return 0
-    }
+    const rank = (e: PathwayEnrollmentItem) => e.isCompleted ? 2 : e.status === "PENDING" ? 1 : 0
     return rank(a) - rank(b)
   })
 
-  const preview = sorted.slice(0, 5)
-  const hasMore = enrollments.length > 5
+  const filtered = search.trim()
+    ? sorted.filter((e) => e.pathway.name.toLowerCase().includes(search.toLowerCase()))
+    : sorted
+
+  const active = filtered.filter((e) => !e.isCompleted && e.status !== "PENDING")
+  const pending = filtered.filter((e) => e.status === "PENDING")
+  const completed = filtered.filter((e) => e.isCompleted)
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-4">
-        <Map size={18} className="text-blue-600" />
-        <h2 className="font-semibold text-slate-900">My Pathways</h2>
-        <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-          {enrollments.length}
-        </span>
+    <div className="flex flex-col gap-6">
+      {/* Search */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search pathways…"
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
-      {enrollments.length === 0 ? (
-        <div className="px-6 py-10 text-center text-sm text-slate-400">
-          No pathways enrolled yet.
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-14 text-center text-sm text-slate-400 shadow-sm">
+          {enrollments.length === 0 ? "No pathways enrolled yet." : "No pathways match your search."}
         </div>
       ) : (
         <>
-          <ul className="divide-y divide-slate-100">
-            {preview.map((item) => (
-              <EnrollmentRow key={item.id} item={item} />
-            ))}
-          </ul>
-          {hasMore && (
-            <div className="border-t border-slate-100 px-6 py-3">
-              <a
-                href="/my-pathways"
-                className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
-              >
-                View all {enrollments.length} pathways <ArrowRight size={12} />
-              </a>
-            </div>
+          {active.length > 0 && (
+            <Section title="In Progress" count={active.length} items={active} />
+          )}
+          {pending.length > 0 && (
+            <Section title="Awaiting Approval" count={pending.length} items={pending} />
+          )}
+          {completed.length > 0 && (
+            <Section title="Completed" count={completed.length} items={completed} />
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function Section({ title, count, items }: { title: string; count: number; items: PathwayEnrollmentItem[] }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-3">
+        <Map size={15} className="text-blue-500" />
+        <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
+        <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{count}</span>
+      </div>
+      <ul className="divide-y divide-slate-100">
+        {items.map((item) => <EnrollmentRow key={item.id} item={item} />)}
+      </ul>
     </div>
   )
 }
