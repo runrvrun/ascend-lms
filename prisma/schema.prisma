@@ -233,6 +233,7 @@ model Content {
   title    String
   type     ContentType
   value    String // text OR URL (SharePoint link, video, etc.)
+  duration Int?   // video length in seconds (used for SharePoint progress tracking)
 
   order Int
 

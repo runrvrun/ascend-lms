@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
 import {
   ArrowLeft,
   BookOpen,
@@ -21,6 +21,7 @@ import {
 import { ContentType } from "@prisma/client"
 import { toggleContentComplete, submitTest } from "../actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
+import { VideoPlayer } from "./VideoPlayer"
 
 type ContentItem = {
   id: string
@@ -28,6 +29,7 @@ type ContentItem = {
   type: ContentType
   value: string
   order: number
+  duration: number | null
 }
 
 type QuestionOption = {
@@ -83,16 +85,6 @@ type TestResult = {
   wrongAnswers: { question: string; userAnswer: string; correctAnswer: string }[]
 }
 
-// ─── Video embed helper ──────────────────────────────────────────────────────
-
-function getVideoEmbed(url: string): string | null {
-  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
-  const vimeo = url.match(/vimeo\.com\/(\d+)/)
-  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`
-  if (url.includes("sharepoint.com") || url.includes("microsoftstream.com")) return url
-  return null
-}
 
 // ─── Ranking question ────────────────────────────────────────────────────────
 
@@ -596,24 +588,43 @@ function ContentViewer({
   currentUserId: string
 }) {
   const [pending, startTransition] = useTransition()
+  const [videoProgress, setVideoProgress] = useState(0)
+  const contentId = selection?.kind === "content" ? selection.content.id : null
+  const prevContentIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (contentId !== prevContentIdRef.current) {
+      prevContentIdRef.current = contentId
+      setVideoProgress(0)
+    }
+  }, [contentId])
 
-  function CompleteButton({ contentId }: { contentId: string }) {
+  function CompleteButton({ contentId, videoGated = false }: { contentId: string; videoGated?: boolean }) {
     const done = completedContentIds.has(contentId)
+    const notReady = videoGated && !done && videoProgress < 0.75
     return (
-      <button
-        disabled={pending}
-        onClick={() =>
-          startTransition(() => toggleContentComplete(contentId, pathwayId, !done))
-        }
-        className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-          done
-            ? "bg-green-100 text-green-700 hover:bg-green-200"
-            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-        }`}
-      >
-        {done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
-        {done ? "Completed" : pending ? "Marking as Completed…" : "Mark as Completed"}
-      </button>
+      <div className="flex flex-col gap-1.5">
+        <button
+          disabled={pending || notReady}
+          onClick={() =>
+            startTransition(() => toggleContentComplete(contentId, pathwayId, !done))
+          }
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+            done
+              ? "bg-green-100 text-green-700 hover:bg-green-200"
+              : notReady
+              ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          {done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+          {done ? "Completed" : pending ? "Marking as Completed…" : "Mark as Completed"}
+        </button>
+        {notReady && (
+          <p className="text-xs text-slate-400">
+            Watch at least 75% to unlock — {Math.round(videoProgress * 100)}% watched
+          </p>
+        )}
+      </div>
     )
   }
 
@@ -655,24 +666,12 @@ function ContentViewer({
   }
 
   if (content.type === "VIDEO") {
-    const embedUrl = getVideoEmbed(content.value)
     return (
       <div className="h-full overflow-y-auto p-6 md:p-8">
         <h2 className="mb-4 text-xl font-bold text-slate-900">{content.title}</h2>
-        {embedUrl ? (
-          <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-            <iframe
-              src={embedUrl}
-              className="absolute inset-0 h-full w-full rounded-xl"
-              allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-            />
-          </div>
-        ) : (
-          <video src={content.value} controls className="w-full rounded-xl bg-black" />
-        )}
+        <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} onProgress={setVideoProgress} />
         <div className="mt-6">
-          <CompleteButton contentId={content.id} />
+          <CompleteButton contentId={content.id} videoGated />
         </div>
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>

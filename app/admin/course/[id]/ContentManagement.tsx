@@ -11,6 +11,7 @@ type ContentRow = {
   type: ContentType
   value: string
   order: number
+  duration: number | null
 }
 
 const TYPE_LABELS: Record<ContentType, string> = {
@@ -137,9 +138,64 @@ function ContentFormModal({
                 />
                 {form.type === "VIDEO" && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint/Stream recordings: open the video in Stream → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → copy the <span className="font-mono font-medium text-slate-700">src</span> URL from the iframe code up to the uniqueId code. 
+                    For SharePoint/Stream recordings: open the video in Stream → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → copy the <span className="font-mono font-medium text-slate-700">src</span> URL from the iframe code up to the uniqueId code.
                     <br/>Example: https://ycphd.sharepoint.com/sites/2_Academy/_layouts/15/embed.aspx?UniqueId=92da88a0-c7fe-4eba-899a-0f18944cdd54
                   </p>
+                )}
+                {form.type === "VIDEO" && (form.value.includes("sharepoint.com") || form.value.includes("microsoftstream.com")) && (
+                  <div className="mt-3">
+                    <label className="mb-1 block text-xs font-medium text-slate-600">
+                      Video length <span className="text-slate-400">(used to track watch progress of SharePoint videos)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.duration != null ? Math.floor(form.duration / 3600) : ""}
+                        onChange={(e) => {
+                          const h = parseInt(e.target.value) || 0
+                          const rest = form.duration != null ? form.duration % 3600 : 0
+                          const total = h * 3600 + rest
+                          setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
+                        }}
+                        placeholder="0"
+                        className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-500">h</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        value={form.duration != null ? Math.floor((form.duration % 3600) / 60) : ""}
+                        onChange={(e) => {
+                          const m = Math.min(59, parseInt(e.target.value) || 0)
+                          const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
+                          const s = form.duration != null ? form.duration % 60 : 0
+                          const total = h * 3600 + m * 60 + s
+                          setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
+                        }}
+                        placeholder="0"
+                        className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-500">m</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        value={form.duration != null ? form.duration % 60 : ""}
+                        onChange={(e) => {
+                          const s = Math.min(59, parseInt(e.target.value) || 0)
+                          const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
+                          const m = form.duration != null ? Math.floor((form.duration % 3600) / 60) : 0
+                          const total = h * 3600 + m * 60 + s
+                          setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
+                        }}
+                        placeholder="0"
+                        className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-500">s</span>
+                    </div>
+                  </div>
                 )}
               </>
             )}
@@ -259,7 +315,7 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
       {creating && (
         <ContentFormModal
           title="Add Content"
-          initial={{ title: "", type: "TEXT", value: "", order: nextOrder }}
+          initial={{ title: "", type: "TEXT", value: "", order: nextOrder, duration: null }}
           nextOrder={nextOrder}
           courseId={courseId}
           onClose={() => setCreating(false)}
@@ -269,7 +325,7 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
       {editing && (
         <ContentFormModal
           title="Edit Content"
-          initial={{ title: editing.title, type: editing.type, value: editing.value, order: editing.order }}
+          initial={{ title: editing.title, type: editing.type, value: editing.value, order: editing.order, duration: editing.duration }}
           nextOrder={nextOrder}
           courseId={courseId}
           onClose={() => setEditing(null)}

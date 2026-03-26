@@ -14,6 +14,7 @@ export type ContentFormData = {
   type: ContentType
   value: string
   order: number
+  duration: number | null // seconds, only relevant for VIDEO
 }
 
 export async function createCourse(data: CourseFormData) {
@@ -44,7 +45,7 @@ export async function deleteCourse(id: string) {
 
 export async function createContent(courseId: string, data: ContentFormData) {
   await prisma.content.create({
-    data: { courseId, title: data.title, type: data.type, value: data.value, order: data.order },
+    data: { courseId, title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
   })
   revalidatePath(`/admin/course/${courseId}`)
 }
@@ -52,7 +53,7 @@ export async function createContent(courseId: string, data: ContentFormData) {
 export async function updateContent(id: string, courseId: string, data: ContentFormData) {
   await prisma.content.update({
     where: { id },
-    data: { title: data.title, type: data.type, value: data.value, order: data.order },
+    data: { title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
   })
   revalidatePath(`/admin/course/${courseId}`)
 }
