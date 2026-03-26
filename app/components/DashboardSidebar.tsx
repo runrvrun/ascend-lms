@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
-import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell } from "lucide-react"
+import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell, Settings, KeyRound, LogOut } from "lucide-react"
 
 interface DashboardSidebarProps {
   session: Session | null
@@ -38,6 +38,50 @@ function UserAvatar({ name, image }: { name?: string | null; image?: string | nu
   return (
     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 ring-2 ring-white/30 text-xs font-bold text-white">
       {initials || "?"}
+    </div>
+  )
+}
+
+function SettingsMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  return (
+    <div className="relative ml-auto" ref={ref}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title="Settings"
+        className={`rounded-lg p-1 transition-colors ${open ? "bg-white/20 text-white" : "text-white/40 hover:bg-white/15 hover:text-white/80"}`}
+      >
+        <Settings size={14} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-2 z-[9999] w-44 rounded-xl border border-white/10 bg-[#0d2a6e] py-1 shadow-xl">
+          <a
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-4 py-2 text-xs text-blue-100 hover:bg-white/10"
+          >
+            <KeyRound size={13} />
+            Change Password
+          </a>
+          <button
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="flex w-full items-center gap-2.5 px-4 py-2 text-xs text-red-300 hover:bg-white/10"
+          >
+            <LogOut size={13} />
+            Sign out
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -157,12 +201,6 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
             <UserAvatar name={session?.user?.name} image={session?.user?.image} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">{session?.user?.name ?? "Unknown"}</p>
-              <button
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="text-xs text-blue-200 hover:text-white"
-              >
-                Sign out
-              </button>
             </div>
             <a href="/notifications" className="relative shrink-0 rounded-lg p-1.5 text-white/70 hover:bg-white/15 hover:text-white">
               <Bell size={16} />
@@ -182,6 +220,7 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
               <Star size={11} className="text-yellow-300" />
               {totalPoints.toLocaleString()} pts
             </div>
+            <SettingsMenu />
           </div>
         </div>
       </div>

@@ -1,8 +1,10 @@
 import NextAuth, { type AuthOptions } from "next-auth"
 import AzureADProvider from "next-auth/providers/azure-ad"
+import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
-import { PrismaClient, Division, JobTitle } from "@prisma/client"
+import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
+import bcrypt from "bcryptjs"
 
 export const runtime = "nodejs"
 
@@ -33,40 +35,72 @@ export const authOptions: AuthOptions = {
         },
       },
     }),
-  ],
-  session: {
-    strategy: "database",
-    maxAge: 30 * 24 * 60 * 60,
-    updateAge: 24 * 60 * 60,
-  },
-  callbacks: {
-    async signIn({ user }: { user: any; account?: any }) {
-      if (!user.email) {
-        return false
-      }
+    CredentialsProvider({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null
 
-      const existing = await prisma.user.findUnique({
-        where: { email: user.email },
-        include: { roles: true },
-      })
-
-      if (!existing) {
-        return "/auth/error?error=UserNotFound"
-      }
-
-      ;(user as any).id = existing.id
-      ;(user as any).roles = existing.roles.map((roleItem) => roleItem.role)
-
-      return true
-    },
-    async session({ session, user }: { session: any; user: any }) {
-      if (session.user) {
-        session.user.id = user.id
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email.toLowerCase() },
           include: { roles: true },
         })
-        session.user.roles = dbUser?.roles.map((r) => r.role) ?? []
+
+        if (!user || !user.password) return null
+        if (user.deletedAt) return null
+
+        const valid = await bcrypt.compare(credentials.password, user.password)
+        if (!valid) return null
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          roles: user.roles.map((r) => r.role),
+        }
+      },
+    }),
+  ],
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60,
+  },
+  callbacks: {
+    async signIn({ user, account }) {
+      // For Azure AD, verify the user exists in our DB
+      if (account?.provider === "azure-ad") {
+        if (!user.email) return false
+        const existing = await prisma.user.findUnique({
+          where: { email: user.email },
+          select: { id: true, deletedAt: true },
+        })
+        if (!existing || existing.deletedAt) return "/auth/error?error=UserNotFound"
+        ;(user as any).id = existing.id
+      }
+      return true
+    },
+    async jwt({ token, user, account }) {
+      if (user) {
+        // First sign-in: populate token from the user object
+        token.id = (user as any).id ?? user.id
+        token.roles = (user as any).roles ?? []
+      } else if (token.id) {
+        // Subsequent requests: refresh roles from DB
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          include: { roles: true },
+        })
+        token.roles = dbUser?.roles.map((r) => r.role) ?? []
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session.user && token) {
+        (session.user as any).id = token.id
+        ;(session.user as any).roles = token.roles
       }
       return session
     },

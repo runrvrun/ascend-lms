@@ -37,6 +37,10 @@ model User {
   replyMentions     Comment[]        @relation("CommentReplyTo")
   notifications     Notification[]
 
+  password              String?
+  activationToken       String?
+  activationTokenExpiry DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?

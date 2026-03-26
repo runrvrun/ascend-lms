@@ -1,7 +1,7 @@
 // Email utility — currently routes through Mailtrap sandbox (emails captured, not delivered).
 // To switch to Resend in production, replace `send()` with the Resend API call.
 
-const BASE_URL = process.env.NEXTAUTH_URL ?? "http://localhost:3000"
+const BASE_URL = process.env.NEXTAUTH_URL ?? "https://ycp-ascend-lms.vercel.app"
 
 async function send(to: string, subject: string, html: string) {
   const token = process.env.MAILTRAP_TOKEN
@@ -20,7 +20,7 @@ async function send(to: string, subject: string, html: string) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        from: { email: "noreply@ascend-lms.com", name: "Ascend LMS" },
+        from: { email: "noreply-ascend@ycp.com", name: "Ascend LMS" },
         to: [{ email: to }],
         subject,
         html,
@@ -62,6 +62,25 @@ function layout(body: string) {
   </table>
 </body>
 </html>`
+}
+
+export async function sendAccountActivation(to: string, userName: string, token: string) {
+  const link = `${BASE_URL}/auth/activate?token=${token}`
+  await send(
+    to,
+    "Set your Ascend LMS password",
+    layout(`
+      <p>Hi <strong>${userName}</strong>,</p>
+      <p>An account has been created for you on <strong>Ascend LMS</strong>. Click the button below to set your password and activate your account.</p>
+      <p style="margin-top:24px;">
+        <a href="${link}"
+           style="background:#194693;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;">
+          Set My Password
+        </a>
+      </p>
+      <p style="margin-top:20px;font-size:12px;color:#64748b;">This link expires in 48 hours. If you did not expect this email, you can safely ignore it.</p>
+    `)
+  )
 }
 
 export async function sendEnrollmentApproved(to: string, userName: string, pathwayName: string) {

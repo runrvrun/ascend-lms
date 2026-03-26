@@ -2,8 +2,8 @@
 
 import { useState, useTransition, useRef, useEffect } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
-import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown } from "lucide-react"
-import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, UserFormData, BulkImportResult } from "./actions"
+import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown, Mail, KeyRound } from "lucide-react"
+import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, UserFormData, BulkImportResult } from "./actions"
 
 type DevManager = { id: string; name: string | null }
 type CohortOption = { id: string; name: string }
@@ -420,6 +420,70 @@ function DeleteConfirm({ name, onCancel, onConfirm }: { name: string | null; onC
   )
 }
 
+function ChangePasswordModal({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const [newPw, setNewPw] = useState("")
+  const [confirm, setConfirm] = useState("")
+  const [error, setError] = useState("")
+  const [ok, setOk] = useState(false)
+  const [pending, startTransition] = useTransition()
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError("")
+    if (newPw.length < 8) { setError("Password must be at least 8 characters."); return }
+    if (newPw !== confirm) { setError("Passwords do not match."); return }
+    startTransition(async () => {
+      try {
+        await adminSetPassword(user.id, newPw)
+        setOk(true)
+      } catch (err: any) {
+        setError(err.message ?? "Failed to update password.")
+      }
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Change Password</h2>
+            <p className="text-xs text-slate-500">{user.name ?? user.email}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X size={18} /></button>
+        </div>
+        {ok ? (
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <CheckCircle2 size={32} className="text-green-500" />
+            <p className="text-sm text-slate-700">Password updated successfully.</p>
+            <button onClick={onClose} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Done</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">New password</label>
+              <input type="password" required minLength={8} value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="At least 8 characters"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Confirm password</label>
+              <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat password"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+              <button type="submit" disabled={pending} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                {pending ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function BulkImportModal({ onClose }: { onClose: () => void }) {
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<BulkImportResult | null>(null)
@@ -576,6 +640,10 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
   const [deleting, setDeleting] = useState<UserRow | null>(null)
   const [assigningRoles, setAssigningRoles] = useState<UserRow | null>(null)
   const [assigningCohorts, setAssigningCohorts] = useState<UserRow | null>(null)
+  const [changingPassword, setChangingPassword] = useState<UserRow | null>(null)
+  const [sendingActivation, setSendingActivation] = useState<string | null>(null) // userId
+  const [activationSentFor, setActivationSentFor] = useState<string | null>(null) // display name/email
+  const [, startActivation] = useTransition()
   const [search, setSearch] = useState("")
   const [divisionFilter, setDivisionFilter] = useState<Division | "">("")
   const [titleFilter, setTitleFilter] = useState<JobTitle | "">("")
@@ -678,6 +746,20 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
                   <ActionsMenu items={[
                     { label: "Assign Cohorts", icon: <Users size={14} />, onClick: () => setAssigningCohorts(u) },
                     { label: "Assign Roles", icon: <ShieldCheck size={14} />, onClick: () => setAssigningRoles(u) },
+                    { label: "Change Password", icon: <KeyRound size={14} />, onClick: () => setChangingPassword(u) },
+                    {
+                      label: sendingActivation === u.id ? "Sending…" : "Send Activation Email",
+                      icon: <Mail size={14} />,
+                      onClick: () => {
+                        setSendingActivation(u.id)
+                        startActivation(async () => {
+                          await sendActivationEmail(u.id)
+                          setSendingActivation(null)
+                          setActivationSentFor(u.name ?? u.email ?? "User")
+                          setTimeout(() => setActivationSentFor(null), 5000)
+                        })
+                      },
+                    },
                     { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(u) },
                     { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(u), variant: "danger" },
                   ]} />
@@ -740,6 +822,26 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
           cohorts={cohorts}
           onClose={() => setAssigningCohorts(null)}
         />
+      )}
+
+      {changingPassword && (
+        <ChangePasswordModal
+          user={changingPassword}
+          onClose={() => setChangingPassword(null)}
+        />
+      )}
+
+      {activationSentFor && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 shadow-lg">
+          <CheckCircle2 size={18} className="shrink-0 text-green-600" />
+          <div>
+            <p className="text-sm font-semibold text-green-800">Activation email sent</p>
+            <p className="text-xs text-green-700">Sent to <span className="font-medium">{activationSentFor}</span></p>
+          </div>
+          <button onClick={() => setActivationSentFor(null)} className="ml-2 rounded p-0.5 text-green-500 hover:bg-green-100">
+            <X size={14} />
+          </button>
+        </div>
       )}
     </>
   )
