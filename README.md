@@ -18,32 +18,42 @@ A learning management system built for structured employee development. Ascend l
 ## Features
 
 ### For Learners
-- **Dashboard** — overview of enrolled pathways and recent point activity
-- **My Pathways** — sorted list of open, pending-approval, and completed pathways with unenroll option
-- **Pathways page** — browse all available pathways, search by name or tag, enroll or request enrollment, see completion status
+- **Dashboard** — overview of enrolled pathways, recent point activity, and leaderboards for points and learning streaks (shows name, title, division, office)
+- **My Pathways** — full searchable list of enrolled pathways grouped by status (In Progress / Awaiting Approval / Completed), with unenroll option; dashboard card shows a preview of the top 5
+- **Pathways page** — browse all published pathways, search by name or tag, enroll or request enrollment, see completion status; top 2 recommendations shown based on what colleagues in the same division are enrolled in
+- **Pathway Viewer** — read text, watch video, or open link content; mark individual content items as completed; take course tests; discussion section on every content item for comments and threaded replies
+- **Learning History** — full record of completed courses grouped by pathway, with dates and scores
+- **Certificates** — downloadable PDF-style certificate (A4 landscape, print-ready) issued on pathway completion, signed by the Group CHRO
+- **Notifications** — in-app notifications for: enrollment approved/rejected, pathway assigned by dev manager, pathway assigned to cohort, and replies to discussion comments; unread count badge on the sidebar bell icon
+- **Learning Streak** — consecutive daily activity tracked from content completions; streak count and total points shown in the sidebar user card
 
 ### For Development Managers
-- **Professionals** — view all direct reports with division, title, office, and progress stats; search by name, division, title, or office
+- **Professionals** — view all direct reports with division, title, office, and progress stats; search by name, division, title, or office; assign pathways with optional deadlines
 - **Pathway Requests** — approve or reject learner enrollment requests with an optional rejection reason
 
 ### For Admins
 - **User Management** — create, edit, bulk-import users via Excel; assign cohorts per user; set division, title, office, and dev manager
-- **Cohort Management** — create cohorts, assign pathways, manage members
-- **Pathway Management** — create and edit pathways with name, description, approval requirement, and tags; manage courses per pathway
-- **Course Management** — create courses, add content (text, video, link) and tests with multiple question types
-- **Office Management** — create offices, assign users (one office per user), view and remove members
+- **Cohort Management** — create cohorts, manage members, assign pathways, view per-cohort progress report; all actions accessible from a dropdown Actions menu per row
+- **Pathway Management** — create and edit pathways; toggle Draft / Published status with an iOS-style switch; manage courses per pathway
+- **Course Management** — create courses; toggle Draft / Published status; add content (text, video, link) and tests with multiple question types; only published courses shown to learners
+- **Office Management** — create offices, assign users, view and remove members
+- **Analytics** — platform-wide analytics dashboard
 
-### Points & Progress
+### Points & Gamification
 - Points awarded on course completion
 - Pathway completion computed automatically when all courses in a pathway are done
-- Recent activity feed on the dashboard
+- Learning streak tracked per user (consecutive days with at least one content completion)
+- Points and streak leaderboards on the dashboard, scoped to the organisation
 
 ## Project Structure
 
 ```
 app/
 ├── admin/
-│   ├── cohort/        # Cohort CRUD + member management
+│   ├── cohort/        # Cohort CRUD + member management + pathway assignment
+│   │   └── [id]/
+│   │       ├── progress/   # Per-cohort progress report
+│   │       └── pathways/   # Assign pathways to cohort
 │   ├── course/        # Course + content + test management
 │   ├── office/        # Office CRUD + user assignment
 │   ├── pathway/       # Pathway CRUD + course ordering
@@ -51,16 +61,39 @@ app/
 ├── api/
 │   ├── auth/          # NextAuth route handler
 │   └── admin/         # REST endpoints (e.g. Excel template download)
-├── components/        # Shared UI components (sidebar, cards)
+├── components/        # Shared UI components (sidebar, cards, leaderboard, discussion)
 ├── dashboard/         # Learner dashboard page
 ├── devmanager/
 │   ├── pathway-request/  # Approve / reject enrollment requests
 │   └── professionals/    # Dev manager's team view
-├── lib/               # Prisma client singleton
-└── pathways/          # Learner-facing pathway browser
+├── discussions/       # Server actions for content comments and notifications
+├── learning-history/  # Full learning history page
+├── lib/               # Prisma client singleton, email helpers
+├── my-pathways/       # Searchable full pathway list for learners
+├── notifications/     # In-app notification centre
+├── pathways/          # Learner-facing pathway browser + recommendations
+│   └── [id]/
+│       └── certificate/  # Pathway completion certificate (printable)
 prisma/
 ├── schema.prisma      # Database schema
 └── seed.ts            # Seed data (offices, pathways, courses)
+```
+
+## Database Schema (key models)
+
+```
+User              — employee profile with division, title, office (FK), dev manager
+Office            — physical office locations (one-to-many with User)
+Cohort            — group of users assigned to one or more pathways
+CohortPathway     — many-to-many: cohorts ↔ pathways
+Pathway           — learning pathway with courses, tags, approval settings, publish status
+Course            — unit of learning with ordered content and an optional test
+PathwayEnrollment — tracks enrollment status (PENDING / APPROVED / REJECTED)
+CourseProgress    — tracks course completion per user per pathway
+ContentProgress   — tracks individual content item completion (drives learning streak)
+UserPoint         — points ledger (source: COURSE_COMPLETION)
+Comment           — discussion comments on content items (2-level: top + replies)
+Notification      — in-app notifications (reply, approval, assignment)
 ```
 
 ## Getting Started
@@ -103,19 +136,6 @@ prisma/
    ```
 
    Open [http://localhost:3000](http://localhost:3000).
-
-## Database Schema (key models)
-
-```
-User        — employee profile with division, title, office (FK), dev manager
-Office      — physical office locations (one-to-many with User)
-Cohort      — group of users assigned to one or more pathways
-Pathway     — learning pathway with courses, tags, and approval settings
-Course      — unit of learning with ordered content and an optional test
-PathwayEnrollment — tracks enrollment status (PENDING / APPROVED / REJECTED)
-CourseProgress    — tracks course completion per user per pathway
-UserPoint         — points ledger (source: COURSE_COMPLETION)
-```
 
 ## Scripts
 
