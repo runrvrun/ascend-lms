@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
-import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell, Settings, KeyRound, LogOut } from "lucide-react"
+import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell, Settings, KeyRound, LogOut, PenLine } from "lucide-react"
 
 interface DashboardSidebarProps {
   session: Session | null
@@ -90,8 +90,10 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
   const roles = ((session?.user as any)?.roles as string[]) ?? []
   const isAdmin = roles.includes("ADMIN")
   const isDevManager = roles.includes("DEVMANAGER")
+  const isTrainer = roles.includes("TRAINER")
   const [adminOpen, setAdminOpen] = useState(false)
   const [devManagerOpen, setDevManagerOpen] = useState(false)
+  const [trainerOpen, setTrainerOpen] = useState(false)
 
   return (
     <aside className="relative overflow-hidden flex h-screen w-full md:w-72 flex-col border-r border-slate-100 md:fixed md:left-0 md:top-0 md:bottom-0 md:z-20" style={sidebarBackground}>
@@ -188,6 +190,26 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                 <a href="/devmanager/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <BarChart3 size={14} />
                   Analytics
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+        {isTrainer && (
+          <div>
+            <button
+              onClick={() => setTrainerOpen((o) => !o)}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+            >
+              <PenLine size={16} />
+              Trainer
+              <ChevronDown size={14} className={`ml-auto transition-transform ${trainerOpen ? "rotate-180" : ""}`} />
+            </button>
+            {trainerOpen && (
+              <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
+                <a href="/trainer/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                  <GraduationCap size={14} />
+                  My Courses
                 </a>
               </div>
             )}

@@ -668,7 +668,7 @@ function AssignmentViewer({
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm">
           <div className="flex items-center gap-2 font-semibold text-red-700 mb-1">
             <XCircle size={15} />
-            Assignment failed ({submission!.grade}%) — please resubmit.
+            Assignment failed — please resubmit.
           </div>
           {submission?.adminNote && (
             <p className="text-red-600 text-xs mt-1">Feedback: {submission.adminNote}</p>
@@ -733,6 +733,7 @@ function ContentViewer({
   currentUserId,
   latestSubmissionByAssignmentId,
   testStatusByCourseId,
+  assignmentStatusByCourseId,
 }: {
   selection: Selection | null
   pathwayId: string
@@ -741,6 +742,7 @@ function ContentViewer({
   currentUserId: string
   latestSubmissionByAssignmentId: Record<string, SubmissionItem>
   testStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
 }) {
   const [pending, startTransition] = useTransition()
   const [videoProgress, setVideoProgress] = useState(0)
@@ -811,7 +813,7 @@ function ContentViewer({
         pathwayId={pathwayId}
         courseName={selection.courseName}
         submission={latestSubmissionByAssignmentId[selection.assignment.id] ?? null}
-        isAlreadyPassed={completedCourseIds.has(selection.courseId)}
+        isAlreadyPassed={assignmentStatusByCourseId[selection.courseId] === "PASSED"}
       />
     )
   }
@@ -1114,6 +1116,7 @@ export function PathwayViewer({
             currentUserId={currentUserId}
             latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
             testStatusByCourseId={testStatusByCourseId}
+            assignmentStatusByCourseId={assignmentStatusByCourseId}
           />
         </main>
       </div>

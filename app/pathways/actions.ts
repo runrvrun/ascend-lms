@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
+import { NotificationType } from "@prisma/client"
 import { sendNewEnrollmentRequest } from "../lib/email"
 
 async function getSession() {
@@ -316,10 +317,31 @@ export async function unenrollPathway(pathwayId: string) {
 export async function submitAssignment(assignmentId: string, pathwayId: string, submissionUrl: string) {
   const session = await getSession()
   const userId = (session.user as any).id as string
+  const userName = session.user?.name ?? "A user"
+
+  const assignment = await prisma.assignment.findUnique({
+    where: { id: assignmentId },
+    include: {
+      course: {
+        select: { name: true, trainers: { select: { userId: true } } },
+      },
+    },
+  })
 
   await prisma.assignmentSubmission.create({
     data: { assignmentId, userId, pathwayId, submissionUrl, status: "SUBMITTED" },
   })
+
+  if (assignment?.course.trainers.length) {
+    await prisma.notification.createMany({
+      data: assignment.course.trainers.map((t) => ({
+        userId: t.userId,
+        type: NotificationType.ASSIGNMENT_SUBMITTED,
+        message: `${userName} submitted an assignment for "${assignment.course.name}".`,
+      })),
+    })
+    revalidatePath("/notifications")
+  }
 
   revalidatePath(`/pathways/${pathwayId}`)
 }

@@ -38,6 +38,7 @@ model User {
   notifications     Notification[]
   assignmentSubmissions AssignmentSubmission[]
   gradedSubmissions     AssignmentSubmission[] @relation("AssignmentGrader")
+  trainerCourses        CourseTrainer[]
 
   password              String?
   activationToken       String?
@@ -128,6 +129,7 @@ model UserRole {
 enum Role {
   ADMIN
   DEVMANAGER
+  TRAINER
 }
 
 model Cohort {
@@ -204,13 +206,28 @@ model Course {
   test       Test?
   assignment Assignment?
 
-  contents Content[]
-  pathways PathwayCourse[]
+  contents         Content[]
+  pathways         PathwayCourse[]
   courseProgresses CourseProgress[]
+  trainers         CourseTrainer[]
 
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   deletedAt DateTime?
+}
+
+model CourseTrainer {
+  id       String @id @default(dbgenerated("gen_random_uuid()::text"))
+  courseId String
+  userId   String
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([courseId, userId])
+  @@index([userId])
 }
 
 model PathwayCourse {
@@ -503,6 +520,7 @@ enum NotificationType {
   PATHWAY_ASSIGNED
   COHORT_PATHWAY_ASSIGNED
   ASSIGNMENT_GRADED
+  ASSIGNMENT_SUBMITTED
 }
 
 model Notification {

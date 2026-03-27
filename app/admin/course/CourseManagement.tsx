@@ -2,7 +2,9 @@
 
 import { useState, useTransition, useRef, useEffect } from "react"
 import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown } from "lucide-react"
-import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, CourseFormData } from "./actions"
+import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainer, CourseFormData } from "./actions"
+
+type TrainerUser = { id: string; name: string | null }
 
 type CourseRow = {
   id: string
@@ -10,6 +12,7 @@ type CourseRow = {
   description: string | null
   status: "DRAFT" | "PUBLISHED"
   _count: { contents: number; pathways: number }
+  trainers: { user: TrainerUser }[]
 }
 
 function ActionsMenu({ items }: {
@@ -99,15 +102,22 @@ function StatusToggle({ id, status }: { id: string; status: "DRAFT" | "PUBLISHED
 function CourseFormModal({
   title,
   initial,
+  initialTrainerId,
+  courseId,
+  trainerUsers,
   onClose,
   onSubmit,
 }: {
   title: string
   initial: CourseFormData
+  initialTrainerId?: string
+  courseId?: string
+  trainerUsers: TrainerUser[]
   onClose: () => void
   onSubmit: (data: CourseFormData) => Promise<void>
 }) {
   const [form, setForm] = useState<CourseFormData>(initial)
+  const [trainerId, setTrainerId] = useState(initialTrainerId ?? "")
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
@@ -117,6 +127,9 @@ function CourseFormModal({
     startTransition(async () => {
       try {
         await onSubmit(form)
+        if (courseId !== undefined) {
+          await setCourseTrainer(courseId, trainerId || null)
+        }
         onClose()
       } catch {
         setError("A course with this name already exists.")
@@ -152,6 +165,21 @@ function CourseFormModal({
               className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+          {courseId !== undefined && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Trainer</label>
+              <select
+                value={trainerId}
+                onChange={(e) => setTrainerId(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">— No trainer —</option>
+                {trainerUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
@@ -187,7 +215,7 @@ function DeleteConfirm({ name, onCancel, onConfirm }: { name: string; onCancel: 
   )
 }
 
-export function CourseManagement({ courses }: { courses: CourseRow[] }) {
+export function CourseManagement({ courses, trainerUsers }: { courses: CourseRow[]; trainerUsers: TrainerUser[] }) {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<CourseRow | null>(null)
   const [deleting, setDeleting] = useState<CourseRow | null>(null)
@@ -232,49 +260,67 @@ export function CourseManagement({ courses }: { courses: CourseRow[] }) {
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Contents</th>
               <th className="px-5 py-3 text-center">In Pathways</th>
+              <th className="px-5 py-3">Trainer</th>
               <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
+              <tr><td colSpan={7} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
             )}
-            {filtered.map((c) => (
-              <tr key={c.id} className="group hover:bg-slate-50">
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <BookOpen size={15} className="shrink-0 text-blue-400" />
-                    <span className="font-medium text-slate-900">{c.name}</span>
-                  </div>
-                </td>
-                <td className="max-w-xs truncate px-5 py-3 text-slate-500">
-                  {c.description ?? <span className="italic text-slate-300">No description</span>}
-                </td>
-                <td className="px-5 py-3 text-center">
-                  <StatusToggle id={c.id} status={c.status} />
-                </td>
-                <td className="px-5 py-3 text-center text-slate-600">{c._count.contents}</td>
-                <td className="px-5 py-3 text-center text-slate-600">{c._count.pathways}</td>
-                <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
-                  <ActionsMenu items={[
-                    { label: "Manage Contents", icon: <ArrowRight size={14} />, href: `/admin/course/${c.id}` },
-                    { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(c) },
-                    { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(c), variant: "danger" },
-                  ]} />
-                </td>
-              </tr>
-            ))}
+            {filtered.map((c) => {
+              const trainer = c.trainers[0]?.user ?? null
+              return (
+                <tr key={c.id} className="group hover:bg-slate-50">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <BookOpen size={15} className="shrink-0 text-blue-400" />
+                      <span className="font-medium text-slate-900">{c.name}</span>
+                    </div>
+                  </td>
+                  <td className="max-w-xs truncate px-5 py-3 text-slate-500">
+                    {c.description ?? <span className="italic text-slate-300">No description</span>}
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    <StatusToggle id={c.id} status={c.status} />
+                  </td>
+                  <td className="px-5 py-3 text-center text-slate-600">{c._count.contents}</td>
+                  <td className="px-5 py-3 text-center text-slate-600">{c._count.pathways}</td>
+                  <td className="px-5 py-3 text-slate-600">
+                    {trainer
+                      ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{trainer.name}</span>
+                      : <span className="text-xs text-slate-300 italic">Unassigned</span>}
+                  </td>
+                  <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
+                    <ActionsMenu items={[
+                      { label: "Manage Contents", icon: <ArrowRight size={14} />, href: `/admin/course/${c.id}` },
+                      { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(c) },
+                      { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(c), variant: "danger" },
+                    ]} />
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
       {creating && (
-        <CourseFormModal title="Add Course" initial={{ name: "", description: "" }} onClose={() => setCreating(false)} onSubmit={(d) => createCourse(d)} />
+        <CourseFormModal
+          title="Add Course"
+          initial={{ name: "", description: "" }}
+          trainerUsers={trainerUsers}
+          onClose={() => setCreating(false)}
+          onSubmit={(d) => createCourse(d)}
+        />
       )}
       {editing && (
         <CourseFormModal
           title="Edit Course"
           initial={{ name: editing.name, description: editing.description ?? "" }}
+          initialTrainerId={editing.trainers[0]?.user.id}
+          courseId={editing.id}
+          trainerUsers={trainerUsers}
           onClose={() => setEditing(null)}
           onSubmit={(d) => updateCourse(editing.id, d)}
         />

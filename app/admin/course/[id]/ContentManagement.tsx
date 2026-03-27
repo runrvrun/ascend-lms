@@ -288,11 +288,11 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
                       {TYPE_LABELS[c.type]}
                     </span>
                   </td>
-                  <td className="max-w-xs px-4 py-3 text-slate-500">
+                  <td className="w-0 min-w-0 max-w-xs px-4 py-3 text-slate-500">
                     {c.type === "TEXT" ? (
-                      <span className="truncate italic text-slate-400">{c.value.slice(0, 60)}{c.value.length > 60 ? "…" : ""}</span>
+                      <span className="block truncate italic text-slate-400">{c.value}</span>
                     ) : (
-                      <a href={c.value} target="_blank" rel="noreferrer" className="truncate text-blue-500 hover:underline">{c.value}</a>
+                      <a href={c.value} target="_blank" rel="noreferrer" className="block truncate text-blue-500 hover:underline">{c.value}</a>
                     )}
                   </td>
                   <td className="px-4 py-3">

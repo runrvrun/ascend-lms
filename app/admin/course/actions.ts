@@ -130,6 +130,25 @@ export async function deleteQuestion(questionId: string, courseId: string) {
   revalidatePath(`/admin/course/${courseId}`)
 }
 
+// ── Trainers ──────────────────────────────────────────────────────────────────
+
+export async function addCourseTrainer(courseId: string, userId: string) {
+  await prisma.courseTrainer.create({ data: { courseId, userId } })
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
+export async function removeCourseTrainer(courseId: string, userId: string) {
+  await prisma.courseTrainer.deleteMany({ where: { courseId, userId } })
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
+export async function setCourseTrainer(courseId: string, userId: string | null) {
+  await prisma.courseTrainer.deleteMany({ where: { courseId } })
+  if (userId) await prisma.courseTrainer.create({ data: { courseId, userId } })
+  revalidatePath("/admin/course")
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
 // ── Assignment ─────────────────────────────────────────────────────────────────
 
 export type AssignmentFormData = {
@@ -181,6 +200,7 @@ export async function gradeSubmission(
   })
 
   // Mirror assignment verdict into CourseProgress so sidebar can reflect it
+  // If failed, also revert course completion
   await prisma.courseProgress.upsert({
     where: {
       userId_courseId_pathwayId: {
@@ -190,7 +210,9 @@ export async function gradeSubmission(
       },
     },
     create: { userId: submission.userId, courseId, pathwayId: submission.pathwayId, assignmentStatus: status },
-    update: { assignmentStatus: status },
+    update: status === "FAILED"
+      ? { assignmentStatus: "FAILED", completed: false, completedAt: null }
+      : { assignmentStatus: "PASSED" },
   })
 
   // Notify user

@@ -25,7 +25,7 @@ type UserRow = {
 
 const DIVISIONS = Object.values(Division)
 const TITLES = Object.values(JobTitle)
-const ALL_ROLES: Role[] = ["ADMIN", "DEVMANAGER"]
+const ALL_ROLES: Role[] = ["ADMIN", "DEVMANAGER", "TRAINER"]
 
 function formatEnum(val: string) {
   return val.replace(/_/g, " ").replace(/\w+/g, (w) => w[0] + w.slice(1).toLowerCase())
@@ -96,10 +96,12 @@ function RoleBadge({ role }: { role: Role }) {
   const styles: Record<Role, string> = {
     ADMIN: "bg-red-100 text-red-700",
     DEVMANAGER: "bg-purple-100 text-purple-700",
+    TRAINER: "bg-green-100 text-green-700",
   }
   const labels: Record<Role, string> = {
     ADMIN: "Admin",
     DEVMANAGER: "Dev Manager",
+    TRAINER: "Trainer",
   }
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[role]}`}>
