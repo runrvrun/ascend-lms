@@ -9,6 +9,7 @@ import { ContentType, QuestionType } from "@prisma/client"
 export type CourseFormData = {
   name: string
   description: string
+  topicId: string | null
 }
 
 export type ContentFormData = {
@@ -19,11 +20,13 @@ export type ContentFormData = {
   duration: number | null // seconds, only relevant for VIDEO
 }
 
-export async function createCourse(data: CourseFormData) {
-  await prisma.course.create({
-    data: { name: data.name, description: data.description || null, status: "DRAFT" },
+export async function createCourse(data: CourseFormData): Promise<string> {
+  const course = await prisma.course.create({
+    data: { name: data.name, description: data.description || null, status: "DRAFT", topicId: data.topicId || null },
   })
   revalidatePath("/admin/course")
+  revalidatePath("/sme/course")
+  return course.id
 }
 
 export async function toggleCourseStatus(id: string, status: "DRAFT" | "PUBLISHED") {
@@ -34,10 +37,11 @@ export async function toggleCourseStatus(id: string, status: "DRAFT" | "PUBLISHE
 export async function updateCourse(id: string, data: CourseFormData) {
   await prisma.course.update({
     where: { id },
-    data: { name: data.name, description: data.description || null },
+    data: { name: data.name, description: data.description || null, topicId: data.topicId || null },
   })
   revalidatePath("/admin/course")
   revalidatePath(`/admin/course/${id}`)
+  revalidatePath("/sme/course")
 }
 
 export async function deleteCourse(id: string) {

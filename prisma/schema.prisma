@@ -39,6 +39,7 @@ model User {
   assignmentSubmissions AssignmentSubmission[]
   gradedSubmissions     AssignmentSubmission[] @relation("AssignmentGrader")
   trainerCourses        CourseTrainer[]
+  smeTopics             TopicSME[]
   courseFeedbacks       CourseFeedback[]
   growthPlans           GrowthPlan[]
   confirmedGrowthPlans  GrowthPlan[]     @relation("GrowthPlanConfirmer")
@@ -133,6 +134,7 @@ enum Role {
   ADMIN
   DEVMANAGER
   TRAINER
+  SME
 }
 
 model Cohort {
@@ -209,9 +211,11 @@ model Course {
   description     String?
   status          PublishStatus @default(PUBLISHED)
   feedbackEnabled Boolean       @default(false)
+  topicId         String?
   test       Test?
   assignment Assignment?
 
+  topic            Topic?          @relation(fields: [topicId], references: [id])
   contents         Content[]
   pathways         PathwayCourse[]
   courseProgresses CourseProgress[]
@@ -221,6 +225,23 @@ model Course {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   deletedAt DateTime?
+}
+
+model Topic {
+  id        String     @id @default(dbgenerated("gen_random_uuid()::text"))
+  name      String     @unique
+  courses   Course[]
+  smes      TopicSME[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model TopicSME {
+  topicId String
+  userId  String
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([topicId, userId])
 }
 
 model CourseFeedback {

@@ -5,12 +5,15 @@ import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown } fr
 import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainer, CourseFormData } from "./actions"
 
 type TrainerUser = { id: string; name: string | null }
+type TopicOption = { id: string; name: string }
 
 type CourseRow = {
   id: string
   name: string
   description: string | null
   status: "DRAFT" | "PUBLISHED"
+  topicId: string | null
+  topic: TopicOption | null
   _count: { contents: number; pathways: number }
   trainers: { user: TrainerUser }[]
 }
@@ -105,6 +108,7 @@ function CourseFormModal({
   initialTrainerId,
   courseId,
   trainerUsers,
+  topics,
   onClose,
   onSubmit,
 }: {
@@ -113,8 +117,9 @@ function CourseFormModal({
   initialTrainerId?: string
   courseId?: string
   trainerUsers: TrainerUser[]
+  topics: TopicOption[]
   onClose: () => void
-  onSubmit: (data: CourseFormData) => Promise<void>
+  onSubmit: (data: CourseFormData) => Promise<string | undefined>
 }) {
   const [form, setForm] = useState<CourseFormData>(initial)
   const [trainerId, setTrainerId] = useState(initialTrainerId ?? "")
@@ -126,10 +131,8 @@ function CourseFormModal({
     setError("")
     startTransition(async () => {
       try {
-        await onSubmit(form)
-        if (courseId !== undefined) {
-          await setCourseTrainer(courseId, trainerId || null)
-        }
+        const id = await onSubmit(form)
+        await setCourseTrainer(id ?? courseId!, trainerId || null)
         onClose()
       } catch {
         setError("A course with this name already exists.")
@@ -165,21 +168,32 @@ function CourseFormModal({
               className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          {courseId !== undefined && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Trainer</label>
-              <select
-                value={trainerId}
-                onChange={(e) => setTrainerId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">— No trainer —</option>
-                {trainerUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Topic</label>
+            <select
+              value={form.topicId ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, topicId: e.target.value || null }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— No topic —</option>
+              {topics.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Trainer</label>
+            <select
+              value={trainerId}
+              onChange={(e) => setTrainerId(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— No trainer —</option>
+              {trainerUsers.map((u) => (
+                <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
+              ))}
+            </select>
+          </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
@@ -215,7 +229,7 @@ function DeleteConfirm({ name, onCancel, onConfirm }: { name: string; onCancel: 
   )
 }
 
-export function CourseManagement({ courses, trainerUsers }: { courses: CourseRow[]; trainerUsers: TrainerUser[] }) {
+export function CourseManagement({ courses, trainerUsers, topics }: { courses: CourseRow[]; trainerUsers: TrainerUser[]; topics: TopicOption[] }) {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<CourseRow | null>(null)
   const [deleting, setDeleting] = useState<CourseRow | null>(null)
@@ -256,7 +270,7 @@ export function CourseManagement({ courses, trainerUsers }: { courses: CourseRow
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-5 py-3">Name</th>
-              <th className="px-5 py-3">Description</th>
+              <th className="px-5 py-3">Topic</th>
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Contents</th>
               <th className="px-5 py-3 text-center">In Pathways</th>
@@ -278,8 +292,10 @@ export function CourseManagement({ courses, trainerUsers }: { courses: CourseRow
                       <span className="font-medium text-slate-900">{c.name}</span>
                     </div>
                   </td>
-                  <td className="max-w-xs truncate px-5 py-3 text-slate-500">
-                    {c.description ?? <span className="italic text-slate-300">No description</span>}
+                  <td className="px-5 py-3">
+                    {c.topic
+                      ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">{c.topic.name}</span>
+                      : <span className="text-xs italic text-slate-300">—</span>}
                   </td>
                   <td className="px-5 py-3 text-center">
                     <StatusToggle id={c.id} status={c.status} />
@@ -308,8 +324,9 @@ export function CourseManagement({ courses, trainerUsers }: { courses: CourseRow
       {creating && (
         <CourseFormModal
           title="Add Course"
-          initial={{ name: "", description: "" }}
+          initial={{ name: "", description: "", topicId: null }}
           trainerUsers={trainerUsers}
+          topics={topics}
           onClose={() => setCreating(false)}
           onSubmit={(d) => createCourse(d)}
         />
@@ -317,12 +334,13 @@ export function CourseManagement({ courses, trainerUsers }: { courses: CourseRow
       {editing && (
         <CourseFormModal
           title="Edit Course"
-          initial={{ name: editing.name, description: editing.description ?? "" }}
+          initial={{ name: editing.name, description: editing.description ?? "", topicId: editing.topicId }}
           initialTrainerId={editing.trainers[0]?.user.id}
           courseId={editing.id}
           trainerUsers={trainerUsers}
+          topics={topics}
           onClose={() => setEditing(null)}
-          onSubmit={(d) => updateCourse(editing.id, d)}
+          onSubmit={async (d) => { await updateCourse(editing.id, d); return undefined }}
         />
       )}
       {deleting && (
