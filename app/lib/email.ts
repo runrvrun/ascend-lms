@@ -118,7 +118,7 @@ export async function sendEnrollmentRejected(
       <div style="background:#fef2f2;border-left:3px solid #dc2626;padding:12px 16px;border-radius:4px;margin:16px 0;">
         <p style="margin:0;font-size:13px;"><strong>Reason:</strong> ${reason}</p>
       </div>
-      <p>Please speak with your development manager (<strong>${managerName}</strong>) if you have any questions.</p>
+      <p>Please speak with your manager (<strong>${managerName}</strong>) if you have any questions.</p>
     `)
   )
 }
@@ -141,7 +141,7 @@ export async function sendNewEnrollmentRequest(
         <p style="margin:0;font-size:13px;"><strong>Their reason:</strong> ${note}</p>
       </div>` : ""}
       <p style="margin-top:24px;">
-        <a href="${BASE_URL}/devmanager/pathway-request"
+        <a href="${BASE_URL}/manager/pathway-request"
            style="background:#194693;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;">
           Review Request
         </a>

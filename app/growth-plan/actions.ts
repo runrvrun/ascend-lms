@@ -60,7 +60,7 @@ export async function toggleGrowthPlanComplete(id: string, completed: boolean) {
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, devManagerId: true },
+      select: { name: true, managers: { select: { managerId: true } } },
     }),
   ])
 
@@ -73,16 +73,16 @@ export async function toggleGrowthPlanComplete(id: string, completed: boolean) {
     },
   })
 
-  // Notify dev manager when marked complete
-  if (completed && learner?.devManagerId && item) {
-    await prisma.notification.create({
-      data: {
-        userId: learner.devManagerId,
+  // Notify all managers when marked complete
+  if (completed && learner?.managers.length && item) {
+    await prisma.notification.createMany({
+      data: learner.managers.map((m) => ({
+        userId: m.managerId,
         type: NotificationType.GROWTH_PLAN_COMPLETED,
         message: `${learner.name ?? "A professional"} completed a growth plan item: "${item.title}". Please confirm it.`,
         pathwayId: item.pathwayId ?? undefined,
         relatedUserId: userId,
-      },
+      })),
     })
   }
 
@@ -116,7 +116,7 @@ export async function confirmGrowthPlan(id: string) {
       data: {
         userId: item.userId,
         type: NotificationType.GROWTH_PLAN_CONFIRMED,
-        message: `${confirmer?.name ?? "Your development manager"} confirmed your growth plan item: "${item.title}".`,
+        message: `${confirmer?.name ?? "Your manager"} confirmed your growth plan item: "${item.title}".`,
         pathwayId: item.pathwayId ?? undefined,
       },
     })

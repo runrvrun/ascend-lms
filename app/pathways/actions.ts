@@ -269,7 +269,7 @@ export async function requestPathway(pathwayId: string, note: string) {
       select: {
         name: true,
         email: true,
-        devManager: { select: { id: true, name: true, email: true } },
+        managers: { select: { manager: { select: { id: true, name: true, email: true } } } },
       },
     }),
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
@@ -278,27 +278,31 @@ export async function requestPathway(pathwayId: string, note: string) {
   revalidatePath("/pathways")
   revalidatePath("/dashboard")
 
-  if (user?.devManager && pathway) {
+  if (user?.managers.length && pathway) {
     const requesterName = user.name ?? user.email ?? "A team member"
-    await Promise.all([
-      user.devManager.email
-        ? sendNewEnrollmentRequest(
-            user.devManager.email,
-            user.devManager.name ?? user.devManager.email,
-            requesterName,
-            pathway.name,
-            note
-          )
-        : Promise.resolve(),
-      prisma.notification.create({
-        data: {
-          userId: user.devManager.id,
-          type: "PATHWAY_ASSIGNED",
-          message: `${requesterName} has requested enrollment in "${pathway.name}". Please review their request.`,
-          pathwayId,
-        },
-      }),
-    ])
+    await Promise.all(
+      user.managers.map(async ({ manager }) => {
+        await Promise.all([
+          manager.email
+            ? sendNewEnrollmentRequest(
+                manager.email,
+                manager.name ?? manager.email,
+                requesterName,
+                pathway.name,
+                note
+              )
+            : Promise.resolve(),
+          prisma.notification.create({
+            data: {
+              userId: manager.id,
+              type: "PATHWAY_ASSIGNED",
+              message: `${requesterName} has requested enrollment in "${pathway.name}". Please review their request.`,
+              pathwayId,
+            },
+          }),
+        ])
+      })
+    )
     revalidatePath("/notifications")
   }
 }

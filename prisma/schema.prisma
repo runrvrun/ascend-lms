@@ -18,7 +18,6 @@ model User {
   division     Division @default(MSD)
   title        JobTitle @default(ANALYST)
   officeId     String?
-  devManagerId String?
 
   accounts       Account[]
   sessions       Session[]
@@ -30,8 +29,8 @@ model User {
   courseProgress    CourseProgress[]
   contentProgresses ContentProgress[]
   points            UserPoint[]
-  managedUsers   User[]              @relation("DevManager")
-  devManager     User?               @relation("DevManager", fields: [devManagerId], references: [id])
+  managers       UserManager[]       @relation("UserManagers")
+  managedUsers   UserManager[]       @relation("ManagedUsers")
   office         Office?             @relation(fields: [officeId], references: [id])
   comments          Comment[]        @relation("CommentAuthor")
   replyMentions     Comment[]        @relation("CommentReplyTo")
@@ -132,9 +131,19 @@ model UserRole {
 
 enum Role {
   ADMIN
-  DEVMANAGER
+  MANAGER
   TRAINER
   SME
+}
+
+model UserManager {
+  userId    String
+  managerId String
+
+  user    User @relation("UserManagers", fields: [userId], references: [id], onDelete: Cascade)
+  manager User @relation("ManagedUsers", fields: [managerId], references: [id], onDelete: Cascade)
+
+  @@id([userId, managerId])
 }
 
 model Cohort {

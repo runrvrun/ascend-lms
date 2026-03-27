@@ -214,7 +214,7 @@ export function ProfessionalsList({
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <a
-                        href={`/devmanager/professionals/${p.id}`}
+                        href={`/manager/professionals/${p.id}`}
                         className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                       >
                         <BarChart2 size={13} />

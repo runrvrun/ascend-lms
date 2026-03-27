@@ -3,9 +3,9 @@
 import { useState, useTransition, useRef, useEffect } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
 import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown, Mail, KeyRound } from "lucide-react"
-import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, UserFormData, BulkImportResult } from "./actions"
+import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, addUserManager, removeUserManager, UserFormData, BulkImportResult } from "./actions"
 
-type DevManager = { id: string; name: string | null }
+type ManagerOption = { id: string; name: string | null }
 type CohortOption = { id: string; name: string }
 type OfficeOption = { id: string; name: string }
 
@@ -17,15 +17,14 @@ type UserRow = {
   title: JobTitle
   officeId: string | null
   office: OfficeOption | null
-  devManagerId: string | null
-  devManager: DevManager | null
+  managers: { managerId: string; manager: ManagerOption }[]
   roles: { role: Role }[]
   cohorts: { cohortId: string }[]
 }
 
 const DIVISIONS = Object.values(Division)
 const TITLES = Object.values(JobTitle)
-const ALL_ROLES: Role[] = ["ADMIN", "DEVMANAGER", "TRAINER", "SME"]
+const ALL_ROLES: Role[] = ["ADMIN", "MANAGER", "TRAINER", "SME"]
 
 function formatEnum(val: string) {
   return val.replace(/_/g, " ").replace(/\w+/g, (w) => w[0] + w.slice(1).toLowerCase())
@@ -37,7 +36,6 @@ const empty: UserFormData = {
   division: Division.MSD,
   title: JobTitle.ANALYST,
   officeId: "",
-  devManagerId: "",
 }
 
 function ActionsMenu({ items }: {
@@ -95,13 +93,13 @@ function ActionsMenu({ items }: {
 function RoleBadge({ role }: { role: Role }) {
   const styles: Record<Role, string> = {
     ADMIN: "bg-red-100 text-red-700",
-    DEVMANAGER: "bg-purple-100 text-purple-700",
+    MANAGER: "bg-purple-100 text-purple-700",
     TRAINER: "bg-green-100 text-green-700",
     SME: "bg-violet-100 text-violet-700",
   }
   const labels: Record<Role, string> = {
     ADMIN: "Admin",
-    DEVMANAGER: "Dev Manager",
+    MANAGER: "Manager",
     TRAINER: "Trainer",
     SME: "SME",
   }
@@ -115,21 +113,18 @@ function RoleBadge({ role }: { role: Role }) {
 function UserFormModal({
   title,
   initial,
-  devManagers,
   offices,
   onClose,
   onSubmit,
 }: {
   title: string
   initial: UserFormData
-  devManagers: DevManager[]
   offices: OfficeOption[]
   onClose: () => void
   onSubmit: (data: UserFormData) => Promise<void>
 }) {
   const [form, setForm] = useState<UserFormData>(initial)
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState("")
 
   function set(field: keyof UserFormData, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -137,11 +132,6 @@ function UserFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.devManagerId) {
-      setError("Dev Manager is required.")
-      return
-    }
-    setError("")
     startTransition(async () => {
       await onSubmit(form)
       onClose()
@@ -222,23 +212,6 @@ function UserFormModal({
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">
-              Dev Manager <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={form.devManagerId}
-              onChange={(e) => set("devManagerId", e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— Select Dev Manager —</option>
-              {devManagers.map((dm) => (
-                <option key={dm.id} value={dm.id}>{dm.name ?? dm.id}</option>
-              ))}
-            </select>
-            {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
           </div>
 
           <div className="flex justify-end gap-2 pt-1">
@@ -398,6 +371,111 @@ function AssignCohortModal({
   )
 }
 
+function AssignManagerModal({
+  user,
+  allManagers,
+  onClose,
+}: {
+  user: UserRow
+  allManagers: ManagerOption[]
+  onClose: () => void
+}) {
+  const [assigned, setAssigned] = useState<ManagerOption[]>(
+    user.managers.map((m) => m.manager)
+  )
+  const [query, setQuery] = useState("")
+  const [pending, startTransition] = useTransition()
+
+  const assignedIds = new Set(assigned.map((m) => m.id))
+  const suggestions = query.trim()
+    ? allManagers.filter(
+        (m) => !assignedIds.has(m.id) && (m.name ?? "").toLowerCase().includes(query.toLowerCase())
+      )
+    : []
+
+  function handleAdd(manager: ManagerOption) {
+    setAssigned((prev) => [...prev, manager])
+    setQuery("")
+    startTransition(() => addUserManager(user.id, manager.id))
+  }
+
+  function handleRemove(managerId: string) {
+    setAssigned((prev) => prev.filter((m) => m.id !== managerId))
+    startTransition(() => removeUserManager(user.id, managerId))
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Assign Managers</h2>
+            <p className="text-xs text-slate-500">{user.name ?? user.email}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Current managers */}
+        {assigned.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {assigned.map((m) => (
+              <span key={m.id} className="flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
+                {m.name ?? m.id}
+                <button
+                  disabled={pending}
+                  onClick={() => handleRemove(m.id)}
+                  className="rounded-full hover:bg-purple-200 disabled:opacity-50"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search manager by name…"
+            className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {suggestions.length > 0 && (
+          <div className="mt-1 max-h-52 overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-100">
+            {suggestions.map((m) => (
+              <button
+                key={m.id}
+                disabled={pending}
+                onClick={() => handleAdd(m)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {m.name ?? m.id}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {query.trim() && suggestions.length === 0 && (
+          <p className="mt-2 text-xs text-slate-400">No managers found matching "{query}".</p>
+        )}
+
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DeleteConfirm({ name, onCancel, onConfirm }: { name: string | null; onCancel: () => void; onConfirm: () => void }) {
   const [pending, startTransition] = useTransition()
   return (
@@ -531,7 +609,7 @@ function BulkImportModal({ onClose }: { onClose: () => void }) {
               </a>
               <p className="mt-2 text-xs text-slate-400">
                 Fill in the <strong>Users</strong> sheet. Refer to the <strong>Valid Values</strong> sheet for accepted Division and Title values.
-                Leave <em>Dev Manager Email</em> blank if not applicable.
+                Leave <em>Manager Email</em> blank if not applicable.
               </p>
             </div>
 
@@ -637,13 +715,14 @@ function BulkImportModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-export function UserManagement({ users, devManagers, cohorts, offices }: { users: UserRow[]; devManagers: DevManager[]; cohorts: CohortOption[]; offices: OfficeOption[] }) {
+export function UserManagement({ users, allManagers, cohorts, offices }: { users: UserRow[]; allManagers: ManagerOption[]; cohorts: CohortOption[]; offices: OfficeOption[] }) {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [editing, setEditing] = useState<UserRow | null>(null)
   const [deleting, setDeleting] = useState<UserRow | null>(null)
   const [assigningRoles, setAssigningRoles] = useState<UserRow | null>(null)
   const [assigningCohorts, setAssigningCohorts] = useState<UserRow | null>(null)
+  const [assigningManagers, setAssigningManagers] = useState<UserRow | null>(null)
   const [changingPassword, setChangingPassword] = useState<UserRow | null>(null)
   const [sendingActivation, setSendingActivation] = useState<string | null>(null) // userId
   const [activationSentFor, setActivationSentFor] = useState<string | null>(null) // display name/email
@@ -721,7 +800,7 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
               <th className="px-5 py-3">Division</th>
               <th className="px-5 py-3">Title</th>
               <th className="px-5 py-3">Office</th>
-              <th className="px-5 py-3">Dev Manager</th>
+              <th className="px-5 py-3">Manager(s)</th>
               <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
@@ -745,10 +824,13 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
                 <td className="px-5 py-3 text-slate-600">{u.division}</td>
                 <td className="px-5 py-3 text-slate-600">{formatEnum(u.title)}</td>
                 <td className="px-5 py-3 text-slate-500">{u.office?.name ?? "—"}</td>
-                <td className="px-5 py-3 text-slate-600">{u.devManager?.name ?? "—"}</td>
+                <td className="px-5 py-3 text-slate-600">
+                  {u.managers.length === 0 ? <span className="text-slate-300 italic">—</span> : u.managers.map((m) => m.manager.name ?? "—").join(", ")}
+                </td>
                 <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
                   <ActionsMenu items={[
                     { label: "Assign Cohorts", icon: <Users size={14} />, onClick: () => setAssigningCohorts(u) },
+                    { label: "Assign Managers", icon: <Users size={14} />, onClick: () => setAssigningManagers(u) },
                     { label: "Assign Roles", icon: <ShieldCheck size={14} />, onClick: () => setAssigningRoles(u) },
                     { label: "Change Password", icon: <KeyRound size={14} />, onClick: () => setChangingPassword(u) },
                     {
@@ -780,7 +862,6 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
         <UserFormModal
           title="Add User"
           initial={empty}
-          devManagers={devManagers}
           offices={offices}
           onClose={() => setCreating(false)}
           onSubmit={(data) => createUser(data)}
@@ -796,9 +877,7 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
             division: editing.division,
             title: editing.title,
             officeId: editing.officeId ?? "",
-            devManagerId: editing.devManagerId ?? "",
           }}
-          devManagers={devManagers}
           offices={offices}
           onClose={() => setEditing(null)}
           onSubmit={(data) => updateUser(editing.id, data)}
@@ -825,6 +904,14 @@ export function UserManagement({ users, devManagers, cohorts, offices }: { users
           user={assigningCohorts}
           cohorts={cohorts}
           onClose={() => setAssigningCohorts(null)}
+        />
+      )}
+
+      {assigningManagers && (
+        <AssignManagerModal
+          user={assigningManagers}
+          allManagers={allManagers}
+          onClose={() => setAssigningManagers(null)}
         />
       )}
 

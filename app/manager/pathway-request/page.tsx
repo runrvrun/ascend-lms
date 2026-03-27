@@ -11,13 +11,13 @@ export default async function PathwayRequestPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/")
 
-  const devManagerId = (session.user as any).id as string
+  const managerId = (session.user as any).id as string
 
   const requests = await prisma.pathwayEnrollment.findMany({
     where: {
       status: "PENDING",
       type: "USER_REQUEST",
-      user: { devManagerId },
+      user: { managers: { some: { managerId } } },
     },
     select: {
       id: true,

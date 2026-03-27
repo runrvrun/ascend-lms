@@ -76,7 +76,7 @@ function formatEnum(val: string) {
   return val.replace(/_/g, " ").replace(/\w+/g, (w) => w[0] + w.slice(1).toLowerCase())
 }
 
-export default async function DevManagerAnalyticsPage({
+export default async function ManagerAnalyticsPage({
   searchParams,
 }: {
   searchParams: Promise<{ division?: string; title?: string; officeId?: string }>
@@ -84,7 +84,7 @@ export default async function DevManagerAnalyticsPage({
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/")
 
-  const devManagerId = (session.user as any).id as string
+  const managerId = (session.user as any).id as string
   const { division, title, officeId } = await searchParams
 
   const offices = await prisma.office.findMany({
@@ -94,9 +94,9 @@ export default async function DevManagerAnalyticsPage({
 
   const hasFilter = !!(division || title || officeId)
 
-  // Base filter = team members of this dev manager
+  // Base filter = team members of this manager
   const userWhere: Prisma.UserWhereInput = {
-    devManagerId,
+    managers: { some: { managerId } },
     deletedAt: null,
     ...(division ? { division: division as any } : {}),
     ...(title ? { title: title as any } : {}),
@@ -129,7 +129,7 @@ export default async function DevManagerAnalyticsPage({
           <AnalyticsFilter
             offices={offices}
             current={{ division: division ?? "", title: title ?? "", officeId: officeId ?? "" }}
-            basePath="/devmanager/analytics"
+            basePath="/manager/analytics"
           />
         </div>
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center text-sm text-slate-400">
@@ -253,7 +253,7 @@ export default async function DevManagerAnalyticsPage({
         <AnalyticsFilter
           offices={offices}
           current={{ division: division ?? "", title: title ?? "", officeId: officeId ?? "" }}
-          basePath="/devmanager/analytics"
+          basePath="/manager/analytics"
         />
       </div>
 

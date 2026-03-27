@@ -6,18 +6,18 @@ import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { sendEnrollmentApproved, sendEnrollmentRejected } from "../../lib/email"
 
-async function getDevManagerId() {
+async function getManagerId() {
   const session = await getServerSession(authOptions)
   if (!session?.user) throw new Error("Not authenticated")
   return (session.user as any).id as string
 }
 
 export async function approveRequest(enrollmentId: string) {
-  const devManagerId = await getDevManagerId()
+  const managerId = await getManagerId()
 
   const enrollment = await prisma.pathwayEnrollment.update({
     where: { id: enrollmentId },
-    data: { status: "APPROVED", approvedById: devManagerId },
+    data: { status: "APPROVED", approvedById: managerId },
     select: {
       userId: true,
       pathwayId: true,
@@ -35,7 +35,7 @@ export async function approveRequest(enrollmentId: string) {
     },
   })
 
-  revalidatePath("/devmanager/pathway-request")
+  revalidatePath("/manager/pathway-request")
   revalidatePath("/pathways")
   revalidatePath("/dashboard")
 
@@ -49,7 +49,7 @@ export async function approveRequest(enrollmentId: string) {
 }
 
 export async function rejectRequest(enrollmentId: string, rejectionReason: string) {
-  const devManagerId = await getDevManagerId()
+  const managerId = await getManagerId()
 
   const [enrollment, manager] = await Promise.all([
     prisma.pathwayEnrollment.update({
@@ -63,7 +63,7 @@ export async function rejectRequest(enrollmentId: string, rejectionReason: strin
       },
     }),
     prisma.user.findUnique({
-      where: { id: devManagerId },
+      where: { id: managerId },
       select: { name: true },
     }),
   ])
@@ -77,7 +77,7 @@ export async function rejectRequest(enrollmentId: string, rejectionReason: strin
     },
   })
 
-  revalidatePath("/devmanager/pathway-request")
+  revalidatePath("/manager/pathway-request")
   revalidatePath("/pathways")
   revalidatePath("/dashboard")
 
@@ -87,7 +87,7 @@ export async function rejectRequest(enrollmentId: string, rejectionReason: strin
       enrollment.user.name ?? enrollment.user.email,
       enrollment.pathway.name,
       rejectionReason,
-      manager?.name ?? "your development manager"
+      manager?.name ?? "your manager"
     )
   }
 }

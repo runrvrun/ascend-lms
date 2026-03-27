@@ -9,7 +9,7 @@ import { NotificationType } from "@prisma/client"
 export async function assignPathway(userId: string, pathwayId: string, deadline: string | null) {
   const session = await getServerSession(authOptions)
   if (!session?.user) throw new Error("Not authenticated")
-  const devManagerId = (session.user as any).id as string
+  const managerId = (session.user as any).id as string
 
   const [, manager, pathway] = await Promise.all([
     prisma.pathwayEnrollment.create({
@@ -18,11 +18,11 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
         pathwayId,
         type: "ASSIGNED",
         status: "APPROVED",
-        approvedById: devManagerId,
+        approvedById: managerId,
         deadline: deadline ? new Date(deadline) : null,
       },
     }),
-    prisma.user.findUnique({ where: { id: devManagerId }, select: { name: true } }),
+    prisma.user.findUnique({ where: { id: managerId }, select: { name: true } }),
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
   ])
 
@@ -30,12 +30,12 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
     data: {
       userId,
       type: "PATHWAY_ASSIGNED",
-      message: `${manager?.name ?? "Your development manager"} assigned you to "${pathway?.name ?? "a pathway"}".`,
+      message: `${manager?.name ?? "Your manager"} assigned you to "${pathway?.name ?? "a pathway"}".`,
       pathwayId,
     },
   })
 
-  revalidatePath("/devmanager/professionals")
+  revalidatePath("/manager/professionals")
   revalidatePath("/dashboard")
 }
 
@@ -65,13 +65,13 @@ export async function confirmGrowthPlan(id: string) {
       data: {
         userId: item.userId,
         type: NotificationType.GROWTH_PLAN_CONFIRMED,
-        message: `${confirmer?.name ?? "Your development manager"} confirmed your growth plan item: "${item.title}".`,
+        message: `${confirmer?.name ?? "Your manager"} confirmed your growth plan item: "${item.title}".`,
         pathwayId: item.pathwayId ?? undefined,
       },
     })
   }
 
-  revalidatePath("/devmanager/professionals")
+  revalidatePath("/manager/professionals")
   revalidatePath("/growth-plan")
 }
 
@@ -82,6 +82,6 @@ export async function updateDeadline(enrollmentId: string, deadline: string | nu
     where: { id: enrollmentId },
     data: { deadline: deadline ? new Date(deadline) : null },
   })
-  revalidatePath("/devmanager/professionals")
+  revalidatePath("/manager/professionals")
   revalidatePath("/dashboard")
 }

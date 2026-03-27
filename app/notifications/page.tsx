@@ -117,7 +117,7 @@ export default async function NotificationsPage() {
                         {n.type === "GROWTH_PLAN_COMPLETED" && n.relatedUserId && (
                           <NotificationLink
                             notificationId={n.id}
-                            href={`/devmanager/professionals/${n.relatedUserId}?tab=growth`}
+                            href={`/manager/professionals/${n.relatedUserId}?tab=growth`}
                             className="flex items-center gap-1 text-xs font-medium text-orange-600 hover:text-orange-800"
                           >
                             <Target size={11} />

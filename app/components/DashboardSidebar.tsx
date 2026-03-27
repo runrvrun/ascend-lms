@@ -89,11 +89,11 @@ function SettingsMenu() {
 export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadNotifications = 0 }: DashboardSidebarProps) {
   const roles = ((session?.user as any)?.roles as string[]) ?? []
   const isAdmin = roles.includes("ADMIN")
-  const isDevManager = roles.includes("DEVMANAGER")
+  const isManager = roles.includes("MANAGER") || roles.includes("ADMIN")
   const isTrainer = roles.includes("TRAINER")
   const isSME = roles.includes("SME")
   const [adminOpen, setAdminOpen] = useState(false)
-  const [devManagerOpen, setDevManagerOpen] = useState(false)
+  const [managerOpen, setManagerOpen] = useState(false)
   const [trainerOpen, setTrainerOpen] = useState(false)
   const [smeOpen, setSmeOpen] = useState(false)
 
@@ -177,27 +177,27 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
             )}
           </div>
         )}
-        {isDevManager && (
+        {isManager && (
           <div>
             <button
-              onClick={() => setDevManagerOpen((o) => !o)}
+              onClick={() => setManagerOpen((o) => !o)}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
             >
               <Users size={16} />
-              Development Manager
-              <ChevronDown size={14} className={`ml-auto transition-transform ${devManagerOpen ? "rotate-180" : ""}`} />
+              Manager
+              <ChevronDown size={14} className={`ml-auto transition-transform ${managerOpen ? "rotate-180" : ""}`} />
             </button>
-            {devManagerOpen && (
+            {managerOpen && (
               <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
-                <a href="/devmanager/professionals" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                <a href="/manager/professionals" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <UsersRound size={14} />
                   Professionals
                 </a>
-                <a href="/devmanager/pathway-request" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                <a href="/manager/pathway-request" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <ClipboardList size={14} />
                   Pathway Requests
                 </a>
-                <a href="/devmanager/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                <a href="/manager/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <BarChart3 size={14} />
                   Analytics
                 </a>

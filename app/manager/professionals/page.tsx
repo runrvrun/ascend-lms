@@ -11,11 +11,11 @@ export default async function ProfessionalsPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/")
 
-  const devManagerId = (session.user as any).id as string
+  const managerId = (session.user as any).id as string
 
   const [professionals, pathways, pathwayCourseCounts] = await Promise.all([
     prisma.user.findMany({
-      where: { devManagerId },
+      where: { managers: { some: { managerId } } },
       select: {
         id: true,
         name: true,

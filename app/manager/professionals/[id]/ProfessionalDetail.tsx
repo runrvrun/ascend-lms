@@ -309,7 +309,7 @@ export function ProfessionalDetail({
     <>
       {/* Back */}
       <a
-        href="/devmanager/professionals"
+        href="/manager/professionals"
         className="mb-6 flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
       >
         <ArrowLeft size={14} />

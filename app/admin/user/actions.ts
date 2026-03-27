@@ -17,7 +17,6 @@ export type UserFormData = {
   division: Division
   title: JobTitle
   officeId: string
-  devManagerId: string
 }
 
 export async function createUser(data: UserFormData) {
@@ -28,7 +27,6 @@ export async function createUser(data: UserFormData) {
       division: data.division,
       title: data.title,
       officeId: data.officeId || null,
-      devManagerId: data.devManagerId || null,
     },
   })
   revalidatePath("/admin/user")
@@ -43,9 +41,18 @@ export async function updateUser(id: string, data: UserFormData) {
       division: data.division,
       title: data.title,
       officeId: data.officeId || null,
-      devManagerId: data.devManagerId || null,
     },
   })
+  revalidatePath("/admin/user")
+}
+
+export async function addUserManager(userId: string, managerId: string) {
+  await prisma.userManager.create({ data: { userId, managerId } })
+  revalidatePath("/admin/user")
+}
+
+export async function removeUserManager(userId: string, managerId: string) {
+  await prisma.userManager.deleteMany({ where: { userId, managerId } })
   revalidatePath("/admin/user")
 }
 
@@ -69,7 +76,7 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
   const ws = wb.Sheets[wb.SheetNames[0]]
   const rows = xlsx.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" })
 
-  // Build email→id map for existing users (for duplicate check and dev manager lookup)
+  // Build email→id map for existing users (for duplicate check and manager lookup)
   const allUsers = await prisma.user.findMany({ select: { id: true, email: true } })
   const emailToId = new Map(
     allUsers.filter((u) => u.email).map((u) => [u.email!.toLowerCase(), u.id])
@@ -96,7 +103,7 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
     const divisionRaw = String(row["Division"] ?? "").trim().toUpperCase()
     const titleRaw = String(row["Title"] ?? "").trim().toUpperCase().replace(/ /g, "_")
     const officeName = String(row["Office"] ?? "").trim()
-    const dmEmail = String(row["Dev Manager Email"] ?? "").trim().toLowerCase()
+    const dmEmail = String(row["Manager Email"] ?? row["Dev Manager Email"] ?? "").trim().toLowerCase()
     const cohortName = String(row["Cohort Name"] ?? "").trim()
 
     // Validation
@@ -117,7 +124,7 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
       continue
     }
 
-    const devManagerId = dmEmail ? (emailToId.get(dmEmail) ?? null) : null
+    const dmId = dmEmail ? (emailToId.get(dmEmail) ?? null) : null
 
     const officeId = officeName ? (officeNameToId.get(officeName.toLowerCase()) ?? null) : null
 
@@ -128,9 +135,12 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
         division: divisionRaw as Division,
         title: titleRaw as JobTitle,
         officeId,
-        devManagerId,
       },
     })
+
+    if (dmId) {
+      await prisma.userManager.create({ data: { userId: newUser.id, managerId: dmId } })
+    }
 
     // Assign cohort if provided
     if (cohortName) {

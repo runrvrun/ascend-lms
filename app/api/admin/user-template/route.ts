@@ -6,7 +6,7 @@ export async function GET() {
 
   // ── Users sheet ─────────────────────────────────────────────────────────────
   const usersData = [
-    ["Name", "Email", "Division", "Title", "Office", "Dev Manager Email", "Cohort Name"],
+    ["Name", "Email", "Division", "Title", "Office", "Manager Email", "Cohort Name"],
     ["Jane Doe", "jane.doe@example.com", "MSD", "ANALYST", "YCP Indonesia", "manager@example.com", ""],
   ]
   const wsUsers = xlsx.utils.aoa_to_sheet(usersData)

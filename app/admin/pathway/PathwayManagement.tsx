@@ -225,7 +225,7 @@ function PathwayFormModal({
               />
               <div>
                 <p className="text-sm font-medium text-slate-800">Requires approval</p>
-                <p className="text-xs text-slate-500">Enrollment must be approved by the user's development manager before starting.</p>
+                <p className="text-xs text-slate-500">Enrollment must be approved by the user's manager before starting.</p>
               </div>
             </label>
           </div>

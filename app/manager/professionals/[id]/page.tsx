@@ -20,12 +20,12 @@ export default async function ProfessionalDetailPage({
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/")
 
-  const devManagerId = (session.user as any).id as string
+  const managerId = (session.user as any).id as string
   const { id } = await params
 
-  // Verify this professional is under the requesting dev manager
+  // Verify this professional is under the requesting manager
   const professional = await prisma.user.findFirst({
-    where: { id, devManagerId },
+    where: { id, managers: { some: { managerId } } },
     select: {
       id: true,
       name: true,
