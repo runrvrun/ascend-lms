@@ -246,7 +246,7 @@ function DeleteConfirm({ onCancel, onConfirm }: { onCancel: () => void; onConfir
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Assignment config (create / edit / delete) ───────────────────────────────
 
 export function AssignmentManagement({
   courseId,
@@ -258,7 +258,6 @@ export function AssignmentManagement({
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [grading, setGrading] = useState<SubmissionRow | null>(null)
 
   return (
     <>
@@ -280,101 +279,31 @@ export function AssignmentManagement({
           No assignment yet. Add one above.
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Assignment card */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-start justify-between gap-4 p-5">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <ClipboardCheck size={16} className="text-orange-500" />
-                  <span className="text-sm font-semibold text-slate-800">Assignment</span>
-                </div>
-                <p className="text-sm text-slate-600 whitespace-pre-wrap">{assignment.description}</p>
-                <a
-                  href={assignment.submitUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                >
-                  Submission folder <ExternalLink size={11} />
-                </a>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-start justify-between gap-4 p-5">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <ClipboardCheck size={16} className="text-orange-500" />
+                <span className="text-sm font-semibold text-slate-800">Assignment</span>
               </div>
-              <div className="flex gap-1">
-                <button onClick={() => setEditing(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                  <Pencil size={13} />
-                </button>
-                <button onClick={() => setDeleting(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                  <Trash2 size={13} />
-                </button>
-              </div>
+              <p className="text-sm text-slate-600 whitespace-pre-wrap">{assignment.description}</p>
+              <a
+                href={assignment.submitUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+              >
+                Submission folder <ExternalLink size={11} />
+              </a>
             </div>
-          </div>
-
-          {/* Submissions */}
-          <div>
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">
-              Submissions{" "}
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-                {assignment.submissions.length}
-              </span>
-            </h3>
-
-            {assignment.submissions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-400">
-                No submissions yet.
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">User</th>
-                      <th className="px-4 py-3">Pathway</th>
-                      <th className="px-4 py-3">Submission</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Submitted</th>
-                      <th className="px-4 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {assignment.submissions.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">
-                          {s.user.name ?? s.user.email}
-                        </td>
-                        <td className="px-4 py-3 text-slate-500 text-xs">{s.pathway.name}</td>
-                        <td className="px-4 py-3">
-                          <a
-                            href={s.submissionUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                          >
-                            View <ExternalLink size={10} />
-                          </a>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[s.status]}`}>
-                            {STATUS_LABELS[s.status]}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-400">
-                          {new Date(s.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => setGrading(s)}
-                            className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                          >
-                            {s.status === "SUBMITTED" ? "Review" : "Re-review"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div className="flex gap-1">
+              <button onClick={() => setEditing(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <Pencil size={13} />
+              </button>
+              <button onClick={() => setDeleting(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                <Trash2 size={13} />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -388,7 +317,6 @@ export function AssignmentManagement({
           onSubmit={(d) => createAssignment(courseId, d)}
         />
       )}
-
       {editing && assignment && (
         <AssignmentFormModal
           title="Edit Assignment"
@@ -398,20 +326,94 @@ export function AssignmentManagement({
           onSubmit={(d) => updateAssignment(assignment.id, courseId, d)}
         />
       )}
-
       {deleting && assignment && (
         <DeleteConfirm
           onCancel={() => setDeleting(false)}
           onConfirm={() => deleteAssignment(assignment.id, courseId)}
         />
       )}
+    </>
+  )
+}
+
+// ─── Submissions panel (separate tab) ────────────────────────────────────────
+
+export function SubmissionsPanel({
+  courseId,
+  assignment,
+}: {
+  courseId: string
+  assignment: AssignmentRow
+}) {
+  const [grading, setGrading] = useState<SubmissionRow | null>(null)
+
+  if (!assignment) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-16 text-center text-sm text-slate-400">
+        No assignment configured for this course yet.
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-slate-900">Submissions</h2>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+          {assignment.submissions.length}
+        </span>
+      </div>
+
+      {assignment.submissions.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-16 text-center text-sm text-slate-400">
+          No submissions yet.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-sm">
+            <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Pathway</th>
+                <th className="px-4 py-3">Submission</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Submitted</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {assignment.submissions.map((s) => (
+                <tr key={s.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium text-slate-900">{s.user.name ?? s.user.email}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{s.pathway.name}</td>
+                  <td className="px-4 py-3">
+                    <a href={s.submissionUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                      View <ExternalLink size={10} />
+                    </a>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[s.status]}`}>
+                      {STATUS_LABELS[s.status]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{new Date(s.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setGrading(s)}
+                      className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {s.status === "SUBMITTED" ? "Review" : "Re-review"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {grading && (
-        <GradeModal
-          submission={grading}
-          courseId={courseId}
-          onClose={() => setGrading(null)}
-        />
+        <GradeModal submission={grading} courseId={courseId} onClose={() => setGrading(null)} />
       )}
     </>
   )

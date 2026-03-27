@@ -345,3 +345,16 @@ export async function submitAssignment(assignmentId: string, pathwayId: string, 
 
   revalidatePath(`/pathways/${pathwayId}`)
 }
+
+export async function submitCourseFeedback(courseId: string, pathwayId: string, rating: number, comment: string) {
+  const session = await getSession()
+  const userId = (session.user as any).id as string
+
+  await prisma.courseFeedback.upsert({
+    where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },
+    create: { userId, courseId, pathwayId, rating, comment: comment || null },
+    update: { rating, comment: comment || null },
+  })
+
+  revalidatePath(`/pathways/${pathwayId}`)
+}

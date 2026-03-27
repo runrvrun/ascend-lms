@@ -4,9 +4,11 @@ import { ArrowLeft } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
 import { ContentManagement } from "./ContentManagement"
 import { TestManagement } from "./TestManagement"
-import { AssignmentManagement } from "./AssignmentManagement"
+import { AssignmentManagement, SubmissionsPanel } from "./AssignmentManagement"
 import { TrainerManagement } from "./TrainerManagement"
 import { CourseStatusToggle } from "./CourseStatusToggle"
+import { FeedbackSection } from "./FeedbackSection"
+import { CourseTabLayout } from "./CourseTabLayout"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -16,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [course, test, assignment, trainers, allUsers] = await Promise.all([
+  const [course, test, assignment, trainers, allUsers, feedbacks] = await Promise.all([
     prisma.course.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -60,6 +62,11 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
         },
       },
     }),
+    prisma.courseFeedback.findMany({
+      where: { courseId: id },
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { name: true } } },
+    }),
   ])
 
   if (!course) notFound()
@@ -83,19 +90,21 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <ContentManagement courseId={course.id} contents={course.contents} />
-
-      <div className="mt-8">
-        <TestManagement courseId={course.id} test={test} />
-      </div>
-
-      <div className="mt-8">
-        <AssignmentManagement courseId={course.id} assignment={assignment} />
-      </div>
-
-      <div className="mt-8">
+      <div className="mb-8">
         <TrainerManagement courseId={course.id} trainers={trainers} allUsers={allUsers} />
       </div>
+
+      <CourseTabLayout
+        content={
+          <div className="flex flex-col gap-8">
+            <ContentManagement courseId={course.id} contents={course.contents} />
+            <TestManagement courseId={course.id} test={test} />
+            <AssignmentManagement courseId={course.id} assignment={assignment} />
+          </div>
+        }
+        submissions={<SubmissionsPanel courseId={course.id} assignment={assignment} />}
+        feedback={<FeedbackSection courseId={course.id} feedbackEnabled={course.feedbackEnabled} feedbacks={feedbacks} />}
+      />
     </main>
   )
 }

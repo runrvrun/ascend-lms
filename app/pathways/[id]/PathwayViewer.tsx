@@ -19,9 +19,11 @@ import {
   Trophy,
   ChevronUp,
   GripVertical,
+  Star,
+  MessageSquare,
 } from "lucide-react"
 import { ContentType, SubmissionStatus } from "@prisma/client"
-import { toggleContentComplete, submitTest, submitAssignment } from "../actions"
+import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedback } from "../actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
 import { VideoPlayer } from "./VideoPlayer"
 
@@ -80,6 +82,7 @@ type CourseEntry = {
     contents: ContentItem[]
     test: TestItem
     assignment: AssignmentItem
+    feedbackEnabled: boolean
   }
 }
 
@@ -94,6 +97,7 @@ type Selection =
   | { kind: "content"; content: ContentItem; courseId: string }
   | { kind: "test"; test: NonNullable<TestItem>; courseId: string; courseName: string }
   | { kind: "assignment"; assignment: NonNullable<AssignmentItem>; courseId: string; courseName: string }
+  | { kind: "feedback"; courseId: string; courseName: string }
 
 type TestResult = {
   score: number
@@ -725,6 +729,121 @@ const TYPE_ICON: Record<ContentType, React.ReactNode> = {
   LINK: <Link2 size={13} />,
 }
 
+function FeedbackViewer({
+  courseId,
+  pathwayId,
+  courseName,
+  courseCompleted,
+  existing,
+}: {
+  courseId: string
+  pathwayId: string
+  courseName: string
+  courseCompleted: boolean
+  existing: { rating: number; comment: string | null } | null
+}) {
+  const [rating, setRating] = useState(existing?.rating ?? 0)
+  const [hovered, setHovered] = useState(0)
+  const [comment, setComment] = useState(existing?.comment ?? "")
+  const [submitted, setSubmitted] = useState(false)
+  const [pending, startTransition] = useTransition()
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!rating) return
+    startTransition(async () => {
+      await submitCourseFeedback(courseId, pathwayId, rating, comment)
+      setSubmitted(true)
+    })
+  }
+
+  const displayRating = hovered || rating
+
+  return (
+    <div className="h-full overflow-y-auto p-6 md:p-8">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{courseName}</div>
+      <h2 className="mb-6 text-xl font-bold text-slate-900">Course Feedback</h2>
+
+      {!courseCompleted ? (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+          <Star size={28} className="mx-auto mb-3 text-slate-300" />
+          <p className="text-sm font-medium text-slate-500">Complete the course to leave feedback.</p>
+        </div>
+      ) : submitted || (existing && !submitted) ? (
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle2 size={16} className="text-green-600" />
+            <span className="text-sm font-semibold text-green-700">
+              {submitted ? "Feedback submitted!" : "You've already submitted feedback."}
+            </span>
+          </div>
+          <div className="flex items-center gap-0.5 mb-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} size={18} className={i < (submitted ? rating : existing!.rating) ? "fill-yellow-400 text-yellow-400" : "text-slate-300"} />
+            ))}
+          </div>
+          {(submitted ? comment : existing!.comment) && (
+            <p className="text-sm text-slate-600">{submitted ? comment : existing!.comment}</p>
+          )}
+          {!submitted && (
+            <button
+              onClick={() => setSubmitted(false)}
+              className="mt-3 text-xs text-blue-600 hover:underline"
+            >
+              Edit feedback
+            </button>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-700">Rating <span className="text-red-500">*</span></p>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setRating(i + 1)}
+                  onMouseEnter={() => setHovered(i + 1)}
+                  onMouseLeave={() => setHovered(0)}
+                  className="focus:outline-none"
+                >
+                  <Star
+                    size={28}
+                    className={i < displayRating ? "fill-yellow-400 text-yellow-400" : "text-slate-300 hover:text-yellow-300"}
+                  />
+                </button>
+              ))}
+              {rating > 0 && (
+                <span className="ml-2 text-sm text-slate-500">{rating} / 5</span>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-slate-700">
+              Comments <span className="text-xs font-normal text-slate-400">(optional)</span>
+            </label>
+            <textarea
+              rows={4}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Share your thoughts on this course or trainer…"
+              className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!rating || pending}
+            className="self-start rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {pending ? "Submitting…" : "Submit Feedback"}
+          </button>
+        </form>
+      )}
+    </div>
+  )
+}
+
 function ContentViewer({
   selection,
   pathwayId,
@@ -734,6 +853,7 @@ function ContentViewer({
   latestSubmissionByAssignmentId,
   testStatusByCourseId,
   assignmentStatusByCourseId,
+  feedbackByCourseId,
 }: {
   selection: Selection | null
   pathwayId: string
@@ -743,6 +863,7 @@ function ContentViewer({
   latestSubmissionByAssignmentId: Record<string, SubmissionItem>
   testStatusByCourseId: Record<string, "PASSED" | "FAILED">
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
 }) {
   const [pending, startTransition] = useTransition()
   const [videoProgress, setVideoProgress] = useState(0)
@@ -818,6 +939,18 @@ function ContentViewer({
     )
   }
 
+  if (selection.kind === "feedback") {
+    return (
+      <FeedbackViewer
+        courseId={selection.courseId}
+        pathwayId={pathwayId}
+        courseName={selection.courseName}
+        courseCompleted={completedCourseIds.has(selection.courseId)}
+        existing={feedbackByCourseId[selection.courseId] ?? null}
+      />
+    )
+  }
+
   const { content } = selection
 
   if (content.type === "TEXT") {
@@ -884,6 +1017,7 @@ function CourseSection({
   completedCourseIds,
   testStatusByCourseId,
   assignmentStatusByCourseId,
+  feedbackByCourseId,
   onSelect,
 }: {
   entry: CourseEntry
@@ -892,6 +1026,7 @@ function CourseSection({
   completedCourseIds: Set<string>
   testStatusByCourseId: Record<string, "PASSED" | "FAILED">
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   onSelect: (sel: Selection) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -1007,6 +1142,26 @@ function CourseSection({
               <span className="truncate">Assignment</span>
             </button>
           )}
+
+          {course.feedbackEnabled && (
+            <button
+              onClick={() => onSelect({ kind: "feedback", courseId: course.id, courseName: course.name })}
+              className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                selectedId === `feedback-${course.id}`
+                  ? "bg-blue-50 text-blue-700 font-medium"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {feedbackByCourseId[course.id] ? (
+                <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+              ) : (
+                <span className={selectedId === `feedback-${course.id}` ? "text-blue-500" : "text-slate-400"}>
+                  <Star size={13} />
+                </span>
+              )}
+              <span className="truncate">Feedback</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1024,6 +1179,7 @@ export function PathwayViewer({
   latestSubmissionByAssignmentId,
   testStatusByCourseId,
   assignmentStatusByCourseId,
+  feedbackByCourseId,
 }: {
   pathway: PathwayData
   completedContentIds: Set<string>
@@ -1033,6 +1189,7 @@ export function PathwayViewer({
   latestSubmissionByAssignmentId: Record<string, SubmissionItem>
   testStatusByCourseId: Record<string, "PASSED" | "FAILED">
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
 }) {
   const firstCourse = pathway.courses[0]?.course
   const firstContent = firstCourse?.contents[0]
@@ -1049,6 +1206,8 @@ export function PathwayViewer({
       ? `test-${selected.test.id}`
       : selected?.kind === "assignment"
       ? `assignment-${selected.assignment.id}`
+      : selected?.kind === "feedback"
+      ? `feedback-${selected.courseId}`
       : null
 
   return (
@@ -1100,6 +1259,7 @@ export function PathwayViewer({
                 completedCourseIds={completedCourseIds}
                 testStatusByCourseId={testStatusByCourseId}
                 assignmentStatusByCourseId={assignmentStatusByCourseId}
+                feedbackByCourseId={feedbackByCourseId}
                 onSelect={setSelected}
               />
             ))}
@@ -1117,6 +1277,7 @@ export function PathwayViewer({
             latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
             testStatusByCourseId={testStatusByCourseId}
             assignmentStatusByCourseId={assignmentStatusByCourseId}
+            feedbackByCourseId={feedbackByCourseId}
           />
         </main>
       </div>

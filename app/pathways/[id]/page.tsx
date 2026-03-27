@@ -19,7 +19,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
 
   const userId = (session.user as any).id as string
 
-  const [pathway, enrollment, completedRecords, courseProgressRecords, assignmentSubmissions] = await Promise.all([
+  const [pathway, enrollment, completedRecords, courseProgressRecords, assignmentSubmissions, courseFeedbacks] = await Promise.all([
     prisma.pathway.findFirst({
       where: { id, deletedAt: null, status: "PUBLISHED" },
       include: {
@@ -78,6 +78,10 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         createdAt: true,
       },
     }),
+    prisma.courseFeedback.findMany({
+      where: { userId, pathwayId: id },
+      select: { courseId: true, rating: true, comment: true },
+    }),
   ])
 
   if (!pathway) notFound()
@@ -103,6 +107,11 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
     }
   }
 
+  const feedbackByCourseId: Record<string, { rating: number; comment: string | null }> = {}
+  for (const f of courseFeedbacks) {
+    feedbackByCourseId[f.courseId] = { rating: f.rating, comment: f.comment }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">
       <SidebarWithStats session={session} />
@@ -115,6 +124,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
         testStatusByCourseId={testStatusByCourseId}
         assignmentStatusByCourseId={assignmentStatusByCourseId}
+        feedbackByCourseId={feedbackByCourseId}
       />
     </div>
   )

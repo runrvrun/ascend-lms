@@ -6,8 +6,10 @@ import { authOptions } from "../../../api/auth/[...nextauth]/route"
 import { prisma } from "../../../lib/prisma"
 import { ContentManagement } from "../../../admin/course/[id]/ContentManagement"
 import { TestManagement } from "../../../admin/course/[id]/TestManagement"
-import { AssignmentManagement } from "../../../admin/course/[id]/AssignmentManagement"
+import { AssignmentManagement, SubmissionsPanel } from "../../../admin/course/[id]/AssignmentManagement"
 import { CourseStatusToggle } from "../../../admin/course/[id]/CourseStatusToggle"
+import { FeedbackSection } from "../../../admin/course/[id]/FeedbackSection"
+import { CourseTabLayout } from "../../../admin/course/[id]/CourseTabLayout"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -30,7 +32,7 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
     if (!trainerRecord) redirect("/trainer/course")
   }
 
-  const [course, test, assignment] = await Promise.all([
+  const [course, test, assignment, feedbacks] = await Promise.all([
     prisma.course.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -63,6 +65,11 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
         },
       },
     }),
+    prisma.courseFeedback.findMany({
+      where: { courseId: id },
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { name: true } } },
+    }),
   ])
 
   if (!course) notFound()
@@ -86,15 +93,17 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
         </div>
       </div>
 
-      <ContentManagement courseId={course.id} contents={course.contents} />
-
-      <div className="mt-8">
-        <TestManagement courseId={course.id} test={test} />
-      </div>
-
-      <div className="mt-8">
-        <AssignmentManagement courseId={course.id} assignment={assignment} />
-      </div>
+      <CourseTabLayout
+        content={
+          <div className="flex flex-col gap-8">
+            <ContentManagement courseId={course.id} contents={course.contents} />
+            <TestManagement courseId={course.id} test={test} />
+            <AssignmentManagement courseId={course.id} assignment={assignment} />
+          </div>
+        }
+        submissions={<SubmissionsPanel courseId={course.id} assignment={assignment} />}
+        feedback={<FeedbackSection courseId={course.id} feedbackEnabled={course.feedbackEnabled} feedbacks={feedbacks} />}
+      />
     </main>
   )
 }

@@ -296,3 +296,11 @@ export async function gradeSubmission(
   revalidatePath(`/pathways/${submission.pathwayId}`)
   revalidatePath("/notifications")
 }
+
+// ── Feedback ───────────────────────────────────────────────────────────────────
+
+export async function toggleCourseFeedback(courseId: string, enabled: boolean) {
+  await prisma.course.update({ where: { id: courseId }, data: { feedbackEnabled: enabled } })
+  revalidatePath(`/admin/course/${courseId}`)
+  revalidatePath(`/trainer/course/${courseId}`)
+}
