@@ -36,6 +36,8 @@ model User {
   comments          Comment[]        @relation("CommentAuthor")
   replyMentions     Comment[]        @relation("CommentReplyTo")
   notifications     Notification[]
+  assignmentSubmissions AssignmentSubmission[]
+  gradedSubmissions     AssignmentSubmission[] @relation("AssignmentGrader")
 
   password              String?
   activationToken       String?
@@ -180,8 +182,9 @@ model Pathway {
   pathwayEnrollments PathwayEnrollment[]
   courseProgresses   CourseProgress[]
   contentProgresses  ContentProgress[]
-  comments           Comment[]
-  notifications      Notification[]
+  comments              Comment[]
+  notifications         Notification[]
+  assignmentSubmissions AssignmentSubmission[]
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -198,7 +201,8 @@ model Course {
   name        String        @unique
   description String?
   status      PublishStatus @default(PUBLISHED)
-  test     Test?
+  test       Test?
+  assignment Assignment?
 
   contents Content[]
   pathways PathwayCourse[]
@@ -310,6 +314,54 @@ model QuestionOption {
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 }
 
+// ── Assignment ─────────────────────────────────────────────────────────────────
+
+model Assignment {
+  id          String  @id @default(dbgenerated("gen_random_uuid()::text"))
+  courseId    String  @unique
+  description String
+  submitUrl   String  // SharePoint link where users upload their file
+
+  course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+}
+
+model AssignmentSubmission {
+  id           String           @id @default(dbgenerated("gen_random_uuid()::text"))
+  assignmentId String
+  userId       String
+  pathwayId    String
+
+  submissionUrl String
+  grade         Float?
+  status        SubmissionStatus @default(SUBMITTED)
+  adminNote     String?
+
+  gradedAt   DateTime?
+  gradedById String?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id])
+  pathway    Pathway    @relation(fields: [pathwayId], references: [id])
+  gradedBy   User?      @relation("AssignmentGrader", fields: [gradedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignmentId, status])
+  @@index([userId, pathwayId])
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  PASSED
+  FAILED
+}
+
 model PathwayEnrollment {
   id String @id @default(dbgenerated("gen_random_uuid()::text"))
 
@@ -362,8 +414,10 @@ model CourseProgress {
   courseId  String
   pathwayId String
 
-  completed Boolean @default(false)
-  score     Float?
+  completed        Boolean     @default(false)
+  testScore        Float?
+  testStatus       TestStatus?
+  assignmentStatus TestStatus?
 
   completedAt DateTime?
 
@@ -374,6 +428,11 @@ model CourseProgress {
   @@unique([userId, courseId, pathwayId])
   @@index([userId, pathwayId])
   @@index([pathwayId, completed])
+}
+
+enum TestStatus {
+  PASSED
+  FAILED
 }
 
 model ContentProgress {
@@ -443,6 +502,7 @@ enum NotificationType {
   ENROLLMENT_REJECTED
   PATHWAY_ASSIGNED
   COHORT_PATHWAY_ASSIGNED
+  ASSIGNMENT_GRADED
 }
 
 model Notification {

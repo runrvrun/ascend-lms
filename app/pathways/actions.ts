@@ -37,12 +37,14 @@ async function checkCourseCompletion(userId: string, courseId: string, pathwayId
     include: {
       contents: { where: { deletedAt: null }, select: { id: true } },
       test: { where: { deletedAt: null }, select: { id: true } },
+      assignment: { select: { id: true, deletedAt: true } },
     },
   })
   if (!course) return
 
-  // Courses with a test are completed via submitTest, not here
-  if (course.test) return
+  // Courses with a test or assignment are completed via submitTest / gradeSubmission
+  const hasAssignment = course.assignment && course.assignment.deletedAt === null
+  if (course.test || hasAssignment) return
 
   if (course.contents.length === 0) return
 
@@ -192,26 +194,47 @@ export async function submitTest(
   const score = total > 0 ? (correct / total) * 100 : 0
   const passed = score >= test.passThreshold
 
+  // Always fetch course to evaluate all completion conditions
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    include: {
+      contents: { where: { deletedAt: null }, select: { id: true } },
+      assignment: { select: { id: true, deletedAt: true } },
+    },
+  })
+
+  const testStatus = passed ? ("PASSED" as const) : ("FAILED" as const)
+
+  // Always persist testScore + testStatus so the UI can reflect test state independently
+  await prisma.courseProgress.upsert({
+    where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },
+    create: { userId, courseId, pathwayId, testScore: score, testStatus },
+    update: { testScore: score, testStatus },
+  })
+
   let courseCompleted = false
   if (passed) {
-    // Check if all course contents are also completed
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      include: { contents: { where: { deletedAt: null }, select: { id: true } } },
-    })
     const completedContentsCount = course?.contents.length
       ? await prisma.contentProgress.count({
-          where: { userId, pathwayId, contentId: { in: course.contents.map((c) => c.id) } },
+          where: { userId, pathwayId, contentId: { in: course!.contents.map((c) => c.id) } },
         })
       : 0
     const allContentsComplete =
-      !course?.contents.length || completedContentsCount === course.contents.length
+      !course?.contents.length || completedContentsCount === course!.contents.length
 
-    if (allContentsComplete) {
-      await prisma.courseProgress.upsert({
+    const activeAssignment = course?.assignment && course.assignment.deletedAt === null
+      ? course.assignment
+      : null
+    const assignmentPassed = activeAssignment
+      ? !!(await prisma.assignmentSubmission.findFirst({
+          where: { assignmentId: activeAssignment.id, userId, pathwayId, status: "PASSED" },
+        }))
+      : true
+
+    if (allContentsComplete && assignmentPassed) {
+      await prisma.courseProgress.update({
         where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },
-        create: { userId, courseId, pathwayId, completed: true, score, completedAt: new Date() },
-        update: { completed: true, score, completedAt: new Date() },
+        data: { completed: true, completedAt: new Date() },
       })
       await awardCoursePoints(userId, courseId, pathwayId)
       courseCompleted = true
@@ -245,7 +268,7 @@ export async function requestPathway(pathwayId: string, note: string) {
       select: {
         name: true,
         email: true,
-        devManager: { select: { name: true, email: true } },
+        devManager: { select: { id: true, name: true, email: true } },
       },
     }),
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
@@ -254,14 +277,28 @@ export async function requestPathway(pathwayId: string, note: string) {
   revalidatePath("/pathways")
   revalidatePath("/dashboard")
 
-  if (user?.devManager?.email && pathway) {
-    await sendNewEnrollmentRequest(
-      user.devManager.email,
-      user.devManager.name ?? user.devManager.email,
-      user.name ?? user.email ?? "A team member",
-      pathway.name,
-      note
-    )
+  if (user?.devManager && pathway) {
+    const requesterName = user.name ?? user.email ?? "A team member"
+    await Promise.all([
+      user.devManager.email
+        ? sendNewEnrollmentRequest(
+            user.devManager.email,
+            user.devManager.name ?? user.devManager.email,
+            requesterName,
+            pathway.name,
+            note
+          )
+        : Promise.resolve(),
+      prisma.notification.create({
+        data: {
+          userId: user.devManager.id,
+          type: "PATHWAY_ASSIGNED",
+          message: `${requesterName} has requested enrollment in "${pathway.name}". Please review their request.`,
+          pathwayId,
+        },
+      }),
+    ])
+    revalidatePath("/notifications")
   }
 }
 
@@ -274,4 +311,15 @@ export async function unenrollPathway(pathwayId: string) {
   })
   revalidatePath("/pathways")
   revalidatePath("/dashboard")
+}
+
+export async function submitAssignment(assignmentId: string, pathwayId: string, submissionUrl: string) {
+  const session = await getSession()
+  const userId = (session.user as any).id as string
+
+  await prisma.assignmentSubmission.create({
+    data: { assignmentId, userId, pathwayId, submissionUrl, status: "SUBMITTED" },
+  })
+
+  revalidatePath(`/pathways/${pathwayId}`)
 }

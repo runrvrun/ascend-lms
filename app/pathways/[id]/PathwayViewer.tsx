@@ -8,18 +8,20 @@ import {
   Link2,
   Video,
   ClipboardList,
+  ClipboardCheck,
   ChevronDown,
   ChevronRight,
   ExternalLink,
   CheckCircle2,
   Circle,
   XCircle,
+  Clock,
   Trophy,
   ChevronUp,
   GripVertical,
 } from "lucide-react"
-import { ContentType } from "@prisma/client"
-import { toggleContentComplete, submitTest } from "../actions"
+import { ContentType, SubmissionStatus } from "@prisma/client"
+import { toggleContentComplete, submitTest, submitAssignment } from "../actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
 import { VideoPlayer } from "./VideoPlayer"
 
@@ -54,6 +56,22 @@ type TestItem = {
   questions: Question[]
 } | null
 
+type AssignmentItem = {
+  id: string
+  description: string
+  submitUrl: string
+} | null
+
+type SubmissionItem = {
+  id: string
+  assignmentId: string
+  submissionUrl: string
+  grade: number | null
+  status: SubmissionStatus
+  adminNote: string | null
+  createdAt: Date
+} | null
+
 type CourseEntry = {
   order: number
   course: {
@@ -61,6 +79,7 @@ type CourseEntry = {
     name: string
     contents: ContentItem[]
     test: TestItem
+    assignment: AssignmentItem
   }
 }
 
@@ -74,6 +93,7 @@ type PathwayData = {
 type Selection =
   | { kind: "content"; content: ContentItem; courseId: string }
   | { kind: "test"; test: NonNullable<TestItem>; courseId: string; courseName: string }
+  | { kind: "assignment"; assignment: NonNullable<AssignmentItem>; courseId: string; courseName: string }
 
 type TestResult = {
   score: number
@@ -475,7 +495,7 @@ function TestViewer({
             <div className="rounded-xl bg-green-50 px-5 py-3 text-sm text-green-700">
               {result.courseCompleted
                 ? "This course has been marked as completed."
-                : "Test passed! Complete all content items to finish the course."}
+                : "Test passed! Complete all remaining requirements to finish the course."}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3">
@@ -566,6 +586,137 @@ function TestViewer({
   )
 }
 
+// ─── Assignment viewer ────────────────────────────────────────────────────────
+
+function AssignmentViewer({
+  assignment,
+  courseId,
+  pathwayId,
+  courseName,
+  submission,
+  isAlreadyPassed,
+}: {
+  assignment: NonNullable<AssignmentItem>
+  courseId: string
+  pathwayId: string
+  courseName: string
+  submission: SubmissionItem
+  isAlreadyPassed: boolean
+}) {
+  const [url, setUrl] = useState("")
+  const [pending, startTransition] = useTransition()
+  const [submitted, setSubmitted] = useState(false)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    startTransition(async () => {
+      await submitAssignment(assignment.id, pathwayId, url)
+      setUrl("")
+      setSubmitted(true)
+    })
+  }
+
+  const status = submission?.status
+
+  return (
+    <div className="h-full overflow-y-auto p-6 md:p-8">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{courseName}</div>
+      <h2 className="mb-6 text-xl font-bold text-slate-900">Assignment</h2>
+
+      {/* Description */}
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <p className="text-sm font-semibold text-slate-700 mb-2">Instructions</p>
+        <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{assignment.description}</div>
+      </div>
+
+      {/* Submission link */}
+      <div className="mb-6">
+        <a
+          href={assignment.submitUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+        >
+          Open submission folder
+          <ExternalLink size={11} />
+        </a>
+      </div>
+
+      {/* Status banner */}
+      {isAlreadyPassed && (
+        <div className="mb-6 flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm font-semibold text-green-700">
+          <CheckCircle2 size={16} />
+          Assignment passed — course completed!
+        </div>
+      )}
+
+      {!isAlreadyPassed && status === "PASSED" && (
+        <div className="mb-6 flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm font-semibold text-green-700">
+          <CheckCircle2 size={16} />
+          Assignment passed — course completed!
+        </div>
+      )}
+
+      {!isAlreadyPassed && status === "SUBMITTED" && !submitted && (
+        <div className="mb-6 flex items-center gap-2 rounded-xl bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-700">
+          <Clock size={15} />
+          Your submission is pending review.
+        </div>
+      )}
+
+      {!isAlreadyPassed && status === "FAILED" && !submitted && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm">
+          <div className="flex items-center gap-2 font-semibold text-red-700 mb-1">
+            <XCircle size={15} />
+            Assignment failed ({submission!.grade}%) — please resubmit.
+          </div>
+          {submission?.adminNote && (
+            <p className="text-red-600 text-xs mt-1">Feedback: {submission.adminNote}</p>
+          )}
+        </div>
+      )}
+
+      {submitted && (
+        <div className="mb-6 flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm font-semibold text-green-700">
+          <CheckCircle2 size={16} />
+          Submission received! Your assignment is pending review.
+        </div>
+      )}
+
+      {/* Submit form — hide if already passed */}
+      {!isAlreadyPassed && status !== "PASSED" && !submitted && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="mb-3 text-sm font-semibold text-slate-700">
+            {status === "FAILED" ? "Resubmit your assignment" : "Submit your assignment"}
+          </p>
+          <p className="mb-4 text-xs text-slate-500">
+            Upload your file to the submission folder above, then paste the link to your submitted file below.
+          </p>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+            <input
+              required
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://ycphd.sharepoint.com/…"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div>
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {pending ? "Submitting…" : status === "FAILED" ? "Resubmit" : "Submit Assignment"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Content viewer ───────────────────────────────────────────────────────────
 
 const TYPE_ICON: Record<ContentType, React.ReactNode> = {
@@ -580,12 +731,16 @@ function ContentViewer({
   completedContentIds,
   completedCourseIds,
   currentUserId,
+  latestSubmissionByAssignmentId,
+  testStatusByCourseId,
 }: {
   selection: Selection | null
   pathwayId: string
   completedContentIds: Set<string>
   completedCourseIds: Set<string>
   currentUserId: string
+  latestSubmissionByAssignmentId: Record<string, SubmissionItem>
+  testStatusByCourseId: Record<string, "PASSED" | "FAILED">
 }) {
   const [pending, startTransition] = useTransition()
   const [videoProgress, setVideoProgress] = useState(0)
@@ -643,6 +798,19 @@ function ContentViewer({
         courseId={selection.courseId}
         pathwayId={pathwayId}
         courseName={selection.courseName}
+        isAlreadyPassed={testStatusByCourseId[selection.courseId] === "PASSED"}
+      />
+    )
+  }
+
+  if (selection.kind === "assignment") {
+    return (
+      <AssignmentViewer
+        assignment={selection.assignment}
+        courseId={selection.courseId}
+        pathwayId={pathwayId}
+        courseName={selection.courseName}
+        submission={latestSubmissionByAssignmentId[selection.assignment.id] ?? null}
         isAlreadyPassed={completedCourseIds.has(selection.courseId)}
       />
     )
@@ -712,12 +880,16 @@ function CourseSection({
   selectedId,
   completedContentIds,
   completedCourseIds,
+  testStatusByCourseId,
+  assignmentStatusByCourseId,
   onSelect,
 }: {
   entry: CourseEntry
   selectedId: string | null
   completedContentIds: Set<string>
   completedCourseIds: Set<string>
+  testStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   onSelect: (sel: Selection) => void
 }) {
   const [open, setOpen] = useState(true)
@@ -788,7 +960,7 @@ function CourseSection({
                   : "text-slate-600 hover:bg-slate-50"
               }`}
             >
-              {courseCompleted ? (
+              {testStatusByCourseId[course.id] === "PASSED" ? (
                 <CheckCircle2 size={13} className="shrink-0 text-green-500" />
               ) : (
                 <span
@@ -800,6 +972,37 @@ function CourseSection({
                 </span>
               )}
               <span className="truncate">Test</span>
+            </button>
+          )}
+
+          {course.assignment && (
+            <button
+              onClick={() =>
+                onSelect({
+                  kind: "assignment",
+                  assignment: course.assignment!,
+                  courseId: course.id,
+                  courseName: course.name,
+                })
+              }
+              className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                selectedId === `assignment-${course.assignment.id}`
+                  ? "bg-blue-50 text-blue-700 font-medium"
+                  : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {assignmentStatusByCourseId[course.id] === "PASSED" ? (
+                <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+              ) : (
+                <span
+                  className={
+                    selectedId === `assignment-${course.assignment.id}` ? "text-blue-500" : "text-slate-400"
+                  }
+                >
+                  <ClipboardCheck size={13} />
+                </span>
+              )}
+              <span className="truncate">Assignment</span>
             </button>
           )}
         </div>
@@ -816,12 +1019,18 @@ export function PathwayViewer({
   completedCourseIds,
   isPathwayComplete,
   currentUserId,
+  latestSubmissionByAssignmentId,
+  testStatusByCourseId,
+  assignmentStatusByCourseId,
 }: {
   pathway: PathwayData
   completedContentIds: Set<string>
   completedCourseIds: Set<string>
   isPathwayComplete: boolean
   currentUserId: string
+  latestSubmissionByAssignmentId: Record<string, SubmissionItem>
+  testStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
 }) {
   const firstCourse = pathway.courses[0]?.course
   const firstContent = firstCourse?.contents[0]
@@ -836,6 +1045,8 @@ export function PathwayViewer({
       ? selected.content.id
       : selected?.kind === "test"
       ? `test-${selected.test.id}`
+      : selected?.kind === "assignment"
+      ? `assignment-${selected.assignment.id}`
       : null
 
   return (
@@ -885,6 +1096,8 @@ export function PathwayViewer({
                 selectedId={selectedId}
                 completedContentIds={completedContentIds}
                 completedCourseIds={completedCourseIds}
+                testStatusByCourseId={testStatusByCourseId}
+                assignmentStatusByCourseId={assignmentStatusByCourseId}
                 onSelect={setSelected}
               />
             ))}
@@ -899,6 +1112,8 @@ export function PathwayViewer({
             completedContentIds={completedContentIds}
             completedCourseIds={completedCourseIds}
             currentUserId={currentUserId}
+            latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
+            testStatusByCourseId={testStatusByCourseId}
           />
         </main>
       </div>

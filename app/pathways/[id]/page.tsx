@@ -19,7 +19,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
 
   const userId = (session.user as any).id as string
 
-  const [pathway, enrollment, completedRecords, courseProgressRecords] = await Promise.all([
+  const [pathway, enrollment, completedRecords, courseProgressRecords, assignmentSubmissions] = await Promise.all([
     prisma.pathway.findFirst({
       where: { id, deletedAt: null, status: "PUBLISHED" },
       include: {
@@ -43,6 +43,10 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
                     },
                   },
                 },
+                assignment: {
+                  where: { deletedAt: null },
+                  select: { id: true, description: true, submitUrl: true },
+                },
               },
             },
           },
@@ -58,8 +62,21 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
       select: { contentId: true },
     }),
     prisma.courseProgress.findMany({
-      where: { userId, pathwayId: id, completed: true },
-      select: { courseId: true },
+      where: { userId, pathwayId: id },
+      select: { courseId: true, completed: true, testStatus: true, assignmentStatus: true },
+    }),
+    prisma.assignmentSubmission.findMany({
+      where: { userId, pathwayId: id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        assignmentId: true,
+        submissionUrl: true,
+        grade: true,
+        status: true,
+        adminNote: true,
+        createdAt: true,
+      },
     }),
   ])
 
@@ -67,10 +84,24 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
   if (enrollment?.status !== "APPROVED") redirect("/pathways")
 
   const completedContentIds = new Set(completedRecords.map((r) => r.contentId))
-  const completedCourseIds = new Set(courseProgressRecords.map((r) => r.courseId))
+  const completedCourseIds = new Set(courseProgressRecords.filter((r) => r.completed).map((r) => r.courseId))
+  const testStatusByCourseId: Record<string, "PASSED" | "FAILED"> = {}
+  const assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED"> = {}
+  for (const r of courseProgressRecords) {
+    if (r.testStatus) testStatusByCourseId[r.courseId] = r.testStatus
+    if (r.assignmentStatus) assignmentStatusByCourseId[r.courseId] = r.assignmentStatus
+  }
   const isPathwayComplete =
     pathway.courses.length > 0 &&
     pathway.courses.every((entry) => completedCourseIds.has(entry.course.id))
+
+  // Latest submission per assignment for this user+pathway
+  const latestSubmissionByAssignmentId: Record<string, typeof assignmentSubmissions[0]> = {}
+  for (const sub of assignmentSubmissions) {
+    if (!latestSubmissionByAssignmentId[sub.assignmentId]) {
+      latestSubmissionByAssignmentId[sub.assignmentId] = sub
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">
@@ -81,6 +112,9 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         completedCourseIds={completedCourseIds}
         isPathwayComplete={isPathwayComplete}
         currentUserId={userId}
+        latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
+        testStatusByCourseId={testStatusByCourseId}
+        assignmentStatusByCourseId={assignmentStatusByCourseId}
       />
     </div>
   )

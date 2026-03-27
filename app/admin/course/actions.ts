@@ -1,6 +1,8 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { ContentType, QuestionType } from "@prisma/client"
 
@@ -126,4 +128,149 @@ export async function updateQuestion(questionId: string, courseId: string, data:
 export async function deleteQuestion(questionId: string, courseId: string) {
   await prisma.question.delete({ where: { id: questionId } })
   revalidatePath(`/admin/course/${courseId}`)
+}
+
+// ── Assignment ─────────────────────────────────────────────────────────────────
+
+export type AssignmentFormData = {
+  description: string
+  submitUrl: string
+}
+
+export async function createAssignment(courseId: string, data: AssignmentFormData) {
+  await prisma.assignment.create({
+    data: { courseId, description: data.description, submitUrl: data.submitUrl },
+  })
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
+export async function updateAssignment(assignmentId: string, courseId: string, data: AssignmentFormData) {
+  await prisma.assignment.update({
+    where: { id: assignmentId },
+    data: { description: data.description, submitUrl: data.submitUrl },
+  })
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
+export async function deleteAssignment(assignmentId: string, courseId: string) {
+  await prisma.assignment.update({ where: { id: assignmentId }, data: { deletedAt: new Date() } })
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
+export async function gradeSubmission(
+  submissionId: string,
+  courseId: string,
+  status: "PASSED" | "FAILED",
+  adminNote: string | null
+) {
+  const session = await getServerSession(authOptions)
+  const gradedById = (session?.user as any)?.id as string | undefined
+
+  const submission = await prisma.assignmentSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      user: { select: { id: true, name: true } },
+      pathway: { select: { id: true, name: true } },
+    },
+  })
+  if (!submission) throw new Error("Submission not found")
+
+  await prisma.assignmentSubmission.update({
+    where: { id: submissionId },
+    data: { status, adminNote, gradedAt: new Date(), gradedById: gradedById ?? null },
+  })
+
+  // Mirror assignment verdict into CourseProgress so sidebar can reflect it
+  await prisma.courseProgress.upsert({
+    where: {
+      userId_courseId_pathwayId: {
+        userId: submission.userId,
+        courseId,
+        pathwayId: submission.pathwayId,
+      },
+    },
+    create: { userId: submission.userId, courseId, pathwayId: submission.pathwayId, assignmentStatus: status },
+    update: { assignmentStatus: status },
+  })
+
+  // Notify user
+  const courseName = await prisma.course.findUnique({ where: { id: courseId }, select: { name: true } })
+  const message = status === "PASSED"
+    ? `Your assignment for "${courseName?.name}" in "${submission.pathway.name}" has been marked as passed!`
+    : `Your assignment for "${courseName?.name}" in "${submission.pathway.name}" has been marked as failed. Please resubmit.${adminNote ? ` Feedback: ${adminNote}` : ""}`
+
+  await prisma.notification.create({
+    data: {
+      userId: submission.userId,
+      type: "ASSIGNMENT_GRADED",
+      message,
+      pathwayId: submission.pathwayId,
+    },
+  })
+
+  // If passed, check if all course contents and test (if any) are also done
+  if (status === "PASSED") {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        contents: { where: { deletedAt: null }, select: { id: true } },
+        test: { select: { id: true, deletedAt: true } },
+      },
+    })
+    const allContentsCount = course?.contents.length ?? 0
+    const completedCount = allContentsCount
+      ? await prisma.contentProgress.count({
+          where: {
+            userId: submission.userId,
+            pathwayId: submission.pathwayId,
+            contentId: { in: course!.contents.map((c) => c.id) },
+          },
+        })
+      : 0
+    const allContentsComplete = !allContentsCount || completedCount === allContentsCount
+
+    // Check if test also needs to be passed
+    const activeTest = course?.test && course.test.deletedAt === null ? course.test : null
+    const testPassed = activeTest
+      ? !!(await prisma.courseProgress.findUnique({
+          where: { userId_courseId_pathwayId: { userId: submission.userId, courseId, pathwayId: submission.pathwayId } },
+          select: { testStatus: true },
+        }).then((r) => r?.testStatus === "PASSED"))
+      : true // no test required
+
+    if (allContentsComplete && testPassed) {
+      await prisma.courseProgress.upsert({
+        where: {
+          userId_courseId_pathwayId: {
+            userId: submission.userId,
+            courseId,
+            pathwayId: submission.pathwayId,
+          },
+        },
+        create: { userId: submission.userId, courseId, pathwayId: submission.pathwayId, completed: true, completedAt: new Date() },
+        update: { completed: true, completedAt: new Date() }, // testScore/testStatus untouched
+      })
+
+      // Award points once
+      const referenceId = `${courseId}:${submission.pathwayId}`
+      const already = await prisma.userPoint.findFirst({
+        where: { userId: submission.userId, source: "COURSE_COMPLETION", referenceId },
+      })
+      if (!already) {
+        const pathwayCourse = await prisma.pathwayCourse.findUnique({
+          where: { pathwayId_courseId: { pathwayId: submission.pathwayId, courseId } },
+          select: { points: true },
+        })
+        if (pathwayCourse) {
+          await prisma.userPoint.create({
+            data: { userId: submission.userId, points: pathwayCourse.points, source: "COURSE_COMPLETION", referenceId },
+          })
+        }
+      }
+    }
+  }
+
+  revalidatePath(`/admin/course/${courseId}`)
+  revalidatePath(`/pathways/${submission.pathwayId}`)
+  revalidatePath("/notifications")
 }

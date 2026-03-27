@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
 import { ContentManagement } from "./ContentManagement"
 import { TestManagement } from "./TestManagement"
+import { AssignmentManagement } from "./AssignmentManagement"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -13,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [course, test] = await Promise.all([
+  const [course, test, assignment] = await Promise.all([
     prisma.course.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -31,6 +32,19 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
           orderBy: { order: "asc" },
           include: {
             options: { orderBy: { order: "asc" } },
+          },
+        },
+      },
+    }),
+    prisma.assignment.findFirst({
+      where: { course: { id, deletedAt: null }, deletedAt: null },
+      include: {
+        submissions: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            pathway: { select: { id: true, name: true } },
+            gradedBy: { select: { name: true } },
           },
         },
       },
@@ -57,6 +71,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
 
       <div className="mt-8">
         <TestManagement courseId={course.id} test={test} />
+      </div>
+
+      <div className="mt-8">
+        <AssignmentManagement courseId={course.id} assignment={assignment} />
       </div>
     </main>
   )
