@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
-import { ArrowLeft, Bell, MessageCircle, CheckCircle2, XCircle, BookOpen, Users } from "lucide-react"
+import { ArrowLeft, Bell, MessageCircle, CheckCircle2, XCircle, BookOpen, Users, Target, BadgeCheck } from "lucide-react"
 import { markAllNotificationsRead } from "../discussions/actions"
 import { NotificationLink } from "./NotificationLink"
 
@@ -86,11 +86,15 @@ export default async function NotificationsPage() {
             <ul className="divide-y divide-slate-100">
               {notifications.map((n) => {
                 const iconMap = {
-                  COMMENT_REPLY:          { icon: <MessageCircle size={14} />, bg: "bg-blue-100",   color: "text-blue-600"  },
-                  ENROLLMENT_APPROVED:    { icon: <CheckCircle2  size={14} />, bg: "bg-green-100",  color: "text-green-600" },
-                  ENROLLMENT_REJECTED:    { icon: <XCircle       size={14} />, bg: "bg-red-100",    color: "text-red-600"   },
-                  PATHWAY_ASSIGNED:       { icon: <BookOpen      size={14} />, bg: "bg-purple-100", color: "text-purple-600"},
-                  COHORT_PATHWAY_ASSIGNED:{ icon: <Users         size={14} />, bg: "bg-amber-100",  color: "text-amber-600" },
+                  COMMENT_REPLY:           { icon: <MessageCircle size={14} />, bg: "bg-blue-100",   color: "text-blue-600"   },
+                  ENROLLMENT_APPROVED:     { icon: <CheckCircle2  size={14} />, bg: "bg-green-100",  color: "text-green-600"  },
+                  ENROLLMENT_REJECTED:     { icon: <XCircle       size={14} />, bg: "bg-red-100",    color: "text-red-600"    },
+                  PATHWAY_ASSIGNED:        { icon: <BookOpen      size={14} />, bg: "bg-purple-100", color: "text-purple-600" },
+                  COHORT_PATHWAY_ASSIGNED: { icon: <Users         size={14} />, bg: "bg-amber-100",  color: "text-amber-600"  },
+                  ASSIGNMENT_SUBMITTED:    { icon: <BookOpen      size={14} />, bg: "bg-orange-100", color: "text-orange-600" },
+                  ASSIGNMENT_GRADED:       { icon: <CheckCircle2  size={14} />, bg: "bg-green-100",  color: "text-green-600"  },
+                  GROWTH_PLAN_COMPLETED:   { icon: <Target        size={14} />, bg: "bg-orange-100", color: "text-orange-600" },
+                  GROWTH_PLAN_CONFIRMED:   { icon: <BadgeCheck    size={14} />, bg: "bg-green-100",  color: "text-green-600"  },
                 }
                 const { icon, bg, color } = iconMap[n.type] ?? iconMap.COMMENT_REPLY
                 const pathway = n.pathway
@@ -110,7 +114,27 @@ export default async function NotificationsPage() {
                       )}
                       <div className="mt-1.5 flex items-center gap-3">
                         <span className="text-xs text-slate-400">{timeAgo(n.createdAt)}</span>
-                        {pathway && (
+                        {n.type === "GROWTH_PLAN_COMPLETED" && n.relatedUserId && (
+                          <NotificationLink
+                            notificationId={n.id}
+                            href={`/devmanager/professionals/${n.relatedUserId}?tab=growth`}
+                            className="flex items-center gap-1 text-xs font-medium text-orange-600 hover:text-orange-800"
+                          >
+                            <Target size={11} />
+                            Review growth plan
+                          </NotificationLink>
+                        )}
+                        {n.type === "GROWTH_PLAN_CONFIRMED" && (
+                          <NotificationLink
+                            notificationId={n.id}
+                            href="/growth-plan"
+                            className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-800"
+                          >
+                            <BadgeCheck size={11} />
+                            View growth plan
+                          </NotificationLink>
+                        )}
+                        {pathway && n.type !== "GROWTH_PLAN_COMPLETED" && n.type !== "GROWTH_PLAN_CONFIRMED" && (
                           <NotificationLink
                             notificationId={n.id}
                             href={`/pathways/${pathway.id}`}

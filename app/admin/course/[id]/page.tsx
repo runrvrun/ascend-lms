@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [course, test, assignment, trainers, allUsers, feedbacks] = await Promise.all([
+  const [course, test, trainers, allUsers, assignment, feedbacks] = await Promise.all([
     prisma.course.findFirst({
       where: { id, deletedAt: null },
       include: {

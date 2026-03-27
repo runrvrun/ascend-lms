@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
+import { NotificationType } from "@prisma/client"
 
 export async function assignPathway(userId: string, pathwayId: string, deadline: string | null) {
   const session = await getServerSession(authOptions)
@@ -36,6 +37,42 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
 
   revalidatePath("/devmanager/professionals")
   revalidatePath("/dashboard")
+}
+
+export async function confirmGrowthPlan(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) throw new Error("Not authenticated")
+  const confirmedById = (session.user as any).id as string
+
+  const [item, confirmer] = await Promise.all([
+    prisma.growthPlan.findUnique({
+      where: { id },
+      select: { userId: true, title: true, pathwayId: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: confirmedById },
+      select: { name: true },
+    }),
+  ])
+
+  await prisma.growthPlan.update({
+    where: { id },
+    data: { confirmedAt: new Date(), confirmedById },
+  })
+
+  if (item) {
+    await prisma.notification.create({
+      data: {
+        userId: item.userId,
+        type: NotificationType.GROWTH_PLAN_CONFIRMED,
+        message: `${confirmer?.name ?? "Your development manager"} confirmed your growth plan item: "${item.title}".`,
+        pathwayId: item.pathwayId ?? undefined,
+      },
+    })
+  }
+
+  revalidatePath("/devmanager/professionals")
+  revalidatePath("/growth-plan")
 }
 
 export async function updateDeadline(enrollmentId: string, deadline: string | null) {

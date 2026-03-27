@@ -1,17 +1,21 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useSearchParams } from "next/navigation"
 import {
   ArrowLeft,
   UserCircle2,
   CheckCircle2,
+  Circle,
   Clock,
   Calendar,
   Pencil,
   X,
   Check,
+  Target,
+  BadgeCheck,
 } from "lucide-react"
-import { updateDeadline } from "../actions"
+import { updateDeadline, confirmGrowthPlan } from "../actions"
 
 type Enrollment = {
   id: string
@@ -32,6 +36,14 @@ type Professional = {
   division: string
   title: string
   office: string | null
+}
+
+type GrowthPlanItem = {
+  id: string
+  title: string
+  completedAt: string | null
+  confirmedAt: string | null
+  pathwayName: string | null
 }
 
 function formatEnum(val: string) {
@@ -199,16 +211,99 @@ function EnrollmentRow({ enrollment }: { enrollment: Enrollment }) {
   )
 }
 
+function GrowthPlanTab({ items }: { items: GrowthPlanItem[] }) {
+  const [pending, startTransition] = useTransition()
+  const [confirming, setConfirming] = useState<string | null>(null)
+
+  function handleConfirm(id: string) {
+    setConfirming(id)
+    startTransition(async () => {
+      await confirmGrowthPlan(id)
+      setConfirming(null)
+    })
+  }
+
+  if (items.length === 0) {
+    return (
+      <p className="px-6 py-10 text-center text-sm text-slate-400">
+        No growth plan items yet.
+      </p>
+    )
+  }
+
+  return (
+    <div className="divide-y divide-slate-100">
+      {items.map((item) => {
+        const isCompleted = !!item.completedAt
+        const isConfirmed = !!item.confirmedAt
+        const canConfirm = isCompleted && !isConfirmed
+
+        return (
+          <div key={item.id} className="flex items-start gap-3 px-6 py-4">
+            <div className="mt-0.5 shrink-0">
+              {isCompleted ? (
+                <CheckCircle2 size={16} className="text-green-500" />
+              ) : (
+                <Circle size={16} className="text-slate-300" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm font-medium ${isCompleted ? "text-slate-500 line-through" : "text-slate-900"}`}>
+                {item.title}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {item.pathwayName && (
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+                    {item.pathwayName}
+                  </span>
+                )}
+                {isConfirmed && (
+                  <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                    <BadgeCheck size={11} />
+                    Confirmed
+                  </span>
+                )}
+                {isCompleted && !isConfirmed && (
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                    Awaiting confirmation
+                  </span>
+                )}
+              </div>
+            </div>
+            {canConfirm && (
+              <button
+                onClick={() => handleConfirm(item.id)}
+                disabled={pending && confirming === item.id}
+                className="shrink-0 flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                <BadgeCheck size={13} />
+                Confirm
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function ProfessionalDetail({
   professional,
   enrollments,
+  growthPlans,
 }: {
   professional: Professional
   enrollments: Enrollment[]
+  growthPlans: GrowthPlanItem[]
 }) {
+  const searchParams = useSearchParams()
+  const [tab, setTab] = useState<"learning" | "growth">(
+    searchParams.get("tab") === "growth" ? "growth" : "learning"
+  )
   const approved = enrollments.filter((e) => e.status === "APPROVED")
   const completed = approved.filter((e) => e.isCompleted).length
   const pending = enrollments.filter((e) => e.status === "PENDING").length
+  const pendingConfirm = growthPlans.filter((g) => g.completedAt && !g.confirmedAt).length
 
   return (
     <>
@@ -263,25 +358,70 @@ export function ProfessionalDetail({
         </div>
       </div>
 
-      {/* Enrollments */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-6 py-4">
-          <h2 className="font-semibold text-slate-900">Learning Progress</h2>
-          <p className="mt-0.5 text-xs text-slate-400">
-            Click the pencil icon on any pathway to set or adjust a deadline.
-          </p>
-        </div>
-        {enrollments.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-slate-400">
-            No pathway enrollments yet.
-          </p>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {enrollments.map((e) => (
-              <EnrollmentRow key={e.id} enrollment={e} />
-            ))}
+      {/* Tabs */}
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => setTab("learning")}
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+            tab === "learning"
+              ? "bg-blue-600 text-white shadow-sm"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Learning Progress
+        </button>
+        <button
+          onClick={() => setTab("growth")}
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+            tab === "growth"
+              ? "bg-blue-600 text-white shadow-sm"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          <Target size={14} />
+          Growth Plan
+          {pendingConfirm > 0 && (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[9px] font-bold text-white">
+              {pendingConfirm}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Learning Progress tab */}
+      <div className={tab === "learning" ? "" : "hidden"}>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-6 py-4">
+            <h2 className="font-semibold text-slate-900">Learning Progress</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Click the pencil icon on any pathway to set or adjust a deadline.
+            </p>
           </div>
-        )}
+          {enrollments.length === 0 ? (
+            <p className="px-6 py-10 text-center text-sm text-slate-400">
+              No pathway enrollments yet.
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {enrollments.map((e) => (
+                <EnrollmentRow key={e.id} enrollment={e} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Growth Plan tab */}
+      <div className={tab === "growth" ? "" : "hidden"}>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-6 py-4">
+            <h2 className="font-semibold text-slate-900">Growth Plan</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Confirm completed items to acknowledge the professional's progress.
+            </p>
+          </div>
+          <GrowthPlanTab items={growthPlans} />
+        </div>
       </div>
     </>
   )

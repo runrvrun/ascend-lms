@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { getServerSession } from "next-auth"
 import { redirect, notFound } from "next/navigation"
 import { authOptions } from "../../../api/auth/[...nextauth]/route"
@@ -49,7 +50,7 @@ export default async function ProfessionalDetailPage({
 
   if (!professional) notFound()
 
-  const [courseProgressRecords, pathwayCourseCounts] = await Promise.all([
+  const [courseProgressRecords, pathwayCourseCounts, growthPlanRecords] = await Promise.all([
     prisma.courseProgress.findMany({
       where: { userId: id, completed: true },
       select: { pathwayId: true },
@@ -57,6 +58,17 @@ export default async function ProfessionalDetailPage({
     prisma.pathwayCourse.groupBy({
       by: ["pathwayId"],
       _count: { courseId: true },
+    }),
+    prisma.growthPlan.findMany({
+      where: { userId: id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        title: true,
+        completedAt: true,
+        confirmedAt: true,
+        pathway: { select: { name: true } },
+      },
     }),
   ])
 
@@ -80,19 +92,30 @@ export default async function ProfessionalDetailPage({
     }
   })
 
+  const growthPlans = growthPlanRecords.map((g) => ({
+    id: g.id,
+    title: g.title,
+    completedAt: g.completedAt ? g.completedAt.toISOString() : null,
+    confirmedAt: g.confirmedAt ? g.confirmedAt.toISOString() : null,
+    pathwayName: g.pathway?.name ?? null,
+  }))
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
-      <ProfessionalDetail
-        professional={{
-          id: professional.id,
-          name: professional.name,
-          email: professional.email,
-          division: professional.division,
-          title: professional.title,
-          office: professional.office?.name ?? null,
-        }}
-        enrollments={enrollments}
-      />
+      <Suspense>
+        <ProfessionalDetail
+          professional={{
+            id: professional.id,
+            name: professional.name,
+            email: professional.email,
+            division: professional.division,
+            title: professional.title,
+            office: professional.office?.name ?? null,
+          }}
+          enrollments={enrollments}
+          growthPlans={growthPlans}
+        />
+      </Suspense>
     </main>
   )
 }

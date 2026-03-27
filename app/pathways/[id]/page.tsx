@@ -19,7 +19,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
 
   const userId = (session.user as any).id as string
 
-  const [pathway, enrollment, completedRecords, courseProgressRecords, assignmentSubmissions, courseFeedbacks] = await Promise.all([
+  const [pathway, enrollment, completedRecords, courseProgressRecords, assignmentSubmissions, courseFeedbacks, allGrowthPlanRecords] = await Promise.all([
     prisma.pathway.findFirst({
       where: { id, deletedAt: null, status: "PUBLISHED" },
       include: {
@@ -82,6 +82,18 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
       where: { userId, pathwayId: id },
       select: { courseId: true, rating: true, comment: true },
     }),
+    prisma.growthPlan.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        title: true,
+        completedAt: true,
+        confirmedAt: true,
+        pathwayId: true,
+        pathway: { select: { name: true } },
+      },
+    }),
   ])
 
   if (!pathway) notFound()
@@ -125,6 +137,14 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         testStatusByCourseId={testStatusByCourseId}
         assignmentStatusByCourseId={assignmentStatusByCourseId}
         feedbackByCourseId={feedbackByCourseId}
+        allGrowthPlans={allGrowthPlanRecords.map((g) => ({
+          id: g.id,
+          title: g.title,
+          completedAt: g.completedAt,
+          confirmedAt: g.confirmedAt,
+          pathwayId: g.pathwayId,
+          pathwayName: g.pathway?.name ?? null,
+        }))}
       />
     </div>
   )
