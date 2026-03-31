@@ -133,9 +133,9 @@ export default async function LearningHistoryPage() {
                           <span className="text-sm text-slate-700">{cp.course.name}</span>
                         </div>
                         <div className="flex items-center gap-4 text-right">
-                          {cp.score != null && (
+                          {cp.testScore != null && (
                             <span className="text-xs font-medium text-slate-500">
-                              Score: {Math.round(cp.score)}%
+                              Score: {Math.round(cp.testScore)}%
                             </span>
                           )}
                           <span className="text-xs text-slate-400">
