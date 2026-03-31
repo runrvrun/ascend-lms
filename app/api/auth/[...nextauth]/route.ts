@@ -30,7 +30,7 @@ export const authOptions: AuthOptions = {
       allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
-          prompt: "login",
+          prompt: "select_account",
           scope: "openid profile email",
         },
       },

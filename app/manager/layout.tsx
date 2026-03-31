@@ -8,7 +8,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
   if (!session?.user) redirect("/")
 
   const roles = ((session.user as any).roles as string[]) ?? []
-  if (!roles.includes("MANAGER") && !roles.includes("ADMIN")) redirect("/dashboard")
+  if (!roles.includes("MANAGER")) redirect("/dashboard")
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72">

@@ -61,11 +61,16 @@ enum Division {
   MSD
   DXD
   ISD
+  OXD
   SCD
   SSD
-  OXD
-  OPD
   FIN
+  OPD
+  HDOPD
+  IA
+  EO
+  PID
+  Contractor
 }
 
 enum JobTitle {

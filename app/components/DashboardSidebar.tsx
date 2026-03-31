@@ -89,7 +89,7 @@ function SettingsMenu() {
 export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadNotifications = 0 }: DashboardSidebarProps) {
   const roles = ((session?.user as any)?.roles as string[]) ?? []
   const isAdmin = roles.includes("ADMIN")
-  const isManager = roles.includes("MANAGER") || roles.includes("ADMIN")
+  const isManager = roles.includes("MANAGER")
   const isTrainer = roles.includes("TRAINER")
   const isSME = roles.includes("SME")
   const [adminOpen, setAdminOpen] = useState(false)
