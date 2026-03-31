@@ -1,11 +1,19 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react"
 import { activateAccount } from "./actions"
 
 export default function ActivatePage() {
+  return (
+    <Suspense>
+      <ActivateForm />
+    </Suspense>
+  )
+}
+
+function ActivateForm() {
   const params = useSearchParams()
   const token = params.get("token") ?? ""
   const router = useRouter()
