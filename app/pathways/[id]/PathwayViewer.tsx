@@ -959,6 +959,8 @@ function ContentViewer({
     )
   }
 
+  if (selection.kind !== "content") return null
+
   const { content } = selection
 
   if (content.type === "TEXT") {
