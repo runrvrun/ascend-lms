@@ -28,6 +28,7 @@ const TITLES = Object.values(JobTitle)
 const ALL_ROLES: Role[] = ["ADMIN", "MANAGER", "TRAINER", "SME"]
 
 function formatEnum(val: string) {
+  if (val === "NA") return "N/A"
   return val.replace(/_/g, " ").replace(/\w+/g, (w) => w[0] + w.slice(1).toLowerCase())
 }
 

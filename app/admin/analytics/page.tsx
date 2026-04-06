@@ -55,6 +55,7 @@ function BarRow({ label, value, max, color = "bg-blue-500" }: { label: string; v
 }
 
 function formatEnum(val: string) {
+  if (val === "NA") return "N/A"
   return val.replace(/_/g, " ").replace(/\w+/g, (w) => w[0] + w.slice(1).toLowerCase())
 }
 

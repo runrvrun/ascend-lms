@@ -74,12 +74,16 @@ enum Division {
 }
 
 enum JobTitle {
+  INTERN
   ANALYST
   ASSOCIATE
   MANAGER
+  TEAM_LEAD
   DIRECTOR
   PARTNER
+  EXECUTIVE_PARTNER
   MANAGING_PARTNER
+  NA
 }
 
 model Office {

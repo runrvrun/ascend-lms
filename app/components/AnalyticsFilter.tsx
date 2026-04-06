@@ -7,6 +7,7 @@ const DIVISIONS = ["MSD", "DXD", "ISD", "SCD", "SSD", "OXD", "OPD", "FIN"]
 const TITLES = ["ANALYST", "ASSOCIATE", "MANAGER", "DIRECTOR", "PARTNER", "MANAGING_PARTNER"]
 
 function formatEnum(val: string) {
+  if (val === "NA") return "N/A"
   return val.replace(/_/g, " ").replace(/\w+/g, (w) => w[0] + w.slice(1).toLowerCase())
 }
 
