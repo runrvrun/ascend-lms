@@ -43,8 +43,9 @@ export async function removeUserFromCohort(id: string, cohortId: string) {
 // ── Cohort Pathways ───────────────────────────────────────────────────────────
 
 export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
-  const [, cohort, pathway] = await Promise.all([
-    prisma.cohortPathway.create({ data: { cohortId, pathwayId } }),
+  await prisma.cohortPathway.create({ data: { cohortId, pathwayId } })
+
+  const [cohort, pathway] = await Promise.all([
     prisma.cohort.findUnique({
       where: { id: cohortId },
       select: { name: true, users: { select: { userId: true } } },
@@ -53,6 +54,18 @@ export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
   ])
 
   if (cohort && pathway && cohort.users.length > 0) {
+    // Auto-enroll all cohort members (skip those already enrolled in this pathway)
+    await prisma.pathwayEnrollment.createMany({
+      data: cohort.users.map((u) => ({
+        userId: u.userId,
+        pathwayId,
+        cohortId,
+        type: "ASSIGNED" as const,
+        status: "APPROVED" as const,
+      })),
+      skipDuplicates: true,
+    })
+
     await prisma.notification.createMany({
       data: cohort.users.map((u) => ({
         userId: u.userId,

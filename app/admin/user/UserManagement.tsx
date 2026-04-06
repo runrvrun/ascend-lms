@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
 import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown, Mail, KeyRound } from "lucide-react"
+import { SearchableSelect } from "../../components/SearchableSelect"
 import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, addUserManager, removeUserManager, UserFormData, BulkImportResult } from "./actions"
 
 type ManagerOption = { id: string; name: string | null }
@@ -202,16 +203,13 @@ function UserFormModal({
             <label className="mb-1 block text-xs font-medium text-slate-600">
               Office <span className="text-slate-400">(optional)</span>
             </label>
-            <select
+            <SearchableSelect
               value={form.officeId}
-              onChange={(e) => set("officeId", e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— Select Office —</option>
-              {offices.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
+              onChange={(v) => set("officeId", v)}
+              options={offices.map((o) => ({ value: o.id, label: o.name }))}
+              placeholder="— Select Office —"
+              clearLabel="— No office —"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-1">

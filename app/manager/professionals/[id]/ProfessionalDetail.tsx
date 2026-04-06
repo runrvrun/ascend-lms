@@ -14,6 +14,7 @@ import {
   Check,
   Target,
   BadgeCheck,
+  UsersRound,
 } from "lucide-react"
 import { updateDeadline, confirmGrowthPlan } from "../actions"
 
@@ -27,6 +28,7 @@ type Enrollment = {
   totalCourses: number
   isCompleted: boolean
   pathway: { name: string }
+  cohortName: string | null
 }
 
 type Professional = {
@@ -170,9 +172,16 @@ function EnrollmentRow({ enrollment }: { enrollment: Enrollment }) {
             <p className="font-medium text-slate-900 truncate">{enrollment.pathway.name}</p>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-400 capitalize">
-              {formatEnum(enrollment.type)}
-            </span>
+            {enrollment.cohortName ? (
+              <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                <UsersRound size={10} />
+                {enrollment.cohortName}
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400 capitalize">
+                {formatEnum(enrollment.type)}
+              </span>
+            )}
             {enrollment.status === "PENDING" && (
               <span className="flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
                 <Clock size={10} />

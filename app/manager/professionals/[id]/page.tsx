@@ -42,6 +42,7 @@ export default async function ProfessionalDetailPage({
           status: true,
           deadline: true,
           pathway: { select: { name: true } },
+          cohort: { select: { name: true } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -89,6 +90,7 @@ export default async function ProfessionalDetailPage({
       totalCourses: total,
       isCompleted: total > 0 && completed >= total && e.status === "APPROVED",
       deadline: e.deadline ? e.deadline.toISOString() : null,
+      cohortName: e.cohort?.name ?? null,
     }
   })
 

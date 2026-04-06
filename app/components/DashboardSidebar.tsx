@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
-import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell, Settings, KeyRound, LogOut, PenLine, Target, Lightbulb, Tag } from "lucide-react"
+import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell, Settings, KeyRound, LogOut, PenLine, Target, Lightbulb, Tag, HelpCircle } from "lucide-react"
 
 interface DashboardSidebarProps {
   session: Session | null
@@ -129,6 +129,10 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
         <a href="/growth-plan" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
           <Target size={16} />
           My Growth Plan
+        </a>
+        <a href="/help" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
+          <HelpCircle size={16} />
+          Help
         </a>
       </nav>
 

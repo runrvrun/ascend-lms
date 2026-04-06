@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react"
 import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown } from "lucide-react"
 import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainer, CourseFormData } from "./actions"
+import { SearchableSelect } from "../../components/SearchableSelect"
 
 type TrainerUser = { id: string; name: string | null }
 type TopicOption = { id: string; name: string }
@@ -183,16 +184,13 @@ function CourseFormModal({
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Trainer</label>
-            <select
+            <SearchableSelect
               value={trainerId}
-              onChange={(e) => setTrainerId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— No trainer —</option>
-              {trainerUsers.map((u) => (
-                <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
-              ))}
-            </select>
+              onChange={setTrainerId}
+              options={trainerUsers.map((u) => ({ value: u.id, label: u.name ?? u.id }))}
+              placeholder="— No trainer —"
+              clearLabel="— No trainer —"
+            />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
