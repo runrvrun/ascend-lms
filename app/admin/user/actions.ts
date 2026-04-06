@@ -95,6 +95,8 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
   const updated: string[] = []
   const skipped: string[] = []
   const errors: { row: number; message: string }[] = []
+  // Collect manager IDs that need the MANAGER role granted
+  const managerIdsToGrant = new Set<string>()
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
@@ -131,6 +133,7 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
         await prisma.userManager.deleteMany({ where: { userId: existingId } })
         if (dmId) {
           await prisma.userManager.create({ data: { userId: existingId, managerId: dmId } })
+          managerIdsToGrant.add(dmId)
         }
         updated.push(email)
       } else {
@@ -151,6 +154,7 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
 
     if (dmId) {
       await prisma.userManager.create({ data: { userId: newUser.id, managerId: dmId } })
+      managerIdsToGrant.add(dmId)
     }
 
     // Assign cohort if provided
@@ -164,6 +168,14 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
     // Track so duplicate rows in the same file are also caught
     emailToId.set(email, newUser.id)
     created.push(email)
+  }
+
+  // Grant MANAGER role to all referenced managers (skip if already has it)
+  if (managerIdsToGrant.size > 0) {
+    await prisma.userRole.createMany({
+      data: [...managerIdsToGrant].map((userId) => ({ userId, role: "MANAGER" as Role })),
+      skipDuplicates: true,
+    })
   }
 
   revalidatePath("/admin/user")
