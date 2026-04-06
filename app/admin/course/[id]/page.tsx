@@ -45,7 +45,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
       include: { user: { select: { id: true, name: true, email: true } } },
     }),
     prisma.user.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, roles: { some: { role: "TRAINER" } } },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),

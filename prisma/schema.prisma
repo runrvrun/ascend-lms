@@ -224,7 +224,7 @@ model Course {
   name            String        @unique
   description     String?
   status          PublishStatus @default(PUBLISHED)
-  feedbackEnabled Boolean       @default(false)
+  feedbackEnabled Boolean       @default(true)
   topicId         String?
   test       Test?
   assignment Assignment?

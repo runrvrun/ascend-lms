@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Plus, Pencil, Trash2, X, GripVertical, GraduationCap } from "lucide-react"
 import { addCourseToPathway, updatePathwayCourse, removeCourseFromPathway } from "../actions"
+import { SearchableSelect } from "../../../components/SearchableSelect"
 
 type CourseOption = {
   id: string
@@ -79,16 +80,12 @@ function AddCourseModal({
             <label className="mb-1 block text-xs font-medium text-slate-600">
               Course <span className="text-red-500">*</span>
             </label>
-            <select
-              required
+            <SearchableSelect
               value={courseId}
-              onChange={(e) => setCourseId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {availableCourses.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              onChange={setCourseId}
+              options={availableCourses.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="— Select a course —"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
