@@ -63,6 +63,7 @@ export async function deleteUser(id: string) {
 
 export type BulkImportResult = {
   created: number
+  updated: number
   skipped: string[]
   errors: { row: number; message: string }[]
 }
@@ -91,6 +92,7 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
   const officeNameToId = new Map(allOffices.map((o) => [o.name.toLowerCase(), o.id]))
 
   const created: string[] = []
+  const updated: string[] = []
   const skipped: string[] = []
   const errors: { row: number; message: string }[] = []
 
@@ -118,15 +120,24 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
       continue
     }
 
-    // Skip already-existing emails
+    const dmId = dmEmail ? (emailToId.get(dmEmail) ?? null) : null
+    const officeId = officeName ? (officeNameToId.get(officeName.toLowerCase()) ?? null) : null
+
+    // If user already exists, only update their manager assignment
     if (emailToId.has(email)) {
-      skipped.push(email)
+      const existingId = emailToId.get(email)!
+      if (dmEmail) {
+        // Replace all managers with the one from the file
+        await prisma.userManager.deleteMany({ where: { userId: existingId } })
+        if (dmId) {
+          await prisma.userManager.create({ data: { userId: existingId, managerId: dmId } })
+        }
+        updated.push(email)
+      } else {
+        skipped.push(email)
+      }
       continue
     }
-
-    const dmId = dmEmail ? (emailToId.get(dmEmail) ?? null) : null
-
-    const officeId = officeName ? (officeNameToId.get(officeName.toLowerCase()) ?? null) : null
 
     const newUser = await prisma.user.create({
       data: {
@@ -148,7 +159,6 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
       if (cohortId) {
         await prisma.cohortUser.create({ data: { userId: newUser.id, cohortId } })
       }
-      // Silently skip if cohort not found (not a fatal error)
     }
 
     // Track so duplicate rows in the same file are also caught
@@ -157,7 +167,7 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
   }
 
   revalidatePath("/admin/user")
-  return { created: created.length, skipped, errors }
+  return { created: created.length, updated: updated.length, skipped, errors }
 }
 
 export async function setUserRoles(userId: string, roles: Role[]) {

@@ -649,10 +649,14 @@ function BulkImportModal({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="flex flex-col gap-4">
             {/* Summary */}
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="grid grid-cols-4 gap-3 text-center">
               <div className="rounded-xl bg-green-50 p-3">
                 <p className="text-2xl font-bold text-green-600">{result.created}</p>
                 <p className="text-xs text-green-700">Created</p>
+              </div>
+              <div className="rounded-xl bg-blue-50 p-3">
+                <p className="text-2xl font-bold text-blue-600">{result.updated}</p>
+                <p className="text-xs text-blue-700">Manager Updated</p>
               </div>
               <div className="rounded-xl bg-amber-50 p-3">
                 <p className="text-2xl font-bold text-amber-600">{result.skipped.length}</p>
@@ -668,7 +672,7 @@ function BulkImportModal({ onClose }: { onClose: () => void }) {
             {result.skipped.length > 0 && (
               <div>
                 <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-600">
-                  <SkipForward size={12} /> Skipped (email already exists)
+                  <SkipForward size={12} /> Skipped (already exists, no manager column)
                 </p>
                 <ul className="max-h-28 overflow-y-auto rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
                   {result.skipped.map((e) => <li key={e}>{e}</li>)}
