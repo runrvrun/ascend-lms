@@ -733,11 +733,13 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
   const [search, setSearch] = useState("")
   const [divisionFilter, setDivisionFilter] = useState<Division | "">("")
   const [titleFilter, setTitleFilter] = useState<JobTitle | "">("")
+  const [roleFilter, setRoleFilter] = useState<Role | "">("")
 
   const filtered = users.filter((u) => {
     if (search && !u.name?.toLowerCase().includes(search.toLowerCase())) return false
     if (divisionFilter && u.division !== divisionFilter) return false
     if (titleFilter && u.title !== titleFilter) return false
+    if (roleFilter && !u.roles.some((r) => r.role === roleFilter)) return false
     return true
   })
 
@@ -791,6 +793,14 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
         >
           <option value="">All Titles</option>
           {TITLES.map((t) => <option key={t} value={t}>{formatEnum(t)}</option>)}
+        </select>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value as Role | "")}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Roles</option>
+          {ALL_ROLES.map((r) => <option key={r} value={r}>{formatEnum(r)}</option>)}
         </select>
       </div>
 
