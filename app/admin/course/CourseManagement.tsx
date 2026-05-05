@@ -2,8 +2,8 @@
 
 import { useState, useTransition, useRef, useEffect } from "react"
 import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown } from "lucide-react"
-import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainer, CourseFormData } from "./actions"
-import { SearchableSelect } from "../../components/SearchableSelect"
+import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainers, CourseFormData } from "./actions"
+import { SearchableSelect, SearchableMultiSelect } from "../../components/SearchableSelect"
 
 type TrainerUser = { id: string; name: string | null }
 type TopicOption = { id: string; name: string }
@@ -106,7 +106,7 @@ function StatusToggle({ id, status }: { id: string; status: "DRAFT" | "PUBLISHED
 function CourseFormModal({
   title,
   initial,
-  initialTrainerId,
+  initialTrainerIds,
   courseId,
   trainerUsers,
   topics,
@@ -115,7 +115,7 @@ function CourseFormModal({
 }: {
   title: string
   initial: CourseFormData
-  initialTrainerId?: string
+  initialTrainerIds?: string[]
   courseId?: string
   trainerUsers: TrainerUser[]
   topics: TopicOption[]
@@ -123,7 +123,7 @@ function CourseFormModal({
   onSubmit: (data: CourseFormData) => Promise<string | undefined>
 }) {
   const [form, setForm] = useState<CourseFormData>(initial)
-  const [trainerId, setTrainerId] = useState(initialTrainerId ?? "")
+  const [trainerIds, setTrainerIds] = useState<string[]>(initialTrainerIds ?? [])
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
@@ -133,7 +133,7 @@ function CourseFormModal({
     startTransition(async () => {
       try {
         const id = await onSubmit(form)
-        await setCourseTrainer(id ?? courseId!, trainerId || null)
+        await setCourseTrainers(id ?? courseId!, trainerIds)
         onClose()
       } catch {
         setError("A course with this name already exists.")
@@ -183,13 +183,12 @@ function CourseFormModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Trainer</label>
-            <SearchableSelect
-              value={trainerId}
-              onChange={setTrainerId}
+            <label className="mb-1 block text-xs font-medium text-slate-600">Trainers</label>
+            <SearchableMultiSelect
+              value={trainerIds}
+              onChange={setTrainerIds}
               options={trainerUsers.map((u) => ({ value: u.id, label: u.name ?? u.id }))}
-              placeholder="— No trainer —"
-              clearLabel="— No trainer —"
+              placeholder="— No trainers —"
             />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -264,15 +263,15 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-sm">
+        <table className="min-w-full text-sm">
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-5 py-3">Name</th>
-              <th className="px-5 py-3">Topic</th>
-              <th className="px-5 py-3 text-center">Status</th>
-              <th className="px-5 py-3 text-center">Contents</th>
-              <th className="px-5 py-3 text-center">In Pathways</th>
-              <th className="px-5 py-3">Trainer</th>
+              <th className="px-5 py-3 min-w-[220px]">Name</th>
+              <th className="px-5 py-3 min-w-[220px]">Trainer</th>
+              <th className="px-5 py-3 min-w-[180px]">Topic</th>
+              <th className="px-5 py-3 text-center min-w-[120px]">Status</th>
+              <th className="px-5 py-3 text-center min-w-[90px]">Contents</th>
+              <th className="px-5 py-3 text-center min-w-[100px]">In Pathways</th>
               <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
@@ -280,15 +279,20 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
             {filtered.length === 0 && (
               <tr><td colSpan={7} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
             )}
-            {filtered.map((c) => {
-              const trainer = c.trainers[0]?.user ?? null
-              return (
-                <tr key={c.id} className="group hover:bg-slate-50">
+            {filtered.map((c) => (
+              <tr key={c.id} className="group hover:bg-slate-50">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <BookOpen size={15} className="shrink-0 text-blue-400" />
                       <span className="font-medium text-slate-900">{c.name}</span>
                     </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    {c.trainers.length === 0
+                      ? <span className="text-xs text-slate-300 italic">Unassigned</span>
+                      : <div className="flex flex-wrap gap-1">{c.trainers.map((t) => (
+                          <span key={t.user.id} className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{t.user.name}</span>
+                        ))}</div>}
                   </td>
                   <td className="px-5 py-3">
                     {c.topic
@@ -300,11 +304,6 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
                   </td>
                   <td className="px-5 py-3 text-center text-slate-600">{c._count.contents}</td>
                   <td className="px-5 py-3 text-center text-slate-600">{c._count.pathways}</td>
-                  <td className="px-5 py-3 text-slate-600">
-                    {trainer
-                      ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{trainer.name}</span>
-                      : <span className="text-xs text-slate-300 italic">Unassigned</span>}
-                  </td>
                   <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
                     <ActionsMenu items={[
                       { label: "Manage Contents", icon: <ArrowRight size={14} />, href: `/admin/course/${c.id}` },
@@ -313,8 +312,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
                     ]} />
                   </td>
                 </tr>
-              )
-            })}
+            ))}
           </tbody>
         </table>
       </div>
@@ -333,7 +331,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
         <CourseFormModal
           title="Edit Course"
           initial={{ name: editing.name, description: editing.description ?? "", topicId: editing.topicId }}
-          initialTrainerId={editing.trainers[0]?.user.id}
+          initialTrainerIds={editing.trainers.map((t) => t.user.id)}
           courseId={editing.id}
           trainerUsers={trainerUsers}
           topics={topics}

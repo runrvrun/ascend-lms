@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react"
 import { GraduationCap, FileText, ClipboardList, ClipboardCheck, Plus, X } from "lucide-react"
-import { createCourse, setCourseTrainer } from "../../admin/course/actions"
+import { createCourse, setCourseTrainers } from "../../admin/course/actions"
+import { SearchableMultiSelect } from "../../components/SearchableSelect"
 
 type CourseItem = {
   id: string
@@ -34,7 +35,7 @@ function NewCourseModal({
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [topicId, setTopicId] = useState(topics[0]?.id ?? "")
-  const [trainerId, setTrainerId] = useState("")
+  const [trainerIds, setTrainerIds] = useState<string[]>([])
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
@@ -44,7 +45,7 @@ function NewCourseModal({
     startTransition(async () => {
       try {
         const courseId = await createCourse({ name, description, topicId: topicId || null })
-        await setCourseTrainer(courseId, trainerId || null)
+        await setCourseTrainers(courseId, trainerIds)
         onClose()
       } catch {
         setError("A course with this name already exists.")
@@ -94,17 +95,13 @@ function NewCourseModal({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Trainer</label>
-            <select
-              value={trainerId}
-              onChange={(e) => setTrainerId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">— No trainer —</option>
-              {trainerUsers.map((u) => (
-                <option key={u.id} value={u.id}>{u.name ?? u.id}</option>
-              ))}
-            </select>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Trainers</label>
+            <SearchableMultiSelect
+              value={trainerIds}
+              onChange={setTrainerIds}
+              options={trainerUsers.map((u) => ({ value: u.id, label: u.name ?? u.id }))}
+              placeholder="— No trainers —"
+            />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
@@ -160,9 +157,7 @@ export function SmeCourseList({ topics, trainerUsers }: { topics: TopicData[]; t
                 <p className="text-sm text-slate-400 italic">No courses in this topic yet.</p>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {topic.courses.map((course) => {
-                    const trainer = course.trainers[0]?.user ?? null
-                    return (
+                  {topic.courses.map((course) => (
                       <a
                         key={course.id}
                         href={`/sme/course/${course.id}`}
@@ -187,18 +182,19 @@ export function SmeCourseList({ topics, trainerUsers }: { topics: TopicData[]; t
                           {course.test && <span className="flex items-center gap-1"><ClipboardList size={12} />Test</span>}
                           {course.assignment && <span className="flex items-center gap-1"><ClipboardCheck size={12} />Assignment</span>}
                         </div>
-                        {trainer && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-400">Trainer:</span>
-                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{trainer.name}</span>
+                        {course.trainers.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs text-slate-400">Trainer{course.trainers.length > 1 ? "s" : ""}:</span>
+                            {course.trainers.map((t) => (
+                              <span key={t.user.id} className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">{t.user.name}</span>
+                            ))}
                           </div>
                         )}
                         <span className={`self-start rounded-full px-2 py-0.5 text-xs font-medium ${course.status === "PUBLISHED" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
                           {course.status === "PUBLISHED" ? "Published" : "Draft"}
                         </span>
                       </a>
-                    )
-                  })}
+                  ))}
                 </div>
               )}
             </section>

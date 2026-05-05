@@ -146,9 +146,11 @@ export async function removeCourseTrainer(courseId: string, userId: string) {
   revalidatePath(`/admin/course/${courseId}`)
 }
 
-export async function setCourseTrainer(courseId: string, userId: string | null) {
+export async function setCourseTrainers(courseId: string, userIds: string[]) {
   await prisma.courseTrainer.deleteMany({ where: { courseId } })
-  if (userId) await prisma.courseTrainer.create({ data: { courseId, userId } })
+  if (userIds.length > 0) {
+    await prisma.courseTrainer.createMany({ data: userIds.map((userId) => ({ courseId, userId })) })
+  }
   revalidatePath("/admin/course")
   revalidatePath(`/admin/course/${courseId}`)
 }
