@@ -146,9 +146,9 @@ function ContentFormModal({
                 )}
                 {form.type === "PDF" && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint files: open the PDF → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Copy link</span> and paste it here.
-                    The viewer will automatically route it through Microsoft Office Online to bypass SharePoint embedding restrictions.
-                    For non-SharePoint PDFs, paste the direct URL to the file.
+                    For SharePoint files: open the PDF → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → copy the <span className="font-mono font-medium text-slate-700">src</span> URL from the iframe code.
+                    <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/embed.aspx?UniqueId=…
+                    <br />For non-SharePoint PDFs, paste the direct URL to the file.
                   </p>
                 )}
                 {form.type === "VIDEO" && (form.value.includes("sharepoint.com") || form.value.includes("microsoftstream.com")) && (

@@ -993,16 +993,6 @@ function ContentViewer({
   }
 
   if (content.type === "PDF") {
-    // SharePoint/OneDrive block direct iframe embedding via frame-ancestors CSP.
-    // Route those URLs through the Office Online viewer which is designed for third-party embedding.
-    const isMicrosoftHosted =
-      content.value.includes("sharepoint.com") ||
-      content.value.includes("onedrive.live.com") ||
-      content.value.includes("1drv.ms")
-    const embedUrl = isMicrosoftHosted
-      ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(content.value)}`
-      : content.value
-
     return (
       <div className="flex h-full flex-col overflow-hidden p-6 md:p-8">
         <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
@@ -1018,7 +1008,7 @@ function ContentViewer({
           </a>
         </div>
         <iframe
-          src={embedUrl}
+          src={content.value}
           title={content.title}
           className="min-h-0 flex-1 rounded-xl border border-slate-200"
         />
