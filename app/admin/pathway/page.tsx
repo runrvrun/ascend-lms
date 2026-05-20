@@ -8,8 +8,10 @@ export default async function AdminPathwayPage() {
   const pathways = await prisma.pathway.findMany({
     where: { deletedAt: null },
     include: {
-      _count: {
-        select: { courses: true, pathwayEnrollments: true },
+      _count: { select: { courses: true } },
+      pathwayEnrollments: { where: { cohortId: null }, select: { id: true } },
+      cohortPathways: {
+        select: { cohort: { select: { _count: { select: { users: true } } } } },
       },
     },
     orderBy: { createdAt: "asc" },

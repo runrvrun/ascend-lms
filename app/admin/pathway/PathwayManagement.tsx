@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, ChevronDown } from "lucide-react"
+import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, ChevronDown, Users } from "lucide-react"
 import { createPathway, updatePathway, deletePathway, togglePathwayStatus, PathwayFormData } from "./actions"
 
 type PathwayRow = {
@@ -11,7 +11,9 @@ type PathwayRow = {
   requiresApproval: boolean
   tags: string[]
   status: "DRAFT" | "PUBLISHED"
-  _count: { courses: number; pathwayEnrollments: number }
+  _count: { courses: number }
+  pathwayEnrollments: { id: string }[]
+  cohortPathways: { cohort: { _count: { users: number } } }[]
   createdAt: Date
 }
 
@@ -319,7 +321,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Enrollment</th>
               <th className="px-5 py-3 text-center">Courses</th>
-              <th className="px-5 py-3 text-center">Enrollments</th>
+              <th className="px-5 py-3 text-center">Enrolled Users</th>
               <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
           </thead>
@@ -364,10 +366,25 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                   )}
                 </td>
                 <td className="px-5 py-3 text-center text-slate-600">{p._count.courses}</td>
-                <td className="px-5 py-3 text-center text-slate-600">{p._count.pathwayEnrollments}</td>
+                <td className="px-5 py-3 text-center">
+                  {(() => {
+                    const individual = p.pathwayEnrollments.length
+                    const viaCohort = p.cohortPathways.reduce((s, cp) => s + cp.cohort._count.users, 0)
+                    const total = individual + viaCohort
+                    return (
+                      <a
+                        href={`/admin/pathway/${p.id}/enrollments`}
+                        className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 hover:bg-blue-100 hover:text-blue-700 transition-colors"
+                      >
+                        {total}
+                      </a>
+                    )
+                  })()}
+                </td>
                 <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
                   <ActionsMenu items={[
                     { label: "Manage Courses", icon: <GraduationCap size={14} />, href: `/admin/pathway/${p.id}` },
+                    { label: "Manage Enrollments", icon: <Users size={14} />, href: `/admin/pathway/${p.id}/enrollments` },
                     { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(p) },
                     { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(p), variant: "danger" },
                   ]} />
