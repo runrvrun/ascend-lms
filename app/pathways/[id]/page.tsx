@@ -12,19 +12,35 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: pathway?.name ?? "Pathway" }
 }
 
-export default async function PathwayDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PathwayDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ preview?: string }>
+}) {
   const { id } = await params
+  const { preview } = await searchParams
+  const isPreviewMode = preview === "1"
+
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/")
 
   const userId = (session.user as any).id as string
 
+  // In preview mode, verify the user has a privileged role
+  if (isPreviewMode) {
+    const roles = await prisma.userRole.findMany({ where: { userId }, select: { role: true } })
+    const isPrivileged = roles.some((r) => ["ADMIN", "TRAINER", "SME"].includes(r.role))
+    if (!isPrivileged) redirect("/pathways")
+  }
+
   const [pathway, enrollment, completedRecords, courseProgressRecords, assignmentSubmissions, courseFeedbacks, allGrowthPlanRecords] = await Promise.all([
     prisma.pathway.findFirst({
-      where: { id, deletedAt: null, status: "PUBLISHED" },
+      where: { id, deletedAt: null, ...(isPreviewMode ? {} : { status: "PUBLISHED" }) },
       include: {
         courses: {
-          where: { course: { status: "PUBLISHED", deletedAt: null } },
+          where: { course: { deletedAt: null, ...(isPreviewMode ? {} : { status: "PUBLISHED" }) } },
           orderBy: { order: "asc" },
           include: {
             course: {
@@ -53,19 +69,19 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         },
       },
     }),
-    prisma.pathwayEnrollment.findUnique({
+    isPreviewMode ? Promise.resolve(null) : prisma.pathwayEnrollment.findUnique({
       where: { userId_pathwayId: { userId, pathwayId: id } },
       select: { status: true },
     }),
-    prisma.contentProgress.findMany({
+    isPreviewMode ? Promise.resolve([]) : prisma.contentProgress.findMany({
       where: { userId, pathwayId: id },
       select: { contentId: true },
     }),
-    prisma.courseProgress.findMany({
+    isPreviewMode ? Promise.resolve([]) : prisma.courseProgress.findMany({
       where: { userId, pathwayId: id },
       select: { courseId: true, completed: true, testStatus: true, assignmentStatus: true },
     }),
-    prisma.assignmentSubmission.findMany({
+    isPreviewMode ? Promise.resolve([]) : prisma.assignmentSubmission.findMany({
       where: { userId, pathwayId: id },
       orderBy: { createdAt: "desc" },
       select: {
@@ -78,7 +94,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         createdAt: true,
       },
     }),
-    prisma.courseFeedback.findMany({
+    isPreviewMode ? Promise.resolve([]) : prisma.courseFeedback.findMany({
       where: { userId, pathwayId: id },
       select: { courseId: true, rating: true, comment: true },
     }),
@@ -97,30 +113,30 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
   ])
 
   if (!pathway) notFound()
-  if (enrollment?.status !== "APPROVED") redirect("/pathways")
+  if (!isPreviewMode && enrollment?.status !== "APPROVED") redirect("/pathways")
 
-  const completedContentIds = new Set(completedRecords.map((r) => r.contentId))
-  const completedCourseIds = new Set(courseProgressRecords.filter((r) => r.completed).map((r) => r.courseId))
+  const completedContentIds = new Set((completedRecords as { contentId: string }[]).map((r) => r.contentId))
+  const completedCourseIds = new Set((courseProgressRecords as { courseId: string; completed: boolean }[]).filter((r) => r.completed).map((r) => r.courseId))
   const testStatusByCourseId: Record<string, "PASSED" | "FAILED"> = {}
   const assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED"> = {}
-  for (const r of courseProgressRecords) {
-    if (r.testStatus) testStatusByCourseId[r.courseId] = r.testStatus
-    if (r.assignmentStatus) assignmentStatusByCourseId[r.courseId] = r.assignmentStatus
+  for (const r of courseProgressRecords as { courseId: string; testStatus: string | null; assignmentStatus: string | null }[]) {
+    if (r.testStatus) testStatusByCourseId[r.courseId] = r.testStatus as "PASSED" | "FAILED"
+    if (r.assignmentStatus) assignmentStatusByCourseId[r.courseId] = r.assignmentStatus as "PASSED" | "FAILED"
   }
   const isPathwayComplete =
+    !isPreviewMode &&
     pathway.courses.length > 0 &&
     pathway.courses.every((entry) => completedCourseIds.has(entry.course.id))
 
-  // Latest submission per assignment for this user+pathway
-  const latestSubmissionByAssignmentId: Record<string, typeof assignmentSubmissions[0]> = {}
-  for (const sub of assignmentSubmissions) {
+  const latestSubmissionByAssignmentId: Record<string, (typeof assignmentSubmissions)[0]> = {}
+  for (const sub of assignmentSubmissions as typeof assignmentSubmissions) {
     if (!latestSubmissionByAssignmentId[sub.assignmentId]) {
       latestSubmissionByAssignmentId[sub.assignmentId] = sub
     }
   }
 
   const feedbackByCourseId: Record<string, { rating: number; comment: string | null }> = {}
-  for (const f of courseFeedbacks) {
+  for (const f of courseFeedbacks as { courseId: string; rating: number; comment: string | null }[]) {
     feedbackByCourseId[f.courseId] = { rating: f.rating, comment: f.comment }
   }
 
@@ -145,6 +161,9 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
           pathwayId: g.pathwayId,
           pathwayName: g.pathway?.name ?? null,
         }))}
+        isPreview={isPreviewMode}
+        backHref={isPreviewMode ? "/admin/pathway" : "/pathways"}
+        backLabel={isPreviewMode ? "Pathways (Admin)" : "Pathways"}
       />
     </div>
   )

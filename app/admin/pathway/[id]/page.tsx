@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Users } from "lucide-react"
+import { ArrowLeft, Users, Eye } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
 import { PathwayCourseManagement } from "./PathwayCourseManagement"
 
@@ -46,13 +46,22 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
               <p className="mt-2 text-sm text-slate-500">{pathway.description}</p>
             )}
           </div>
-          <a
-            href={`/admin/pathway/${pathway.id}/enrollments`}
-            className="flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <Users size={14} />
-            Manage Enrollments
-          </a>
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href={`/pathways/${pathway.id}?preview=1`}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Eye size={14} />
+              Preview
+            </a>
+            <a
+              href={`/admin/pathway/${pathway.id}/enrollments`}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Users size={14} />
+              Manage Enrollments
+            </a>
+          </div>
         </div>
       </div>
 

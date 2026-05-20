@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Eye } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
 import { ContentManagement } from "./ContentManagement"
 import { TestManagement } from "./TestManagement"
@@ -86,7 +86,16 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
               <p className="mt-2 text-sm text-slate-500">{course.description}</p>
             )}
           </div>
-          <CourseStatusToggle id={course.id} status={course.status} />
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href={`/admin/course/${course.id}/preview`}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Eye size={14} />
+              Preview
+            </a>
+            <CourseStatusToggle id={course.id} status={course.status} />
+          </div>
         </div>
       </div>
 

@@ -27,6 +27,7 @@ import {
   Trash2,
   BadgeCheck,
   Check,
+  Eye,
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedback } from "../actions"
@@ -358,12 +359,14 @@ function TestViewer({
   pathwayId,
   courseName,
   isAlreadyPassed,
+  isPreview,
 }: {
   test: NonNullable<TestItem>
   courseId: string
   pathwayId: string
   courseName: string
   isAlreadyPassed: boolean
+  isPreview?: boolean
 }) {
   const [phase, setPhase] = useState<"idle" | "taking" | "result">("idle")
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
@@ -586,13 +589,17 @@ function TestViewer({
       </div>
 
       <div className="mt-8">
-        <button
-          disabled={pending || !canSubmit}
-          onClick={handleSubmit}
-          className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {pending ? "Submitting…" : "Submit Test"}
-        </button>
+        {isPreview ? (
+          <p className="text-xs font-medium text-amber-600">Test submission is disabled in preview mode.</p>
+        ) : (
+          <button
+            disabled={pending || !canSubmit}
+            onClick={handleSubmit}
+            className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {pending ? "Submitting…" : "Submit Test"}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -607,6 +614,7 @@ function AssignmentViewer({
   courseName,
   submission,
   isAlreadyPassed,
+  isPreview,
 }: {
   assignment: NonNullable<AssignmentItem>
   courseId: string
@@ -614,6 +622,7 @@ function AssignmentViewer({
   courseName: string
   submission: SubmissionItem
   isAlreadyPassed: boolean
+  isPreview?: boolean
 }) {
   const [url, setUrl] = useState("")
   const [pending, startTransition] = useTransition()
@@ -695,8 +704,13 @@ function AssignmentViewer({
         </div>
       )}
 
-      {/* Submit form — hide if already passed */}
-      {!isAlreadyPassed && status !== "PASSED" && !submitted && (
+      {/* Submit form — hide if already passed or in preview */}
+      {isPreview && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          Assignment submission is disabled in preview mode.
+        </div>
+      )}
+      {!isPreview && !isAlreadyPassed && status !== "PASSED" && !submitted && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <p className="mb-3 text-sm font-semibold text-slate-700">
             {status === "FAILED" ? "Resubmit your assignment" : "Submit your assignment"}
@@ -864,6 +878,7 @@ function ContentViewer({
   testStatusByCourseId,
   assignmentStatusByCourseId,
   feedbackByCourseId,
+  isPreview,
 }: {
   selection: Selection | null
   pathwayId: string
@@ -874,6 +889,7 @@ function ContentViewer({
   testStatusByCourseId: Record<string, "PASSED" | "FAILED">
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
+  isPreview?: boolean
 }) {
   const [pending, startTransition] = useTransition()
   const [videoProgress, setVideoProgress] = useState(0)
@@ -889,6 +905,14 @@ function ContentViewer({
   function CompleteButton({ contentId, videoGated = false, videoDuration }: { contentId: string; videoGated?: boolean; videoDuration?: number }) {
     const done = completedContentIds.has(contentId)
     const notReady = videoGated && !!videoDuration && videoDuration > 0 && !done && videoProgress < 0.75
+    if (isPreview) {
+      return (
+        <button disabled className="flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400 opacity-60">
+          <Circle size={15} />
+          Mark as Completed
+        </button>
+      )
+    }
     return (
       <div className="flex flex-col gap-1.5">
         <button
@@ -932,6 +956,7 @@ function ContentViewer({
         pathwayId={pathwayId}
         courseName={selection.courseName}
         isAlreadyPassed={testStatusByCourseId[selection.courseId] === "PASSED"}
+        isPreview={isPreview}
       />
     )
   }
@@ -945,6 +970,7 @@ function ContentViewer({
         courseName={selection.courseName}
         submission={latestSubmissionByAssignmentId[selection.assignment.id] ?? null}
         isAlreadyPassed={assignmentStatusByCourseId[selection.courseId] === "PASSED"}
+        isPreview={isPreview}
       />
     )
   }
@@ -1458,6 +1484,9 @@ export function PathwayViewer({
   assignmentStatusByCourseId,
   feedbackByCourseId,
   allGrowthPlans,
+  isPreview,
+  backHref,
+  backLabel,
 }: {
   pathway: PathwayData
   completedContentIds: Set<string>
@@ -1469,6 +1498,9 @@ export function PathwayViewer({
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   allGrowthPlans: GrowthPlanItem[]
+  isPreview?: boolean
+  backHref?: string
+  backLabel?: string
 }) {
   const firstCourse = pathway.courses[0]?.course
   const firstContent = firstCourse?.contents[0]
@@ -1495,13 +1527,13 @@ export function PathwayViewer({
     <div className="flex h-screen flex-col">
       {/* Top bar */}
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 md:px-6">
-        <a href="/pathways" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
+        <a href={backHref ?? "/pathways"} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
           <ArrowLeft size={15} />
-          Pathways
+          {backLabel ?? "Pathways"}
         </a>
         <span className="text-slate-300">/</span>
         <span className="text-sm font-semibold text-slate-800 truncate">{pathway.name}</span>
-        {isPathwayComplete && (
+        {isPathwayComplete && !isPreview && (
           <span className="ml-auto flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
             <Trophy size={12} />
             Completed
@@ -1509,8 +1541,19 @@ export function PathwayViewer({
         )}
       </div>
 
+      {/* Preview banner */}
+      {isPreview && (
+        <div className="flex shrink-0 items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-semibold text-white">
+          <Eye size={14} />
+          Preview Mode — this is how users see this content. Interactions are disabled.
+          <a href={backHref ?? "/pathways"} className="ml-3 flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-0.5 text-xs hover:bg-white/30">
+            Exit Preview <ArrowLeft size={11} className="rotate-180" />
+          </a>
+        </div>
+      )}
+
       {/* Completion banner */}
-      {isPathwayComplete && (
+      {isPathwayComplete && !isPreview && (
         <div className="flex shrink-0 items-center justify-center gap-3 bg-green-600 px-4 py-2 text-sm font-semibold text-white">
           <Trophy size={15} />
           Congratulations! You have completed the {pathway.name} pathway.
@@ -1586,6 +1629,7 @@ export function PathwayViewer({
               testStatusByCourseId={testStatusByCourseId}
               assignmentStatusByCourseId={assignmentStatusByCourseId}
               feedbackByCourseId={feedbackByCourseId}
+              isPreview={isPreview}
             />
           )}
         </main>

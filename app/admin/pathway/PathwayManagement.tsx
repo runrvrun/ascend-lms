@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, ChevronDown, Users, Copy } from "lucide-react"
+import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, ChevronDown, Users, Copy, Eye } from "lucide-react"
 import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, PathwayFormData } from "./actions"
 
 type PathwayRow = {
@@ -395,6 +395,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                   <ActionsMenu items={[
                     { label: "Manage Courses", icon: <GraduationCap size={14} />, href: `/admin/pathway/${p.id}` },
                     { label: "Manage Enrollments", icon: <Users size={14} />, href: `/admin/pathway/${p.id}/enrollments` },
+                    { label: "Preview", icon: <Eye size={14} />, href: `/pathways/${p.id}?preview=1` },
                     { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(p) },
                     { label: duplicating === p.id ? "Duplicating…" : "Duplicate", icon: <Copy size={14} />, onClick: () => handleDuplicate(p.id) },
                     { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(p), variant: "danger" },
