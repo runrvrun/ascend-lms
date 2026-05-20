@@ -81,6 +81,7 @@ export async function duplicatePathway(id: string): Promise<string> {
         courseId: c.courseId,
         order: c.order,
         points: c.points,
+        sectionTitle: c.sectionTitle,
       })),
     })
   }
@@ -98,6 +99,11 @@ export async function addCourseToPathway(pathwayId: string, courseId: string, or
 
 export async function updatePathwayCourse(id: string, pathwayId: string, order: number, points: number) {
   await prisma.pathwayCourse.update({ where: { id }, data: { order, points } })
+  revalidatePath(`/admin/pathway/${pathwayId}`)
+}
+
+export async function updateSectionTitle(id: string, pathwayId: string, sectionTitle: string | null) {
+  await prisma.pathwayCourse.update({ where: { id }, data: { sectionTitle } })
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 

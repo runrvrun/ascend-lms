@@ -296,8 +296,9 @@ model CourseTrainer {
 model PathwayCourse {
   id String @id @default(dbgenerated("gen_random_uuid()::text"))
 
-  pathwayId String
-  courseId  String
+  pathwayId    String
+  courseId     String
+  sectionTitle String?
 
   order  Int // enforce sequence
   points Int @default(10)

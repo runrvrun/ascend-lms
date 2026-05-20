@@ -84,6 +84,7 @@ type SubmissionItem = {
 
 type CourseEntry = {
   order: number
+  sectionTitle?: string | null
   course: {
     id: string
     name: string
@@ -1575,17 +1576,25 @@ export function PathwayViewer({
           </div>
           <div className="divide-y divide-slate-100">
             {pathway.courses.map((entry) => (
-              <CourseSection
-                key={entry.course.id}
-                entry={entry}
-                selectedId={selectedId}
-                completedContentIds={completedContentIds}
-                completedCourseIds={completedCourseIds}
-                testStatusByCourseId={testStatusByCourseId}
-                assignmentStatusByCourseId={assignmentStatusByCourseId}
-                feedbackByCourseId={feedbackByCourseId}
-                onSelect={setSelected}
-              />
+              <div key={entry.course.id}>
+                {entry.sectionTitle && (
+                  <div className="flex items-center gap-2 px-3 pb-1 pt-3">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{entry.sectionTitle}</span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+                )}
+                <CourseSection
+                  entry={entry}
+                  selectedId={selectedId}
+                  completedContentIds={completedContentIds}
+                  completedCourseIds={completedCourseIds}
+                  testStatusByCourseId={testStatusByCourseId}
+                  assignmentStatusByCourseId={assignmentStatusByCourseId}
+                  feedbackByCourseId={feedbackByCourseId}
+                  onSelect={setSelected}
+                />
+              </div>
             ))}
           </div>
           {isPathwayComplete && (
