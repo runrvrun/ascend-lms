@@ -112,6 +112,19 @@ export async function removeCourseFromPathway(id: string, pathwayId: string) {
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 
+export async function swapPathwayCourseOrder(
+  id1: string, order1: number,
+  id2: string, order2: number,
+  pathwayId: string,
+) {
+  await prisma.$transaction([
+    prisma.pathwayCourse.update({ where: { id: id1 }, data: { order: -1 } }),
+    prisma.pathwayCourse.update({ where: { id: id2 }, data: { order: order1 } }),
+    prisma.pathwayCourse.update({ where: { id: id1 }, data: { order: order2 } }),
+  ])
+  revalidatePath(`/admin/pathway/${pathwayId}`)
+}
+
 // ── Pathway Enrollments ───────────────────────────────────────────────────────
 
 export async function adminEnrollUsers(pathwayId: string, userIds: string[]) {

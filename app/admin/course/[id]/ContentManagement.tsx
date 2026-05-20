@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, GripVertical } from "lucide-react"
+import { Plus, Pencil, Trash2, X, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
 import { ContentType } from "@prisma/client"
-import { createContent, updateContent, deleteContent, ContentFormData } from "../actions"
+import { createContent, updateContent, deleteContent, swapContentOrder, ContentFormData } from "../actions"
 
 type ContentRow = {
   id: string
@@ -287,8 +287,19 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<ContentRow | null>(null)
   const [deleting, setDeleting] = useState<ContentRow | null>(null)
+  const [reordering, startReorder] = useTransition()
 
   const nextOrder = contents.length > 0 ? Math.max(...contents.map((c) => c.order)) + 1 : 1
+
+  function moveUp(i: number) {
+    const a = contents[i - 1], b = contents[i]
+    startReorder(() => swapContentOrder(a.id, a.order, b.id, b.order, courseId))
+  }
+
+  function moveDown(i: number) {
+    const a = contents[i], b = contents[i + 1]
+    startReorder(() => swapContentOrder(a.id, a.order, b.id, b.order, courseId))
+  }
 
   return (
     <>
@@ -320,7 +331,7 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {contents.map((c) => (
+              {contents.map((c, i) => (
                 <tr key={c.id} className="group hover:bg-slate-50">
                   <td className="px-4 py-3 text-slate-400">
                     <div className="flex items-center gap-1">
@@ -343,6 +354,23 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => moveUp(i)}
+                        disabled={reordering || i === 0}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
+                        title="Move up"
+                      >
+                        <ChevronUp size={13} />
+                      </button>
+                      <button
+                        onClick={() => moveDown(i)}
+                        disabled={reordering || i === contents.length - 1}
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
+                        title="Move down"
+                      >
+                        <ChevronDown size={13} />
+                      </button>
+                      <div className="mx-1 h-4 w-px bg-slate-200" />
                       <button onClick={() => setEditing(c)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                         <Pencil size={13} />
                       </button>

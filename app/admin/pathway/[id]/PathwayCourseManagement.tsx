@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, GripVertical, GraduationCap, SeparatorHorizontal } from "lucide-react"
-import { addCourseToPathway, updatePathwayCourse, removeCourseFromPathway, updateSectionTitle } from "../actions"
+import { Plus, Pencil, Trash2, X, GripVertical, GraduationCap, SeparatorHorizontal, ChevronUp, ChevronDown } from "lucide-react"
+import { addCourseToPathway, updatePathwayCourse, removeCourseFromPathway, updateSectionTitle, swapPathwayCourseOrder } from "../actions"
 import { SearchableSelect } from "../../../components/SearchableSelect"
 
 type CourseOption = {
@@ -323,6 +323,7 @@ export function PathwayCourseManagement({
   const [removing, setRemoving] = useState<PathwayCourseRow | null>(null)
   const [editingSection, setEditingSection] = useState<PathwayCourseRow | null>(null)
   const [, startTransition] = useTransition()
+  const [reordering, startReorder] = useTransition()
 
   const usedCourseIds = new Set(entries.map((e) => e.course.id))
   const availableCourses = allCourses.filter((c) => !usedCourseIds.has(c.id))
@@ -330,6 +331,16 @@ export function PathwayCourseManagement({
 
   function removeSection(entry: PathwayCourseRow) {
     startTransition(() => updateSectionTitle(entry.id, pathwayId, null))
+  }
+
+  function moveUp(i: number) {
+    const a = entries[i - 1], b = entries[i]
+    startReorder(() => swapPathwayCourseOrder(a.id, a.order, b.id, b.order, pathwayId))
+  }
+
+  function moveDown(i: number) {
+    const a = entries[i], b = entries[i + 1]
+    startReorder(() => swapPathwayCourseOrder(a.id, a.order, b.id, b.order, pathwayId))
   }
 
   return (
@@ -361,7 +372,7 @@ export function PathwayCourseManagement({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {entries.map((e) => (
+              {entries.map((e, i) => (
                 <>
                   {e.sectionTitle && (
                     <tr key={`section-${e.id}`} className="bg-slate-50">
@@ -410,6 +421,23 @@ export function PathwayCourseManagement({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => moveUp(i)}
+                          disabled={reordering || i === 0}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
+                          title="Move up"
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+                        <button
+                          onClick={() => moveDown(i)}
+                          disabled={reordering || i === entries.length - 1}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
+                          title="Move down"
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                        <div className="mx-1 h-4 w-px bg-slate-200" />
                         {!e.sectionTitle && (
                           <button
                             onClick={() => setEditingSection(e)}

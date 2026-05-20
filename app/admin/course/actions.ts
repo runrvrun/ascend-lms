@@ -160,6 +160,19 @@ export async function updateContent(id: string, courseId: string, data: ContentF
   revalidatePath(`/admin/course/${courseId}`)
 }
 
+export async function swapContentOrder(
+  id1: string, order1: number,
+  id2: string, order2: number,
+  courseId: string,
+) {
+  await prisma.$transaction([
+    prisma.content.update({ where: { id: id1 }, data: { order: -1 } }),
+    prisma.content.update({ where: { id: id2 }, data: { order: order1 } }),
+    prisma.content.update({ where: { id: id1 }, data: { order: order2 } }),
+  ])
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
 export async function deleteContent(id: string, courseId: string) {
   await prisma.content.update({ where: { id }, data: { deletedAt: new Date() } })
   revalidatePath(`/admin/course/${courseId}`)
