@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown } from "lucide-react"
-import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainers, CourseFormData } from "./actions"
+import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown, Copy } from "lucide-react"
+import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainers, duplicateCourse, CourseFormData } from "./actions"
 import { SearchableSelect, SearchableMultiSelect } from "../../components/SearchableSelect"
 
 type TrainerUser = { id: string; name: string | null }
@@ -230,7 +230,17 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<CourseRow | null>(null)
   const [deleting, setDeleting] = useState<CourseRow | null>(null)
+  const [duplicating, setDuplicating] = useState<string | null>(null)
+  const [, startDupTransition] = useTransition()
   const [search, setSearch] = useState("")
+
+  function handleDuplicate(courseId: string) {
+    setDuplicating(courseId)
+    startDupTransition(async () => {
+      await duplicateCourse(courseId)
+      setDuplicating(null)
+    })
+  }
 
   const filtered = search
     ? courses.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
@@ -308,6 +318,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
                     <ActionsMenu items={[
                       { label: "Manage Contents", icon: <ArrowRight size={14} />, href: `/admin/course/${c.id}` },
                       { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(c) },
+                      { label: duplicating === c.id ? "Duplicating…" : "Duplicate", icon: <Copy size={14} />, onClick: () => handleDuplicate(c.id) },
                       { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(c), variant: "danger" },
                     ]} />
                   </td>

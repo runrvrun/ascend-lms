@@ -49,6 +49,102 @@ export async function deleteCourse(id: string) {
   revalidatePath("/admin/course")
 }
 
+export async function duplicateCourse(id: string): Promise<string> {
+  const source = await prisma.course.findUnique({
+    where: { id },
+    include: {
+      trainers: { select: { userId: true } },
+      contents: { where: { deletedAt: null }, orderBy: { order: "asc" } },
+      test: {
+        include: {
+          questions: {
+            where: { deletedAt: null },
+            orderBy: { order: "asc" },
+            include: { options: true },
+          },
+        },
+      },
+      assignment: true,
+    },
+  })
+  if (!source) throw new Error("Course not found")
+
+  // Find a unique name: "{name}-copy", then "{name}-copy 2", etc.
+  const baseName = `${source.name}-copy`
+  let newName = baseName
+  let suffix = 2
+  while (await prisma.course.findFirst({ where: { name: newName, deletedAt: null } })) {
+    newName = `${baseName} ${suffix++}`
+  }
+
+  const newCourse = await prisma.course.create({
+    data: {
+      name: newName,
+      description: source.description,
+      status: "DRAFT",
+      topicId: source.topicId,
+      feedbackEnabled: source.feedbackEnabled,
+    },
+  })
+
+  if (source.trainers.length > 0) {
+    await prisma.courseTrainer.createMany({
+      data: source.trainers.map((t) => ({ courseId: newCourse.id, userId: t.userId })),
+    })
+  }
+
+  if (source.contents.length > 0) {
+    await prisma.content.createMany({
+      data: source.contents.map((c) => ({
+        courseId: newCourse.id,
+        title: c.title,
+        type: c.type,
+        value: c.value,
+        order: c.order,
+        duration: c.duration,
+      })),
+    })
+  }
+
+  if (source.test && !source.test.deletedAt) {
+    const newTest = await prisma.test.create({
+      data: { courseId: newCourse.id, passThreshold: source.test.passThreshold },
+    })
+    for (const q of source.test.questions) {
+      await prisma.question.create({
+        data: {
+          testId: newTest.id,
+          type: q.type,
+          question: q.question,
+          order: q.order,
+          options: {
+            create: q.options.map((o) => ({
+              text: o.text,
+              isCorrect: o.isCorrect,
+              matchKey: o.matchKey,
+              order: o.order,
+            })),
+          },
+        },
+      })
+    }
+  }
+
+  if (source.assignment && !source.assignment.deletedAt) {
+    await prisma.assignment.create({
+      data: {
+        courseId: newCourse.id,
+        description: source.assignment.description,
+        submitUrl: source.assignment.submitUrl,
+      },
+    })
+  }
+
+  revalidatePath("/admin/course")
+  revalidatePath("/sme/course")
+  return newCourse.id
+}
+
 export async function createContent(courseId: string, data: ContentFormData) {
   await prisma.content.create({
     data: { courseId, title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
