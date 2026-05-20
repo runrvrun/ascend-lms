@@ -1,7 +1,15 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import * as xlsx from "xlsx"
 import { prisma } from "../../lib/prisma"
+
+export type BulkAddMembersResult = {
+  added: number
+  alreadyMember: string[]
+  notFound: string[]
+  errors: { row: number; message: string }[]
+}
 
 export async function createCohort(name: string) {
   await prisma.cohort.create({ data: { name } })
@@ -38,6 +46,70 @@ export async function addUsersToCohort(cohortId: string, userIds: string[]) {
 export async function removeUserFromCohort(id: string, cohortId: string) {
   await prisma.cohortUser.delete({ where: { id } })
   revalidatePath(`/admin/cohort/${cohortId}`)
+}
+
+export async function bulkAddMembersToCohort(
+  cohortId: string,
+  formData: FormData
+): Promise<BulkAddMembersResult> {
+  const file = formData.get("file") as File | null
+  if (!file) throw new Error("No file provided")
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const wb = xlsx.read(buffer)
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const rows = xlsx.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" })
+
+  const existingMembers = await prisma.cohortUser.findMany({
+    where: { cohortId },
+    select: { userId: true },
+  })
+  const memberUserIds = new Set(existingMembers.map((m) => m.userId))
+
+  const allUsers = await prisma.user.findMany({ select: { id: true, email: true } })
+  const emailToId = new Map(
+    allUsers.filter((u) => u.email).map((u) => [u.email!.toLowerCase(), u.id])
+  )
+
+  const toAdd: string[] = []
+  const alreadyMember: string[] = []
+  const notFound: string[] = []
+  const errors: { row: number; message: string }[] = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 2
+    const email = String(row["Email"] ?? "").trim().toLowerCase()
+
+    if (!email) {
+      errors.push({ row: rowNum, message: "Email is required" })
+      continue
+    }
+
+    const userId = emailToId.get(email)
+    if (!userId) {
+      notFound.push(email)
+      continue
+    }
+
+    if (memberUserIds.has(userId)) {
+      alreadyMember.push(email)
+      continue
+    }
+
+    toAdd.push(userId)
+    memberUserIds.add(userId)
+  }
+
+  if (toAdd.length > 0) {
+    await prisma.cohortUser.createMany({
+      data: toAdd.map((userId) => ({ cohortId, userId })),
+      skipDuplicates: true,
+    })
+    revalidatePath(`/admin/cohort/${cohortId}`)
+  }
+
+  return { added: toAdd.length, alreadyMember, notFound, errors }
 }
 
 // ── Cohort Pathways ───────────────────────────────────────────────────────────

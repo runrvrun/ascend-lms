@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useTransition, useMemo } from "react"
-import { Plus, Trash2, X, UserCircle2, Search, CheckSquare, Square } from "lucide-react"
-import { addUsersToCohort, removeUserFromCohort } from "../actions"
+import { Plus, Trash2, X, UserCircle2, Search, CheckSquare, Square, Upload, Download, AlertCircle, CheckCircle2 } from "lucide-react"
+import { addUsersToCohort, removeUserFromCohort, bulkAddMembersToCohort, type BulkAddMembersResult } from "../actions"
 
 type UserOption = {
   id: string
@@ -199,6 +199,158 @@ function AddMembersModal({
   )
 }
 
+function BulkUploadModal({
+  cohortId,
+  onClose,
+}: {
+  cohortId: string
+  onClose: () => void
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [result, setResult] = useState<BulkAddMembersResult | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  function handleUpload() {
+    if (!file) return
+    const fd = new FormData()
+    fd.append("file", file)
+    startTransition(async () => {
+      const res = await bulkAddMembersToCohort(cohortId, fd)
+      setResult(res)
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Bulk Upload Members</h2>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
+            <X size={18} />
+          </button>
+        </div>
+
+        {!result ? (
+          <div className="flex flex-col gap-5">
+            <div className="rounded-xl border border-slate-200 p-4">
+              <p className="mb-2 text-sm font-medium text-slate-700">
+                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">1</span>
+                Download the template
+              </p>
+              <a
+                href="/api/admin/cohort-member-template"
+                download
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                <Download size={14} />
+                cohort-member-template.xlsx
+              </a>
+              <p className="mt-2 text-xs text-slate-400">
+                Fill in the <strong>Email</strong> column with one email address per row. Only existing users will be added.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-4">
+              <p className="mb-3 text-sm font-medium text-slate-700">
+                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">2</span>
+                Upload your completed file
+              </p>
+              <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-200 px-6 py-8 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors">
+                <Upload size={22} className="text-slate-400" />
+                <span className="text-sm text-slate-500">
+                  {file ? file.name : "Click to choose .xlsx file"}
+                </span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button
+                disabled={!file || pending}
+                onClick={handleUpload}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Upload size={14} />
+                {pending ? "Uploading…" : "Upload"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl bg-green-50 p-3">
+                <p className="text-2xl font-bold text-green-600">{result.added}</p>
+                <p className="text-xs text-green-700">Added</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 p-3">
+                <p className="text-2xl font-bold text-amber-600">{result.alreadyMember.length}</p>
+                <p className="text-xs text-amber-700">Already Member</p>
+              </div>
+              <div className="rounded-xl bg-red-50 p-3">
+                <p className="text-2xl font-bold text-red-600">{result.notFound.length + result.errors.length}</p>
+                <p className="text-xs text-red-700">Not Found / Errors</p>
+              </div>
+            </div>
+
+            {result.notFound.length > 0 && (
+              <div>
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-600">
+                  <AlertCircle size={12} /> Not found in system
+                </p>
+                <ul className="max-h-28 overflow-y-auto rounded-lg bg-red-50 p-3 text-xs text-red-800 space-y-0.5">
+                  {result.notFound.map((e) => <li key={e}>{e}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {result.errors.length > 0 && (
+              <div>
+                <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-600">
+                  <AlertCircle size={12} /> Errors
+                </p>
+                <ul className="max-h-28 overflow-y-auto rounded-lg bg-red-50 p-3 text-xs text-red-800 space-y-1">
+                  {result.errors.map((e, i) => (
+                    <li key={i}><span className="font-semibold">Row {e.row}:</span> {e.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {result.added > 0 && (
+              <div className="flex items-center gap-2 rounded-xl bg-green-50 px-4 py-2.5 text-sm text-green-700">
+                <CheckCircle2 size={15} />
+                {result.added} member{result.added !== 1 ? "s" : ""} successfully added.
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              {(result.errors.length > 0 || result.notFound.length > 0) && (
+                <button
+                  onClick={() => { setResult(null); setFile(null) }}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  Try Again
+                </button>
+              )}
+              <button onClick={onClose} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function RemoveConfirm({
   userName,
   onCancel,
@@ -243,6 +395,7 @@ export function CohortMemberManagement({
   allUsers: UserOption[]
 }) {
   const [adding, setAdding] = useState(false)
+  const [bulkUploading, setBulkUploading] = useState(false)
   const [removing, setRemoving] = useState<MemberRow | null>(null)
 
   const memberUserIds = new Set(members.map((m) => m.user.id))
@@ -252,13 +405,22 @@ export function CohortMemberManagement({
     <>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">Members</h2>
-        <button
-          onClick={() => setAdding(true)}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus size={14} />
-          Add Members
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setBulkUploading(true)}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Upload size={14} />
+            Bulk Upload
+          </button>
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus size={14} />
+            Add Members
+          </button>
+        </div>
       </div>
 
       {members.length === 0 ? (
@@ -309,6 +471,12 @@ export function CohortMemberManagement({
         </div>
       )}
 
+      {bulkUploading && (
+        <BulkUploadModal
+          cohortId={cohortId}
+          onClose={() => setBulkUploading(false)}
+        />
+      )}
       {adding && (
         <AddMembersModal
           cohortId={cohortId}
