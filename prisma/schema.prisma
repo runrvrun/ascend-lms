@@ -336,6 +336,7 @@ enum ContentType {
   TEXT
   LINK
   VIDEO
+  PDF
 }
 
 model Test {

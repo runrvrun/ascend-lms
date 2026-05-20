@@ -735,6 +735,7 @@ const TYPE_ICON: Record<ContentType, React.ReactNode> = {
   TEXT: <FileText size={13} />,
   VIDEO: <Video size={13} />,
   LINK: <Link2 size={13} />,
+  PDF: <FileText size={13} />,
 }
 
 function FeedbackViewer({
@@ -985,6 +986,34 @@ function ContentViewer({
         <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} onProgress={setVideoProgress} />
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
+        </div>
+        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
+      </div>
+    )
+  }
+
+  if (content.type === "PDF") {
+    return (
+      <div className="flex h-full flex-col overflow-hidden p-6 md:p-8">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
+          <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
+          <a
+            href={content.value}
+            target="_blank"
+            rel="noreferrer"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <ExternalLink size={12} />
+            Open in new tab
+          </a>
+        </div>
+        <iframe
+          src={content.value}
+          title={content.title}
+          className="min-h-0 flex-1 rounded-xl border border-slate-200"
+        />
+        <div className="mt-6 shrink-0">
+          <CompleteButton contentId={content.id} />
         </div>
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>

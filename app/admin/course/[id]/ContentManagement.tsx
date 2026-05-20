@@ -18,12 +18,14 @@ const TYPE_LABELS: Record<ContentType, string> = {
   TEXT: "Text",
   LINK: "Link",
   VIDEO: "Video",
+  PDF: "PDF",
 }
 
 const TYPE_STYLES: Record<ContentType, string> = {
   TEXT: "bg-slate-100 text-slate-600",
   LINK: "bg-blue-100 text-blue-700",
   VIDEO: "bg-purple-100 text-purple-700",
+  PDF: "bg-red-100 text-red-700",
 }
 
 function ContentFormModal({
@@ -132,7 +134,7 @@ function ContentFormModal({
                   value={form.value}
                   onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
                   placeholder={form.type === "VIDEO"
-                    ? "https://ycphd.sharepoint.com/sites/2_Academy/_layouts/15/embed.aspx?UniqueId=92da88a0-c7fe-4eba-899a-0f18944cdd54"
+                    ? "https://ycphd.sharepoint.com/sites/2_Academy/_layouts/15/embed.aspx?UniqueId=…"
                     : "https://…"}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -140,6 +142,12 @@ function ContentFormModal({
                   <p className="mt-1.5 text-xs text-slate-500">
                     For SharePoint/Stream recordings: open the video in Stream → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → copy the <span className="font-mono font-medium text-slate-700">src</span> URL from the iframe code up to the uniqueId code.
                     <br/>Example: https://ycphd.sharepoint.com/sites/2_Academy/_layouts/15/embed.aspx?UniqueId=92da88a0-c7fe-4eba-899a-0f18944cdd54
+                  </p>
+                )}
+                {form.type === "PDF" && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Paste a direct link to a PDF. For SharePoint files: open the file → click <span className="font-medium text-slate-700">Share</span> → copy the link, or use the direct download URL.
+                    The PDF will be embedded directly in the learning page.
                   </p>
                 )}
                 {form.type === "VIDEO" && (form.value.includes("sharepoint.com") || form.value.includes("microsoftstream.com")) && (
