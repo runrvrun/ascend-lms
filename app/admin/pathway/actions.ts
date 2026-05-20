@@ -92,23 +92,38 @@ export async function duplicatePathway(id: string): Promise<string> {
 
 // ── Pathway Courses ───────────────────────────────────────────────────────────
 
+const touchPathway = (pathwayId: string) =>
+  prisma.pathway.update({ where: { id: pathwayId }, data: { updatedAt: new Date() } })
+
 export async function addCourseToPathway(pathwayId: string, courseId: string, order: number, points: number) {
-  await prisma.pathwayCourse.create({ data: { pathwayId, courseId, order, points } })
+  await Promise.all([
+    prisma.pathwayCourse.create({ data: { pathwayId, courseId, order, points } }),
+    touchPathway(pathwayId),
+  ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 
 export async function updatePathwayCourse(id: string, pathwayId: string, order: number, points: number) {
-  await prisma.pathwayCourse.update({ where: { id }, data: { order, points } })
+  await Promise.all([
+    prisma.pathwayCourse.update({ where: { id }, data: { order, points } }),
+    touchPathway(pathwayId),
+  ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 
 export async function updateSectionTitle(id: string, pathwayId: string, sectionTitle: string | null) {
-  await prisma.pathwayCourse.update({ where: { id }, data: { sectionTitle } })
+  await Promise.all([
+    prisma.pathwayCourse.update({ where: { id }, data: { sectionTitle } }),
+    touchPathway(pathwayId),
+  ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 
 export async function removeCourseFromPathway(id: string, pathwayId: string) {
-  await prisma.pathwayCourse.delete({ where: { id } })
+  await Promise.all([
+    prisma.pathwayCourse.delete({ where: { id } }),
+    touchPathway(pathwayId),
+  ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 
@@ -121,6 +136,7 @@ export async function swapPathwayCourseOrder(
     prisma.pathwayCourse.update({ where: { id: id1 }, data: { order: -1 } }),
     prisma.pathwayCourse.update({ where: { id: id2 }, data: { order: order1 } }),
     prisma.pathwayCourse.update({ where: { id: id1 }, data: { order: order2 } }),
+    prisma.pathway.update({ where: { id: pathwayId }, data: { updatedAt: new Date() } }),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }

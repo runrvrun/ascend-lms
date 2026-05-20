@@ -145,18 +145,27 @@ export async function duplicateCourse(id: string): Promise<string> {
   return newCourse.id
 }
 
+const touchCourse = (courseId: string) =>
+  prisma.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+
 export async function createContent(courseId: string, data: ContentFormData) {
-  await prisma.content.create({
-    data: { courseId, title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
-  })
+  await Promise.all([
+    prisma.content.create({
+      data: { courseId, title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
+    }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function updateContent(id: string, courseId: string, data: ContentFormData) {
-  await prisma.content.update({
-    where: { id },
-    data: { title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
-  })
+  await Promise.all([
+    prisma.content.update({
+      where: { id },
+      data: { title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
+    }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
@@ -169,29 +178,42 @@ export async function swapContentOrder(
     prisma.content.update({ where: { id: id1 }, data: { order: -1 } }),
     prisma.content.update({ where: { id: id2 }, data: { order: order1 } }),
     prisma.content.update({ where: { id: id1 }, data: { order: order2 } }),
+    prisma.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } }),
   ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function deleteContent(id: string, courseId: string) {
-  await prisma.content.update({ where: { id }, data: { deletedAt: new Date() } })
+  await Promise.all([
+    prisma.content.update({ where: { id }, data: { deletedAt: new Date() } }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 // ── Test ──────────────────────────────────────────────────────────────────────
 
 export async function createTest(courseId: string, passThreshold: number) {
-  await prisma.test.create({ data: { courseId, passThreshold } })
+  await Promise.all([
+    prisma.test.create({ data: { courseId, passThreshold } }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function updateTest(testId: string, courseId: string, passThreshold: number) {
-  await prisma.test.update({ where: { id: testId }, data: { passThreshold } })
+  await Promise.all([
+    prisma.test.update({ where: { id: testId }, data: { passThreshold } }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function deleteTest(testId: string, courseId: string) {
-  await prisma.test.delete({ where: { id: testId } })
+  await Promise.all([
+    prisma.test.delete({ where: { id: testId } }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
@@ -212,34 +234,43 @@ export type QuestionFormData = {
 }
 
 export async function createQuestion(testId: string, courseId: string, data: QuestionFormData) {
-  await prisma.question.create({
-    data: {
-      testId,
-      type: data.type,
-      question: data.question,
-      order: data.order,
-      options: { create: data.options },
-    },
-  })
+  await Promise.all([
+    prisma.question.create({
+      data: {
+        testId,
+        type: data.type,
+        question: data.question,
+        order: data.order,
+        options: { create: data.options },
+      },
+    }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function updateQuestion(questionId: string, courseId: string, data: QuestionFormData) {
   await prisma.questionOption.deleteMany({ where: { questionId } })
-  await prisma.question.update({
-    where: { id: questionId },
-    data: {
-      type: data.type,
-      question: data.question,
-      order: data.order,
-      options: { create: data.options },
-    },
-  })
+  await Promise.all([
+    prisma.question.update({
+      where: { id: questionId },
+      data: {
+        type: data.type,
+        question: data.question,
+        order: data.order,
+        options: { create: data.options },
+      },
+    }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function deleteQuestion(questionId: string, courseId: string) {
-  await prisma.question.delete({ where: { id: questionId } })
+  await Promise.all([
+    prisma.question.delete({ where: { id: questionId } }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
@@ -272,22 +303,31 @@ export type AssignmentFormData = {
 }
 
 export async function createAssignment(courseId: string, data: AssignmentFormData) {
-  await prisma.assignment.create({
-    data: { courseId, description: data.description, submitUrl: data.submitUrl },
-  })
+  await Promise.all([
+    prisma.assignment.create({
+      data: { courseId, description: data.description, submitUrl: data.submitUrl },
+    }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function updateAssignment(assignmentId: string, courseId: string, data: AssignmentFormData) {
-  await prisma.assignment.update({
-    where: { id: assignmentId },
-    data: { description: data.description, submitUrl: data.submitUrl },
-  })
+  await Promise.all([
+    prisma.assignment.update({
+      where: { id: assignmentId },
+      data: { description: data.description, submitUrl: data.submitUrl },
+    }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function deleteAssignment(assignmentId: string, courseId: string) {
-  await prisma.assignment.update({ where: { id: assignmentId }, data: { deletedAt: new Date() } })
+  await Promise.all([
+    prisma.assignment.update({ where: { id: assignmentId }, data: { deletedAt: new Date() } }),
+    touchCourse(courseId),
+  ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
