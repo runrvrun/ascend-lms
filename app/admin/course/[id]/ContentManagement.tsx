@@ -49,6 +49,7 @@ const TYPE_LABELS: Record<ContentType, string> = {
   VIDEO: "Video",
   PDF: "PDF",
   PPT: "PPT",
+  IN_PERSON: "In Person",
 }
 
 const TYPE_STYLES: Record<ContentType, string> = {
@@ -57,6 +58,7 @@ const TYPE_STYLES: Record<ContentType, string> = {
   VIDEO: "bg-purple-100 text-purple-700",
   PDF: "bg-red-100 text-red-700",
   PPT: "bg-orange-100 text-orange-700",
+  IN_PERSON: "bg-green-100 text-green-700",
 }
 
 function ContentFormModal({
@@ -146,7 +148,10 @@ function ContentFormModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
-              {form.type === "TEXT" ? "Content" : "URL"} <span className="text-red-500">*</span>
+              {form.type === "TEXT" ? "Content" : form.type === "IN_PERSON" ? "Description" : "URL"}
+              {form.type === "IN_PERSON"
+                ? <span className="ml-1 font-normal text-slate-400">(optional)</span>
+                : <span className="text-red-500"> *</span>}
             </label>
             {form.type === "TEXT" ? (
               <textarea
@@ -155,6 +160,14 @@ function ContentFormModal({
                 value={form.value}
                 onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
                 placeholder="Write the text content here…"
+                className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            ) : form.type === "IN_PERSON" ? (
+              <textarea
+                rows={4}
+                value={form.value}
+                onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+                placeholder="Add notes or instructions about this session (optional)…"
                 className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             ) : (

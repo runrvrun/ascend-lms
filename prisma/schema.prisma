@@ -339,6 +339,7 @@ enum ContentType {
   VIDEO
   PDF
   PPT
+  IN_PERSON
 }
 
 model Test {

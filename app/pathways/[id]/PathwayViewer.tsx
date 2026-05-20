@@ -28,6 +28,7 @@ import {
   BadgeCheck,
   Check,
   Eye,
+  Users,
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedback } from "../actions"
@@ -752,6 +753,7 @@ const TYPE_ICON: Record<ContentType, React.ReactNode> = {
   LINK: <Link2 size={13} />,
   PDF: <FileText size={13} />,
   PPT: <FileText size={13} />,
+  IN_PERSON: <Users size={13} />,
 }
 
 function FeedbackViewer({
@@ -1043,6 +1045,29 @@ function ContentViewer({
         <div className="mt-6">
           <CompleteButton contentId={content.id} />
         </div>
+        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
+      </div>
+    )
+  }
+
+  if (content.type === "IN_PERSON") {
+    return (
+      <div className="h-full overflow-y-auto p-6 md:p-8">
+        <div className="mb-6 flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-green-100">
+            <Users size={22} className="text-green-700" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">In Person Session</p>
+            <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
+          </div>
+        </div>
+        {content.value && (
+          <div className="mb-6 whitespace-pre-wrap rounded-2xl border border-slate-100 bg-slate-50 p-5 text-sm leading-relaxed text-slate-700">
+            {content.value}
+          </div>
+        )}
+        <CompleteButton contentId={content.id} />
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>
     )
