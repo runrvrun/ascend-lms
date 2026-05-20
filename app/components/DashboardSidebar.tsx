@@ -161,6 +161,10 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                   <BookOpen size={14} />
                   Pathways
                 </a>
+                <a href="/admin/topic" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                  <Tag size={14} />
+                  Topics
+                </a>
                 <a href="/admin/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <GraduationCap size={14} />
                   Courses
@@ -168,10 +172,6 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                 <a href="/admin/office" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <Building2 size={14} />
                   Offices
-                </a>
-                <a href="/admin/topic" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <Tag size={14} />
-                  Topics
                 </a>
                 <a href="/admin/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                   <BarChart3 size={14} />
