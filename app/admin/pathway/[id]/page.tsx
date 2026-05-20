@@ -45,6 +45,11 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
             {pathway.description && (
               <p className="mt-2 text-sm text-slate-500">{pathway.description}</p>
             )}
+            <div className="mt-3 flex items-center gap-4 text-xs text-slate-400">
+              <span>Created {pathway.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+              <span>·</span>
+              <span>Updated {pathway.updatedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <a
