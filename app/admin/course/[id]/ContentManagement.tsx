@@ -146,8 +146,9 @@ function ContentFormModal({
                 )}
                 {form.type === "PDF" && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    Paste a direct link to a PDF. For SharePoint files: open the file → click <span className="font-medium text-slate-700">Share</span> → copy the link, or use the direct download URL.
-                    The PDF will be embedded directly in the learning page.
+                    For SharePoint files: open the PDF → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Copy link</span> and paste it here.
+                    The viewer will automatically route it through Microsoft Office Online to bypass SharePoint embedding restrictions.
+                    For non-SharePoint PDFs, paste the direct URL to the file.
                   </p>
                 )}
                 {form.type === "VIDEO" && (form.value.includes("sharepoint.com") || form.value.includes("microsoftstream.com")) && (
