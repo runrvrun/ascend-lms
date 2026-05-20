@@ -29,8 +29,50 @@ export async function deleteCohort(id: string) {
 
 // ── Cohort Users ──────────────────────────────────────────────────────────────
 
+async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) {
+  if (userIds.length === 0) return
+
+  const cohortPathways = await prisma.cohortPathway.findMany({
+    where: { cohortId },
+    select: { pathwayId: true, pathway: { select: { name: true } } },
+  })
+  if (cohortPathways.length === 0) return
+
+  const cohort = await prisma.cohort.findUnique({
+    where: { id: cohortId },
+    select: { name: true },
+  })
+  if (!cohort) return
+
+  await prisma.pathwayEnrollment.createMany({
+    data: cohortPathways.flatMap(({ pathwayId }) =>
+      userIds.map((userId) => ({
+        userId,
+        pathwayId,
+        cohortId,
+        type: "ASSIGNED" as const,
+        status: "APPROVED" as const,
+      }))
+    ),
+    skipDuplicates: true,
+  })
+
+  await prisma.notification.createMany({
+    data: cohortPathways.flatMap(({ pathwayId, pathway }) =>
+      userIds.map((userId) => ({
+        userId,
+        type: "COHORT_PATHWAY_ASSIGNED" as const,
+        message: `A new pathway "${pathway.name}" has been assigned to your cohort "${cohort.name}".`,
+        pathwayId,
+      }))
+    ),
+    skipDuplicates: true,
+  })
+}
+
 export async function addUserToCohort(cohortId: string, userId: string) {
   await prisma.cohortUser.create({ data: { cohortId, userId } })
+  await enrollUsersInCohortPathways(cohortId, [userId])
   revalidatePath(`/admin/cohort/${cohortId}`)
 }
 
@@ -40,6 +82,7 @@ export async function addUsersToCohort(cohortId: string, userIds: string[]) {
     data: userIds.map((userId) => ({ cohortId, userId })),
     skipDuplicates: true,
   })
+  await enrollUsersInCohortPathways(cohortId, userIds)
   revalidatePath(`/admin/cohort/${cohortId}`)
 }
 
@@ -106,6 +149,7 @@ export async function bulkAddMembersToCohort(
       data: toAdd.map((userId) => ({ cohortId, userId })),
       skipDuplicates: true,
     })
+    await enrollUsersInCohortPathways(cohortId, toAdd)
     revalidatePath(`/admin/cohort/${cohortId}`)
   }
 
