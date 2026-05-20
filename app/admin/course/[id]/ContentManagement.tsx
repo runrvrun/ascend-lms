@@ -14,11 +14,41 @@ type ContentRow = {
   duration: number | null
 }
 
+function extractEmbedUrl(raw: string): string {
+  let url = raw.trim()
+  // If the user pasted an <iframe> snippet, pull out the src value
+  if (url.includes("<iframe")) {
+    const m = url.match(/src="([^"]+)"/)
+    url = m ? m[1] : url
+  }
+  if (url.includes("sharepoint.com")) {
+    // Media embed (video/PDF): keep only up to UniqueId value
+    if (url.toLowerCase().includes("uniqueid=")) {
+      const m = url.match(/^(.*[?&]UniqueId=[a-zA-Z0-9%-]+)/i)
+      if (m) url = m[1]
+    }
+    // Office document embed (PPT/Word/Excel): keep only sourcedoc + action=embedview
+    if (url.toLowerCase().includes("doc.aspx") && url.toLowerCase().includes("sourcedoc=")) {
+      try {
+        const u = new URL(url)
+        const sourcedoc = u.searchParams.get("sourcedoc")
+        if (sourcedoc) {
+          url = `${u.origin}${u.pathname}?sourcedoc=${encodeURIComponent(sourcedoc)}&action=embedview`
+        }
+      } catch {
+        // leave url as-is if URL parsing fails
+      }
+    }
+  }
+  return url
+}
+
 const TYPE_LABELS: Record<ContentType, string> = {
   TEXT: "Text",
   LINK: "Link",
   VIDEO: "Video",
   PDF: "PDF",
+  PPT: "PPT",
 }
 
 const TYPE_STYLES: Record<ContentType, string> = {
@@ -26,6 +56,7 @@ const TYPE_STYLES: Record<ContentType, string> = {
   LINK: "bg-blue-100 text-blue-700",
   VIDEO: "bg-purple-100 text-purple-700",
   PDF: "bg-red-100 text-red-700",
+  PPT: "bg-orange-100 text-orange-700",
 }
 
 function ContentFormModal({
@@ -132,23 +163,29 @@ function ContentFormModal({
                   required
                   type="url"
                   value={form.value}
-                  onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                  placeholder={form.type === "VIDEO"
-                    ? "https://ycphd.sharepoint.com/sites/2_Academy/_layouts/15/embed.aspx?UniqueId=…"
-                    : "https://…"}
+                  onChange={(e) => setForm((f) => ({ ...f, value: extractEmbedUrl(e.target.value) }))}
+                  placeholder={
+                    form.type === "VIDEO" || form.type === "PDF" || form.type === "PPT"
+                      ? "Paste the embed URL or the full <iframe> snippet from SharePoint"
+                      : "https://…"
+                  }
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {form.type === "VIDEO" && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint/Stream recordings: open the video in Stream → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → copy the <span className="font-mono font-medium text-slate-700">src</span> URL from the iframe code up to the uniqueId code.
-                    <br/>Example: https://ycphd.sharepoint.com/sites/2_Academy/_layouts/15/embed.aspx?UniqueId=92da88a0-c7fe-4eba-899a-0f18944cdd54
+                    For SharePoint/Stream recordings: open the video → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
                   </p>
                 )}
                 {form.type === "PDF" && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint files: open the PDF → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → copy the <span className="font-mono font-medium text-slate-700">src</span> URL from the iframe code.
-                    <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/embed.aspx?UniqueId=…
+                    For SharePoint files: open the PDF → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
                     <br />For non-SharePoint PDFs, paste the direct URL to the file.
+                  </p>
+                )}
+                {form.type === "PPT" && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    For SharePoint presentations: open the PPT in Web → click <span className="font-medium text-slate-700">File</span> → <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed this presentation</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The embed URL will be extracted automatically.
+                    <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/Doc.aspx?sourcedoc=&#123;GUID&#125;&amp;action=embedview
                   </p>
                 )}
                 {form.type === "VIDEO" && (form.value.includes("sharepoint.com") || form.value.includes("microsoftstream.com")) && (

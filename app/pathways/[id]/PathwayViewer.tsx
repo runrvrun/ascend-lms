@@ -736,6 +736,7 @@ const TYPE_ICON: Record<ContentType, React.ReactNode> = {
   VIDEO: <Video size={13} />,
   LINK: <Link2 size={13} />,
   PDF: <FileText size={13} />,
+  PPT: <FileText size={13} />,
 }
 
 function FeedbackViewer({
@@ -992,10 +993,10 @@ function ContentViewer({
     )
   }
 
-  if (content.type === "PDF") {
+  if (content.type === "PDF" || content.type === "PPT") {
     return (
-      <div className="flex h-full flex-col overflow-hidden p-6 md:p-8">
-        <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
+      <div className="h-full overflow-y-auto p-6 md:p-8">
+        <div className="mb-4 flex items-center justify-between gap-4">
           <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
           <a
             href={content.value}
@@ -1010,9 +1011,9 @@ function ContentViewer({
         <iframe
           src={content.value}
           title={content.title}
-          className="min-h-0 flex-1 rounded-xl border border-slate-200"
+          className="h-[640px] w-full rounded-xl border border-slate-200"
         />
-        <div className="mt-6 shrink-0">
+        <div className="mt-6">
           <CompleteButton contentId={content.id} />
         </div>
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
