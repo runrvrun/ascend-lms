@@ -87,7 +87,30 @@ export async function addUsersToCohort(cohortId: string, userIds: string[]) {
 }
 
 export async function removeUserFromCohort(id: string, cohortId: string) {
+  const cohortUser = await prisma.cohortUser.findUnique({
+    where: { id },
+    select: { userId: true },
+  })
+
   await prisma.cohortUser.delete({ where: { id } })
+
+  if (cohortUser) {
+    const cohortPathways = await prisma.cohortPathway.findMany({
+      where: { cohortId },
+      select: { pathwayId: true },
+    })
+
+    if (cohortPathways.length > 0) {
+      await prisma.pathwayEnrollment.deleteMany({
+        where: {
+          userId: cohortUser.userId,
+          pathwayId: { in: cohortPathways.map((cp) => cp.pathwayId) },
+          cohortId,
+        },
+      })
+    }
+  }
+
   revalidatePath(`/admin/cohort/${cohortId}`)
 }
 
