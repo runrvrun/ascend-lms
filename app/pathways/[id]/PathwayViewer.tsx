@@ -1037,7 +1037,7 @@ function ContentViewer({
         <iframe
           src={content.value}
           title={content.title}
-          className="h-[640px] w-full rounded-xl border border-slate-200"
+          className="h-[400px] w-full rounded-xl border border-slate-200"
         />
         <div className="mt-6">
           <CompleteButton contentId={content.id} />

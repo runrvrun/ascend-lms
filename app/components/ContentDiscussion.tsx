@@ -254,7 +254,7 @@ export function ContentDiscussion({
   }
 
   return (
-    <div className="mt-10 border-t border-slate-200 pt-6">
+    <div className="mt-6 border-t border-slate-200 pt-5">
       <div className="mb-4 flex items-center gap-2">
         <MessageCircle size={16} className="text-slate-500" />
         <h3 className="text-sm font-semibold text-slate-700">
