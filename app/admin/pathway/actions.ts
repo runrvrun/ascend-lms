@@ -50,6 +50,45 @@ export async function deletePathway(id: string) {
   revalidatePath("/admin/pathway")
 }
 
+export async function duplicatePathway(id: string): Promise<string> {
+  const source = await prisma.pathway.findUnique({
+    where: { id },
+    include: { courses: { orderBy: { order: "asc" } } },
+  })
+  if (!source) throw new Error("Pathway not found")
+
+  const baseName = `${source.name}-copy`
+  let newName = baseName
+  let suffix = 2
+  while (await prisma.pathway.findFirst({ where: { name: newName, deletedAt: null } })) {
+    newName = `${baseName} ${suffix++}`
+  }
+
+  const newPathway = await prisma.pathway.create({
+    data: {
+      name: newName,
+      description: source.description,
+      status: "DRAFT",
+      requiresApproval: source.requiresApproval,
+      tags: source.tags,
+    },
+  })
+
+  if (source.courses.length > 0) {
+    await prisma.pathwayCourse.createMany({
+      data: source.courses.map((c) => ({
+        pathwayId: newPathway.id,
+        courseId: c.courseId,
+        order: c.order,
+        points: c.points,
+      })),
+    })
+  }
+
+  revalidatePath("/admin/pathway")
+  return newPathway.id
+}
+
 // ── Pathway Courses ───────────────────────────────────────────────────────────
 
 export async function addCourseToPathway(pathwayId: string, courseId: string, order: number, points: number) {

@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, ChevronDown, Users } from "lucide-react"
-import { createPathway, updatePathway, deletePathway, togglePathwayStatus, PathwayFormData } from "./actions"
+import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, ChevronDown, Users, Copy } from "lucide-react"
+import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, PathwayFormData } from "./actions"
 
 type PathwayRow = {
   id: string
@@ -279,7 +279,17 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<PathwayRow | null>(null)
   const [deleting, setDeleting] = useState<PathwayRow | null>(null)
+  const [duplicating, setDuplicating] = useState<string | null>(null)
+  const [, startDupTransition] = useTransition()
   const [search, setSearch] = useState("")
+
+  function handleDuplicate(pathwayId: string) {
+    setDuplicating(pathwayId)
+    startDupTransition(async () => {
+      await duplicatePathway(pathwayId)
+      setDuplicating(null)
+    })
+  }
 
   const filtered = search
     ? pathways.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
@@ -386,6 +396,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                     { label: "Manage Courses", icon: <GraduationCap size={14} />, href: `/admin/pathway/${p.id}` },
                     { label: "Manage Enrollments", icon: <Users size={14} />, href: `/admin/pathway/${p.id}/enrollments` },
                     { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(p) },
+                    { label: duplicating === p.id ? "Duplicating…" : "Duplicate", icon: <Copy size={14} />, onClick: () => handleDuplicate(p.id) },
                     { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(p), variant: "danger" },
                   ]} />
                 </td>
