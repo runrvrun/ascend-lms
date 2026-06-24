@@ -295,7 +295,7 @@ export async function requestPathway(pathwayId: string, note: string) {
           prisma.notification.create({
             data: {
               userId: manager.id,
-              type: "PATHWAY_ASSIGNED",
+              type: "ENROLLMENT_REQUESTED",
               message: `${requesterName} has requested enrollment in "${pathway.name}". Please review their request.`,
               pathwayId,
             },

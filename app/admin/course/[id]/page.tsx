@@ -111,7 +111,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
       <CourseTabLayout
         content={
           <div className="flex flex-col gap-8">
-            <ContentManagement courseId={course.id} contents={course.contents} />
+            <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} />
             <TestManagement courseId={course.id} test={test} />
             <AssignmentManagement courseId={course.id} assignment={assignment} />
           </div>

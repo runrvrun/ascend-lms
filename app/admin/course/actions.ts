@@ -184,10 +184,24 @@ export async function swapContentOrder(
 }
 
 export async function deleteContent(id: string, courseId: string) {
-  await Promise.all([
-    prisma.content.update({ where: { id }, data: { deletedAt: new Date() } }),
-    touchCourse(courseId),
-  ])
+  await prisma.$transaction(async (tx) => {
+    const content = await tx.content.findUnique({ where: { id }, select: { order: true } })
+    if (!content || content.order === null) return
+
+    const deletedOrder = content.order
+    await tx.content.update({ where: { id }, data: { deletedAt: new Date(), order: null } })
+
+    const toReorder = await tx.content.findMany({
+      where: { courseId, deletedAt: null, order: { gt: deletedOrder } },
+      orderBy: { order: "asc" },
+      select: { id: true, order: true },
+    })
+    for (const item of toReorder) {
+      await tx.content.update({ where: { id: item.id }, data: { order: item.order! - 1 } })
+    }
+
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
   revalidatePath(`/admin/course/${courseId}`)
 }
 

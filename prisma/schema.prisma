@@ -320,7 +320,7 @@ model Content {
   value    String // text OR URL (SharePoint link, video, etc.)
   duration Int?   // video length in seconds (used for SharePoint progress tracking)
 
-  order Int
+  order Int?
 
   course            Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
   contentProgresses ContentProgress[]
@@ -582,6 +582,7 @@ model Comment {
 
 enum NotificationType {
   COMMENT_REPLY
+  ENROLLMENT_REQUESTED
   ENROLLMENT_APPROVED
   ENROLLMENT_REJECTED
   PATHWAY_ASSIGNED

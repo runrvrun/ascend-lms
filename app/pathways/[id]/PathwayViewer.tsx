@@ -41,7 +41,7 @@ type ContentItem = {
   title: string
   type: ContentType
   value: string
-  order: number
+  order: number | null
   duration: number | null
 }
 
