@@ -751,6 +751,14 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
           <p className="mt-1 text-sm text-slate-500">{filtered.length} of {users.length} users</p>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href="/api/admin/users/export"
+            download
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Download size={16} />
+            Export
+          </a>
           <button
             onClick={() => setImporting(true)}
             className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
