@@ -1,14 +1,33 @@
-// Email utility — currently routes through Mailtrap sandbox (emails captured, not delivered).
-// To switch to Resend in production, replace `send()` with the Resend API call.
+// Email utility.
+// Production: set RESEND_API_KEY in .env → emails sent via Resend.
+// Development: leave RESEND_API_KEY unset → emails captured by Mailtrap sandbox.
+
+import { Resend } from "resend"
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://ycp-ascend-lms.vercel.app"
 
 async function send(to: string, subject: string, html: string) {
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY)
+      const { error } = await resend.emails.send({
+        from: "Ascend LMS <noreply-ascend@ycp.com>",
+        to: [to],
+        subject,
+        html,
+      })
+      if (error) console.error("[email] Resend error:", error)
+    } catch (err) {
+      console.error("[email] Failed to send to", to, err)
+    }
+    return
+  }
+
   const token = process.env.MAILTRAP_TOKEN
   const inboxId = process.env.MAILTRAP_INBOX_ID
 
   if (!token || !inboxId) {
-    console.warn("[email] MAILTRAP_TOKEN or MAILTRAP_INBOX_ID not set — skipping email to", to)
+    console.warn("[email] No email provider configured — skipping email to", to)
     return
   }
 
