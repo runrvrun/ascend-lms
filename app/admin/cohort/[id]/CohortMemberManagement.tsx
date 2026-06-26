@@ -406,6 +406,16 @@ export function CohortMemberManagement({
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">Members</h2>
         <div className="flex items-center gap-2">
+          {members.length > 0 && (
+            <a
+              href={`/api/admin/cohort/${cohortId}/export`}
+              download
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Download size={14} />
+              Download Members
+            </a>
+          )}
           <button
             onClick={() => setBulkUploading(true)}
             className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
