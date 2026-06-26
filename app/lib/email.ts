@@ -11,7 +11,7 @@ async function send(to: string, subject: string, html: string) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       const { error } = await resend.emails.send({
-        from: "Ascend LMS <noreply-ascend@ycp.com>",
+        from: "Ascend LMS <noreply@ascend.ycp.com>",
         to: [to],
         subject,
         html,
@@ -39,7 +39,7 @@ async function send(to: string, subject: string, html: string) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        from: { email: "noreply-ascend@ycp.com", name: "Ascend LMS" },
+        from: { email: "noreply@ascend.ycp.com", name: "Ascend LMS" },
         to: [{ email: to }],
         subject,
         html,
