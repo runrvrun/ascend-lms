@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
-import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown, Mail, KeyRound } from "lucide-react"
+import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown, Mail, KeyRound, BarChart2 } from "lucide-react"
 import { SearchableSelect } from "../../components/SearchableSelect"
 import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, addUserManager, removeUserManager, UserFormData, BulkImportResult } from "./actions"
 
@@ -867,6 +867,7 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
                         })
                       },
                     },
+                    { label: "Progress", icon: <BarChart2 size={14} />, onClick: () => { window.location.href = `/admin/user/${u.id}/progress` } },
                     { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(u) },
                     { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(u), variant: "danger" },
                   ]} />

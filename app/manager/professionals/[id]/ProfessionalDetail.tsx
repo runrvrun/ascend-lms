@@ -301,10 +301,14 @@ export function ProfessionalDetail({
   professional,
   enrollments,
   growthPlans,
+  backHref = "/manager/professionals",
+  backLabel = "Back to Professionals",
 }: {
   professional: Professional
   enrollments: Enrollment[]
   growthPlans: GrowthPlanItem[]
+  backHref?: string
+  backLabel?: string
 }) {
   const searchParams = useSearchParams()
   const [tab, setTab] = useState<"learning" | "growth">(
@@ -319,11 +323,11 @@ export function ProfessionalDetail({
     <>
       {/* Back */}
       <a
-        href="/manager/professionals"
+        href={backHref}
         className="mb-6 flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
       >
         <ArrowLeft size={14} />
-        Back to Professionals
+        {backLabel}
       </a>
 
       {/* Profile header */}
