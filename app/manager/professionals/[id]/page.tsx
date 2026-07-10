@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { redirect, notFound } from "next/navigation"
 import { authOptions } from "../../../api/auth/[...nextauth]/route"
 import { prisma } from "../../../lib/prisma"
+import { getUserLearningProgress } from "../../../lib/userLearningProgress"
 import { ProfessionalDetail } from "./ProfessionalDetail"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -33,33 +34,13 @@ export default async function ProfessionalDetailPage({
       division: true,
       title: true,
       office: { select: { name: true } },
-      enrollments: {
-        where: { status: { not: "REJECTED" } },
-        select: {
-          id: true,
-          pathwayId: true,
-          type: true,
-          status: true,
-          deadline: true,
-          pathway: { select: { name: true } },
-          cohort: { select: { name: true } },
-        },
-        orderBy: { createdAt: "asc" },
-      },
     },
   })
 
   if (!professional) notFound()
 
-  const [courseProgressRecords, pathwayCourseCounts, growthPlanRecords] = await Promise.all([
-    prisma.courseProgress.findMany({
-      where: { userId: id, completed: true },
-      select: { pathwayId: true },
-    }),
-    prisma.pathwayCourse.groupBy({
-      by: ["pathwayId"],
-      _count: { courseId: true },
-    }),
+  const [enrollments, growthPlanRecords] = await Promise.all([
+    getUserLearningProgress(id),
     prisma.growthPlan.findMany({
       where: { userId: id },
       orderBy: { createdAt: "asc" },
@@ -72,27 +53,6 @@ export default async function ProfessionalDetailPage({
       },
     }),
   ])
-
-  const completedByPathway: Record<string, number> = {}
-  for (const cp of courseProgressRecords) {
-    completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
-  }
-  const totalByPathway = Object.fromEntries(
-    pathwayCourseCounts.map((r) => [r.pathwayId, r._count.courseId])
-  )
-
-  const enrollments = professional.enrollments.map((e) => {
-    const total = totalByPathway[e.pathwayId] ?? 0
-    const completed = completedByPathway[e.pathwayId] ?? 0
-    return {
-      ...e,
-      completedCourses: completed,
-      totalCourses: total,
-      isCompleted: total > 0 && completed >= total && e.status === "APPROVED",
-      deadline: e.deadline ? e.deadline.toISOString() : null,
-      cohortName: e.cohort?.name ?? null,
-    }
-  })
 
   const growthPlans = growthPlanRecords.map((g) => ({
     id: g.id,

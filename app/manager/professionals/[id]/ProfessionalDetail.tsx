@@ -15,8 +15,32 @@ import {
   Target,
   BadgeCheck,
   UsersRound,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react"
 import { updateDeadline, confirmGrowthPlan } from "../actions"
+
+type ContentDetail = {
+  id: string
+  title: string
+  type: string
+  completed: boolean
+  completedAt: string | null
+}
+
+type CourseDetail = {
+  id: string
+  name: string
+  sectionTitle: string | null
+  completed: boolean
+  completedAt: string | null
+  testStatus: "PASSED" | "FAILED" | null
+  testScore: number | null
+  assignmentStatus: "PASSED" | "FAILED" | null
+  totalContents: number
+  completedContents: number
+  contents: ContentDetail[]
+}
 
 type Enrollment = {
   id: string
@@ -29,6 +53,7 @@ type Enrollment = {
   isCompleted: boolean
   pathway: { name: string }
   cohortName: string | null
+  courses: CourseDetail[]
 }
 
 type Professional = {
@@ -156,7 +181,89 @@ function DeadlineEditor({
   )
 }
 
+function StatusBadge({ label, status }: { label: string; status: "PASSED" | "FAILED" }) {
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
+        status === "PASSED" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+      }`}
+    >
+      {label} {status === "PASSED" ? "passed" : "failed"}
+    </span>
+  )
+}
+
+function CourseRow({ course }: { course: CourseDetail }) {
+  const [open, setOpen] = useState(false)
+  const hasContents = course.totalContents > 0
+
+  return (
+    <div className="rounded-lg border border-slate-100 bg-white">
+      <button
+        onClick={() => hasContents && setOpen((v) => !v)}
+        className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left ${
+          hasContents ? "hover:bg-slate-50" : "cursor-default"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
+          {hasContents ? (
+            open ? (
+              <ChevronDown size={13} className="shrink-0 text-slate-400" />
+            ) : (
+              <ChevronRight size={13} className="shrink-0 text-slate-400" />
+            )
+          ) : (
+            <span className="w-[13px] shrink-0" />
+          )}
+          {course.completed ? (
+            <CheckCircle2 size={14} className="shrink-0 text-green-500" />
+          ) : (
+            <Circle size={14} className="shrink-0 text-slate-300" />
+          )}
+          <span className="truncate text-sm text-slate-700">{course.name}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {hasContents && (
+            <span className="text-xs text-slate-400">
+              {course.completedContents}/{course.totalContents} lessons
+            </span>
+          )}
+          {course.testStatus && <StatusBadge label="Quiz" status={course.testStatus} />}
+          {course.assignmentStatus && <StatusBadge label="Assignment" status={course.assignmentStatus} />}
+        </div>
+      </button>
+
+      {open && hasContents && (
+        <div className="divide-y divide-slate-50 border-t border-slate-100 bg-slate-50/60 px-3 py-1">
+          {course.contents.map((content) => (
+            <div key={content.id} className="flex items-center justify-between gap-3 py-1.5 pl-5">
+              <div className="flex min-w-0 items-center gap-2">
+                {content.completed ? (
+                  <CheckCircle2 size={12} className="shrink-0 text-green-500" />
+                ) : (
+                  <Circle size={12} className="shrink-0 text-slate-300" />
+                )}
+                <span className="truncate text-xs text-slate-600">{content.title}</span>
+              </div>
+              {content.completedAt && (
+                <span className="shrink-0 text-[11px] text-slate-400">
+                  {new Date(content.completedAt).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EnrollmentRow({ enrollment }: { enrollment: Enrollment }) {
+  const [showCourses, setShowCourses] = useState(false)
   const pct =
     enrollment.totalCourses > 0
       ? Math.round((enrollment.completedCourses / enrollment.totalCourses) * 100)
@@ -203,18 +310,30 @@ function EnrollmentRow({ enrollment }: { enrollment: Enrollment }) {
 
       {enrollment.status === "APPROVED" && enrollment.totalCourses > 0 && (
         <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-            <span>
+          <button
+            onClick={() => setShowCourses((v) => !v)}
+            className="mb-1 flex w-full items-center justify-between text-xs text-slate-500 hover:text-slate-800"
+          >
+            <span className="flex items-center gap-1">
+              {showCourses ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               {enrollment.completedCourses}/{enrollment.totalCourses} courses
             </span>
             <span>{pct}%</span>
-          </div>
+          </button>
           <div className="h-2 rounded-full bg-slate-100">
             <div
               className={`h-2 rounded-full transition-all ${enrollment.isCompleted ? "bg-green-500" : "bg-blue-500"}`}
               style={{ width: `${pct}%` }}
             />
           </div>
+
+          {showCourses && (
+            <div className="mt-3 space-y-1.5">
+              {enrollment.courses.map((course) => (
+                <CourseRow key={course.id} course={course} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
