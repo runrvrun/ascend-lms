@@ -52,9 +52,13 @@ export async function getCourseReportData(courseId: string) {
       : [],
     prisma.courseFeedback.findMany({
       where: { courseId },
-      select: { rating: true, comment: true, createdAt: true, user: { select: { name: true } } },
+      select: { userId: true, rating: true, comment: true, createdAt: true, user: { select: { name: true } } },
     }),
   ])
+
+  const feedbackByUserId = new Map(
+    feedbacks.map((f) => [f.userId, { rating: f.rating, comment: f.comment, date: f.createdAt }])
+  )
 
   // Enrollment can happen through more than one pathway containing this course —
   // collapse to one row per user, keeping the earliest enroll date across all of them.
@@ -114,6 +118,7 @@ export async function getCourseReportData(courseId: string) {
         testScore: prog?.testScore ?? null,
         testStatus: prog?.testStatus ?? null,
         assignmentStatus: prog?.assignmentStatus ?? null,
+        feedback: feedbackByUserId.get(userId) ?? null,
       }
     })
     .sort((a, b) => (a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""))

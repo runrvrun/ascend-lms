@@ -12,8 +12,12 @@ import {
   FileText,
   Star,
   Search,
+  X,
+  MessageSquare,
 } from "lucide-react"
 import type { CourseReportData } from "../../../../lib/courseReport"
+
+type ReportUser = CourseReportData["users"][number]
 
 function StatCard({
   label,
@@ -53,9 +57,49 @@ function formatDate(d: Date | string | null) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
 }
 
+function FeedbackModal({ user, onClose }: { user: ReportUser; onClose: () => void }) {
+  const feedback = user.feedback!
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Feedback from {user.name ?? "Unknown"}</h2>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex items-center gap-0.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star
+                key={i}
+                size={16}
+                className={i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-slate-200"}
+              />
+            ))}
+          </div>
+          <span className="text-xs text-slate-400">{formatDate(feedback.date)}</span>
+        </div>
+        {feedback.comment ? (
+          <div className="flex items-start gap-1.5 rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <MessageSquare size={13} className="mt-0.5 shrink-0 text-slate-400" />
+            <p className="text-sm text-slate-600">{feedback.comment}</p>
+          </div>
+        ) : (
+          <p className="text-sm italic text-slate-400">No written comment.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function CourseReport({ data }: { data: CourseReportData }) {
   const { course, stats, users, feedbacks } = data
   const [search, setSearch] = useState("")
+  const [viewingFeedback, setViewingFeedback] = useState<ReportUser | null>(null)
 
   const filtered = search
     ? users.filter(
@@ -162,12 +206,14 @@ export function CourseReport({ data }: { data: CourseReportData }) {
               <th className="px-5 py-3 min-w-[110px]">Completed</th>
               <th className="px-5 py-3 text-center min-w-[100px]">Time Taken</th>
               <th className="px-5 py-3 text-center min-w-[90px]">Test</th>
+              <th className="px-5 py-3 text-center min-w-[100px]">Assignment</th>
+              <th className="px-5 py-3 text-center min-w-[90px]">Feedback</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={9} className="px-5 py-10 text-center text-slate-400">
                   {users.length === 0 ? "No one is enrolled in this course yet." : "No users match your search."}
                 </td>
               </tr>
@@ -195,6 +241,27 @@ export function CourseReport({ data }: { data: CourseReportData }) {
                 </td>
                 <td className="px-5 py-3 text-center text-slate-600">
                   {u.testScore != null ? `${Math.round(u.testScore)}%` : "—"}
+                </td>
+                <td className="px-5 py-3 text-center">
+                  {u.assignmentStatus === "PASSED" ? (
+                    <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">Passed</span>
+                  ) : u.assignmentStatus === "FAILED" ? (
+                    <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-600">Failed</span>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-center">
+                  {u.feedback ? (
+                    <button
+                      onClick={() => setViewingFeedback(u)}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      View
+                    </button>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -229,6 +296,8 @@ export function CourseReport({ data }: { data: CourseReportData }) {
           </div>
         </div>
       )}
+
+      {viewingFeedback && <FeedbackModal user={viewingFeedback} onClose={() => setViewingFeedback(null)} />}
     </>
   )
 }
