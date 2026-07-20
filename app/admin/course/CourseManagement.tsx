@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown, Copy, Eye } from "lucide-react"
+import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, ChevronDown, Copy, Eye, BarChart3 } from "lucide-react"
 import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainers, duplicateCourse, CourseFormData } from "./actions"
 import { SearchableSelect, SearchableMultiSelect } from "../../components/SearchableSelect"
 
@@ -318,6 +318,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
                     <ActionsMenu items={[
                       { label: "Manage Contents", icon: <ArrowRight size={14} />, href: `/admin/course/${c.id}` },
                       { label: "Preview", icon: <Eye size={14} />, href: `/admin/course/${c.id}/preview` },
+                      { label: "Report", icon: <BarChart3 size={14} />, href: `/admin/course/${c.id}/report` },
                       { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(c) },
                       { label: duplicating === c.id ? "Duplicating…" : "Duplicate", icon: <Copy size={14} />, onClick: () => handleDuplicate(c.id) },
                       { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(c), variant: "danger" },
