@@ -325,6 +325,7 @@ model Content {
   course            Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
   contentProgresses ContentProgress[]
   comments          Comment[]
+  popQuizzes        PopQuiz[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -337,9 +338,40 @@ enum ContentType {
   TEXT
   LINK
   VIDEO
+  YOUTUBE_VIDEO
   PDF
   PPT
   IN_PERSON
+}
+
+// ── Pop Quiz ─────────────────────────────────────────────────────────────────
+// A pop quiz interrupts YouTube video playback at a specific timestamp with a
+// multiple-choice question the learner must answer correctly to continue.
+
+model PopQuiz {
+  id        String @id @default(dbgenerated("gen_random_uuid()::text"))
+  contentId String
+  time      Int // seconds into the video when the quiz should trigger
+  question  String
+
+  content Content         @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  options PopQuizOption[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([contentId, time])
+}
+
+model PopQuizOption {
+  id        String  @id @default(dbgenerated("gen_random_uuid()::text"))
+  popQuizId String
+  text      String
+  isCorrect Boolean @default(false)
+  order     Int
+
+  popQuiz PopQuiz @relation(fields: [popQuizId], references: [id], onDelete: Cascade)
 }
 
 model Test {

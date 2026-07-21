@@ -48,6 +48,18 @@ export default async function PathwayDetailPage({
                 contents: {
                   where: { deletedAt: null },
                   orderBy: { order: "asc" },
+                  include: {
+                    popQuizzes: {
+                      where: { deletedAt: null },
+                      orderBy: { time: "asc" },
+                      select: {
+                        id: true,
+                        time: true,
+                        question: true,
+                        options: { orderBy: { order: "asc" }, select: { id: true, text: true } },
+                      },
+                    },
+                  },
                 },
                 test: {
                   where: { deletedAt: null },

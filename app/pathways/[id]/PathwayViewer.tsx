@@ -36,6 +36,18 @@ import { createGrowthPlan, updateGrowthPlan, deleteGrowthPlan, toggleGrowthPlanC
 import { ContentDiscussion } from "../../components/ContentDiscussion"
 import { VideoPlayer } from "./VideoPlayer"
 
+type PopQuizOptionItem = {
+  id: string
+  text: string
+}
+
+type PopQuizItem = {
+  id: string
+  time: number
+  question: string
+  options: PopQuizOptionItem[]
+}
+
 type ContentItem = {
   id: string
   title: string
@@ -43,6 +55,7 @@ type ContentItem = {
   value: string
   order: number | null
   duration: number | null
+  popQuizzes?: PopQuizItem[]
 }
 
 type QuestionOption = {
@@ -750,6 +763,7 @@ function AssignmentViewer({
 const TYPE_ICON: Record<ContentType, React.ReactNode> = {
   TEXT: <FileText size={13} />,
   VIDEO: <Video size={13} />,
+  YOUTUBE_VIDEO: <Video size={13} />,
   LINK: <Link2 size={13} />,
   PDF: <FileText size={13} />,
   PPT: <FileText size={13} />,
@@ -1009,11 +1023,11 @@ function ContentViewer({
     )
   }
 
-  if (content.type === "VIDEO") {
+  if (content.type === "VIDEO" || content.type === "YOUTUBE_VIDEO") {
     return (
       <div className="h-full overflow-y-auto p-6 md:p-8">
         <h2 className="mb-4 text-xl font-bold text-slate-900">{content.title}</h2>
-        <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} onProgress={setVideoProgress} />
+        <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
         </div>

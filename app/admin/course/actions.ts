@@ -288,6 +288,79 @@ export async function deleteQuestion(questionId: string, courseId: string) {
   revalidatePath(`/admin/course/${courseId}`)
 }
 
+// ── Pop Quizzes ───────────────────────────────────────────────────────────────
+
+export type PopQuizOptionDraft = {
+  text: string
+  isCorrect: boolean
+}
+
+export type PopQuizFormData = {
+  contentId: string
+  time: number // seconds into the video
+  question: string
+  options: PopQuizOptionDraft[]
+}
+
+async function assertYoutubeContent(contentId: string) {
+  const content = await prisma.content.findUnique({ where: { id: contentId }, select: { type: true } })
+  if (!content || content.type !== "YOUTUBE_VIDEO") {
+    throw new Error("Pop quizzes can only be added to YouTube Video content.")
+  }
+}
+
+export async function createPopQuiz(courseId: string, data: PopQuizFormData) {
+  await assertYoutubeContent(data.contentId)
+  await Promise.all([
+    prisma.popQuiz.create({
+      data: {
+        contentId: data.contentId,
+        time: data.time,
+        question: data.question,
+        options: {
+          create: data.options.map((o, i) => ({ text: o.text, isCorrect: o.isCorrect, order: i })),
+        },
+      },
+    }),
+    touchCourse(courseId),
+  ])
+  revalidatePath(`/admin/course/${courseId}`)
+  revalidatePath(`/trainer/course/${courseId}`)
+  revalidatePath(`/sme/course/${courseId}`)
+}
+
+export async function updatePopQuiz(popQuizId: string, courseId: string, data: PopQuizFormData) {
+  await assertYoutubeContent(data.contentId)
+  await prisma.popQuizOption.deleteMany({ where: { popQuizId } })
+  await Promise.all([
+    prisma.popQuiz.update({
+      where: { id: popQuizId },
+      data: {
+        contentId: data.contentId,
+        time: data.time,
+        question: data.question,
+        options: {
+          create: data.options.map((o, i) => ({ text: o.text, isCorrect: o.isCorrect, order: i })),
+        },
+      },
+    }),
+    touchCourse(courseId),
+  ])
+  revalidatePath(`/admin/course/${courseId}`)
+  revalidatePath(`/trainer/course/${courseId}`)
+  revalidatePath(`/sme/course/${courseId}`)
+}
+
+export async function deletePopQuiz(popQuizId: string, courseId: string) {
+  await Promise.all([
+    prisma.popQuiz.delete({ where: { id: popQuizId } }),
+    touchCourse(courseId),
+  ])
+  revalidatePath(`/admin/course/${courseId}`)
+  revalidatePath(`/trainer/course/${courseId}`)
+  revalidatePath(`/sme/course/${courseId}`)
+}
+
 // ── Trainers ──────────────────────────────────────────────────────────────────
 
 export async function addCourseTrainer(courseId: string, userId: string) {

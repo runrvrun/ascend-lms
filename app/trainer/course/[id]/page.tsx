@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react"
 import { authOptions } from "../../../api/auth/[...nextauth]/route"
 import { prisma } from "../../../lib/prisma"
 import { ContentManagement } from "../../../admin/course/[id]/ContentManagement"
+import { PopQuizManagement } from "../../../admin/course/[id]/PopQuizManagement"
 import { TestManagement } from "../../../admin/course/[id]/TestManagement"
 import { AssignmentManagement, SubmissionsPanel } from "../../../admin/course/[id]/AssignmentManagement"
 import { CourseStatusToggle } from "../../../admin/course/[id]/CourseStatusToggle"
@@ -39,6 +40,13 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
         contents: {
           where: { deletedAt: null },
           orderBy: { order: "asc" },
+          include: {
+            popQuizzes: {
+              where: { deletedAt: null },
+              orderBy: { time: "asc" },
+              include: { options: { orderBy: { order: "asc" } } },
+            },
+          },
         },
       },
     }),
@@ -74,6 +82,9 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
 
   if (!course) notFound()
 
+  const youtubeContents = course.contents.filter((c) => c.type === "YOUTUBE_VIDEO").map((c) => ({ id: c.id, title: c.title }))
+  const popQuizzes = course.contents.flatMap((c) => c.popQuizzes)
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
       <a href="/trainer/course" className="mb-6 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800">
@@ -97,6 +108,7 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
         content={
           <div className="flex flex-col gap-8">
             <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} />
+            <PopQuizManagement courseId={course.id} youtubeContents={youtubeContents} popQuizzes={popQuizzes} />
             <TestManagement courseId={course.id} test={test} />
             <AssignmentManagement courseId={course.id} assignment={assignment} />
           </div>

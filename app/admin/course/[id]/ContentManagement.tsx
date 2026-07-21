@@ -43,22 +43,26 @@ function extractEmbedUrl(raw: string): string {
   return url
 }
 
+const TYPE_ORDER: ContentType[] = ["YOUTUBE_VIDEO", "VIDEO", "TEXT", "PDF", "PPT", "IN_PERSON", "LINK"]
+
 const TYPE_LABELS: Record<ContentType, string> = {
+  YOUTUBE_VIDEO: "YouTube Video",
+  VIDEO: "SharePoint Video",
   TEXT: "Text",
-  LINK: "Link",
-  VIDEO: "Video",
   PDF: "PDF",
   PPT: "PPT",
   IN_PERSON: "In Person",
+  LINK: "External Link",
 }
 
 const TYPE_STYLES: Record<ContentType, string> = {
-  TEXT: "bg-slate-100 text-slate-600",
-  LINK: "bg-blue-100 text-blue-700",
+  YOUTUBE_VIDEO: "bg-red-100 text-red-700",
   VIDEO: "bg-purple-100 text-purple-700",
+  TEXT: "bg-slate-100 text-slate-600",
   PDF: "bg-red-100 text-red-700",
   PPT: "bg-orange-100 text-orange-700",
   IN_PERSON: "bg-green-100 text-green-700",
+  LINK: "bg-blue-100 text-blue-700",
 }
 
 function ContentFormModal({
@@ -128,22 +132,15 @@ function ContentFormModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Type <span className="text-red-500">*</span></label>
-            <div className="flex gap-2">
-              {(Object.keys(TYPE_LABELS) as ContentType[]).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, type: t }))}
-                  className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition-colors ${
-                    form.type === t
-                      ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {TYPE_LABELS[t]}
-                </button>
+            <select
+              value={form.type}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ContentType }))}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {TYPE_ORDER.map((t) => (
+                <option key={t} value={t}>{TYPE_LABELS[t]}</option>
               ))}
-            </div>
+            </select>
           </div>
 
           <div>
@@ -180,6 +177,8 @@ function ContentFormModal({
                   placeholder={
                     form.type === "VIDEO" || form.type === "PDF" || form.type === "PPT"
                       ? "Paste the embed URL or the full <iframe> snippet from SharePoint"
+                      : form.type === "YOUTUBE_VIDEO"
+                      ? "Paste the YouTube video URL (e.g. https://youtu.be/… or https://www.youtube.com/watch?v=…)"
                       : "https://…"
                   }
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -201,7 +200,7 @@ function ContentFormModal({
                     <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/Doc.aspx?sourcedoc=&#123;GUID&#125;&amp;action=embedview
                   </p>
                 )}
-                {form.type === "VIDEO" && (form.value.includes("sharepoint.com") || form.value.includes("microsoftstream.com")) && (
+                {form.type === "VIDEO" && (
                   <div className="mt-3">
                     <label className="mb-1 block text-xs font-medium text-slate-600">
                       Video length <span className="text-slate-400">(used to track watch progress of SharePoint videos)</span>
@@ -402,7 +401,7 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
       {creating && (
         <ContentFormModal
           title="Add Content"
-          initial={{ title: "", type: "TEXT", value: "", order: nextOrder, duration: null }}
+          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", order: nextOrder, duration: null }}
           nextOrder={nextOrder}
           courseId={courseId}
           onClose={() => setCreating(false)}

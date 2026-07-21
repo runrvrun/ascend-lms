@@ -104,6 +104,15 @@ export async function toggleContentComplete(contentId: string, pathwayId: string
   revalidatePath(`/pathways/${pathwayId}`)
 }
 
+export async function checkPopQuizAnswer(popQuizId: string, optionId: string): Promise<boolean> {
+  await getSession()
+  const option = await prisma.popQuizOption.findFirst({
+    where: { id: optionId, popQuizId },
+    select: { isCorrect: true },
+  })
+  return option?.isCorrect ?? false
+}
+
 export async function submitTest(
   testId: string,
   courseId: string,

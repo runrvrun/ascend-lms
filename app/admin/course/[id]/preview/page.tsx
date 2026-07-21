@@ -26,7 +26,22 @@ export default async function CoursePreviewPage({ params }: { params: Promise<{ 
   const course = await prisma.course.findFirst({
     where: { id, deletedAt: null },
     include: {
-      contents: { where: { deletedAt: null }, orderBy: { order: "asc" } },
+      contents: {
+        where: { deletedAt: null },
+        orderBy: { order: "asc" },
+        include: {
+          popQuizzes: {
+            where: { deletedAt: null },
+            orderBy: { time: "asc" },
+            select: {
+              id: true,
+              time: true,
+              question: true,
+              options: { orderBy: { order: "asc" }, select: { id: true, text: true } },
+            },
+          },
+        },
+      },
       test: {
         where: { deletedAt: null },
         include: {
