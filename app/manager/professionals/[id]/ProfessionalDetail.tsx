@@ -34,9 +34,11 @@ type CourseDetail = {
   sectionTitle: string | null
   completed: boolean
   completedAt: string | null
+  hasTest: boolean
   testStatus: "PASSED" | "FAILED" | null
   testScore: number | null
-  assignmentStatus: "PASSED" | "FAILED" | null
+  hasAssignment: boolean
+  assignmentStatus: "SUBMITTED" | "PASSED" | "FAILED" | null
   totalContents: number
   completedContents: number
   contents: ContentDetail[]
@@ -181,14 +183,33 @@ function DeadlineEditor({
   )
 }
 
-function StatusBadge({ label, status }: { label: string; status: "PASSED" | "FAILED" }) {
+function StatusBadge({
+  label,
+  status,
+}: {
+  label: string
+  status: "PASSED" | "FAILED" | "SUBMITTED" | "PENDING"
+}) {
+  const text =
+    status === "PASSED"
+      ? "passed"
+      : status === "FAILED"
+      ? "failed"
+      : status === "SUBMITTED"
+      ? "awaiting review"
+      : "not started"
+  const cls =
+    status === "PASSED"
+      ? "bg-green-100 text-green-700"
+      : status === "FAILED"
+      ? "bg-red-100 text-red-700"
+      : status === "SUBMITTED"
+      ? "bg-orange-100 text-orange-700"
+      : "bg-slate-100 text-slate-500"
+
   return (
-    <span
-      className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
-        status === "PASSED" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-      }`}
-    >
-      {label} {status === "PASSED" ? "passed" : "failed"}
+    <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>
+      {label} {text}
     </span>
   )
 }
@@ -228,8 +249,10 @@ function CourseRow({ course }: { course: CourseDetail }) {
               {course.completedContents}/{course.totalContents} lessons
             </span>
           )}
-          {course.testStatus && <StatusBadge label="Quiz" status={course.testStatus} />}
-          {course.assignmentStatus && <StatusBadge label="Assignment" status={course.assignmentStatus} />}
+          {course.hasTest && <StatusBadge label="Quiz" status={course.testStatus ?? "PENDING"} />}
+          {course.hasAssignment && (
+            <StatusBadge label="Assignment" status={course.assignmentStatus ?? "PENDING"} />
+          )}
         </div>
       </button>
 

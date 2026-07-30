@@ -14,9 +14,11 @@ export type CourseDetail = {
   sectionTitle: string | null
   completed: boolean
   completedAt: string | null
+  hasTest: boolean
   testStatus: "PASSED" | "FAILED" | null
   testScore: number | null
-  assignmentStatus: "PASSED" | "FAILED" | null
+  hasAssignment: boolean
+  assignmentStatus: "SUBMITTED" | "PASSED" | "FAILED" | null
   totalContents: number
   completedContents: number
   contents: ContentDetail[]
@@ -64,6 +66,8 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
           select: {
             id: true,
             name: true,
+            test: { where: { deletedAt: null }, select: { id: true } },
+            assignment: { where: { deletedAt: null }, select: { id: true } },
             contents: {
               where: { deletedAt: null },
               orderBy: { order: "asc" },
@@ -96,6 +100,22 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
     contentProgressRecords.map((cp) => [`${cp.pathwayId}:${cp.contentId}`, cp.completedAt])
   )
 
+  // CourseProgress.assignmentStatus is only set once an admin grades a submission, so a
+  // pending (ungraded) submission would otherwise look identical to "never submitted".
+  // AssignmentSubmission is the source of truth for whether something is awaiting review.
+  const assignmentIds = [...new Set(pathwayCourses.map((pc) => pc.course.assignment?.id).filter((id): id is string => !!id))]
+  const submissionRecords = assignmentIds.length
+    ? await prisma.assignmentSubmission.findMany({
+        where: { assignmentId: { in: assignmentIds }, userId, pathwayId: { in: pathwayIds } },
+        orderBy: { createdAt: "asc" },
+        select: { assignmentId: true, pathwayId: true, status: true },
+      })
+    : []
+  // Later submissions (resubmits) override earlier ones for the same assignment/pathway.
+  const latestSubmissionStatusMap = new Map(
+    submissionRecords.map((s) => [`${s.pathwayId}:${s.assignmentId}`, s.status])
+  )
+
   const coursesByPathway = new Map<string, CourseDetail[]>()
   for (const pc of pathwayCourses) {
     const progress = courseProgressMap.get(`${pc.pathwayId}:${pc.course.id}`)
@@ -110,15 +130,24 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       }
     })
 
+    const assignmentId = pc.course.assignment?.id
+    const submissionStatus = assignmentId
+      ? latestSubmissionStatusMap.get(`${pc.pathwayId}:${assignmentId}`) ?? null
+      : null
+
     const detail: CourseDetail = {
       id: pc.course.id,
       name: pc.course.name,
       sectionTitle: pc.sectionTitle,
       completed: progress?.completed ?? false,
       completedAt: progress?.completedAt ? progress.completedAt.toISOString() : null,
+      hasTest: !!pc.course.test,
       testStatus: progress?.testStatus ?? null,
       testScore: progress?.testScore ?? null,
-      assignmentStatus: progress?.assignmentStatus ?? null,
+      hasAssignment: !!pc.course.assignment,
+      // Graded verdict (progress.assignmentStatus) wins once set; otherwise fall back to the
+      // raw submission status so a pending review still shows up instead of looking untouched.
+      assignmentStatus: progress?.assignmentStatus ?? submissionStatus,
       totalContents: contents.length,
       completedContents: contents.filter((c) => c.completed).length,
       contents,
