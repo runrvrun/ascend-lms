@@ -10,6 +10,7 @@ import { TrainerManagement } from "./TrainerManagement"
 import { CourseStatusToggle } from "./CourseStatusToggle"
 import { FeedbackSection } from "./FeedbackSection"
 import { CourseTabLayout } from "./CourseTabLayout"
+import { buildCourseOutline } from "./courseOutline"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [course, test, trainers, allUsers, assignment, feedbacks] = await Promise.all([
+  const [course, tests, trainers, allUsers, assignment, feedbacks] = await Promise.all([
     prisma.course.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -36,8 +37,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
         },
       },
     }),
-    prisma.test.findFirst({
-      where: { course: { id, deletedAt: null } },
+    prisma.test.findMany({
+      where: { courseId: id, deletedAt: null },
+      orderBy: { order: "asc" },
       include: {
         questions: {
           where: { deletedAt: null },
@@ -81,6 +83,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
 
   const youtubeContents = course.contents.filter((c) => c.type === "YOUTUBE_VIDEO").map((c) => ({ id: c.id, title: c.title }))
   const popQuizzes = course.contents.flatMap((c) => c.popQuizzes)
+  const outline = buildCourseOutline(course.contents, tests)
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
@@ -122,9 +125,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
       <CourseTabLayout
         content={
           <div className="flex flex-col gap-8">
-            <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} />
+            <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} outline={outline} />
             <PopQuizManagement courseId={course.id} youtubeContents={youtubeContents} popQuizzes={popQuizzes} />
-            <TestManagement courseId={course.id} test={test} />
+            <TestManagement courseId={course.id} tests={tests} outline={outline} />
             <AssignmentManagement courseId={course.id} assignment={assignment} />
           </div>
         }

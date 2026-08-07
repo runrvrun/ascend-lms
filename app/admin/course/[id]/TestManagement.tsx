@@ -1,13 +1,15 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, ClipboardList, GripVertical } from "lucide-react"
+import { Plus, Pencil, Trash2, X, ClipboardList, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
 import { QuestionType } from "@prisma/client"
 import {
-  createTest, updateTest, deleteTest,
+  createTest, updateTest, deleteTest, swapCourseItemOrder,
   createQuestion, updateQuestion, deleteQuestion,
-  type OptionDraft, type QuestionFormData,
+  type OptionDraft, type QuestionFormData, type TestFormData,
 } from "../actions"
+import { PositionSelect } from "./PositionSelect"
+import type { OutlineItem } from "./courseOutline"
 
 type QuestionRow = {
   id: string
@@ -19,6 +21,8 @@ type QuestionRow = {
 
 type TestRow = {
   id: string
+  title: string
+  order: number
   passThreshold: number
   questions: QuestionRow[]
 }
@@ -211,11 +215,10 @@ function MatchingOptions({ options, onChange }: { options: OptionDraft[]; onChan
 // ── Question Modal ─────────────────────────────────────────────────────────
 
 function QuestionModal({
-  title, initial, nextOrder, testId, courseId, onClose, onSubmit,
+  title, initial, testId, courseId, onClose, onSubmit,
 }: {
   title: string
   initial: QuestionFormData
-  nextOrder: number
   testId: string
   courseId: string
   onClose: () => void
@@ -318,17 +321,21 @@ function QuestionModal({
 
 // ── Test Setup Modal ───────────────────────────────────────────────────────
 
-function TestSetupModal({ initial, courseId, testId, onClose }: {
-  initial: number; courseId: string; testId?: string; onClose: () => void
+function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfterOrder, onClose }: {
+  initial: TestFormData; courseId: string; testId?: string
+  outline: OutlineItem[] | null // null = editing, no position picker
+  initialInsertAfterOrder?: number
+  onClose: () => void
 }) {
-  const [threshold, setThreshold] = useState(initial)
+  const [form, setForm] = useState<TestFormData>(initial)
+  const [insertAfterOrder, setInsertAfterOrder] = useState(initialInsertAfterOrder ?? 0)
   const [pending, startTransition] = useTransition()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      if (testId) await updateTest(testId, courseId, threshold)
-      else await createTest(courseId, threshold)
+      if (testId) await updateTest(testId, courseId, form)
+      else await createTest(courseId, { ...form, insertAfterOrder })
       onClose()
     })
   }
@@ -342,13 +349,26 @@ function TestSetupModal({ initial, courseId, testId, onClose }: {
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Title <span className="text-red-500">*</span></label>
+            <input
+              required
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Module 1 Quiz"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {outline && (
+            <PositionSelect outline={outline} value={insertAfterOrder} onChange={setInsertAfterOrder} />
+          )}
+          <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
               Pass Threshold (%) <span className="text-red-500">*</span>
             </label>
             <input
               required type="number" min={1} max={100}
-              value={threshold}
-              onChange={(e) => setThreshold(parseInt(e.target.value) || 0)}
+              value={form.passThreshold}
+              onChange={(e) => setForm((f) => ({ ...f, passThreshold: parseInt(e.target.value) || 0 }))}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="mt-1 text-xs text-slate-400">Minimum score to pass this test.</p>
@@ -386,19 +406,29 @@ function DeleteConfirm({ label, onCancel, onConfirm }: { label: string; onCancel
   )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+// ── Single test card ────────────────────────────────────────────────────────
 
-export function TestManagement({ courseId, test }: { courseId: string; test: TestRow | null }) {
-  const [testModal, setTestModal] = useState(false)
+function TestCard({
+  test, courseId, outline, reordering, onMove, canMoveUp, canMoveDown,
+}: {
+  test: TestRow
+  courseId: string
+  outline: OutlineItem[]
+  reordering: boolean
+  onMove: (dir: -1 | 1) => void
+  canMoveUp: boolean
+  canMoveDown: boolean
+}) {
+  const [editingTest, setEditingTest] = useState(false)
   const [deletingTest, setDeletingTest] = useState(false)
   const [addingQuestion, setAddingQuestion] = useState(false)
   const [editingQuestion, setEditingQuestion] = useState<QuestionRow | null>(null)
   const [deletingQuestion, setDeletingQuestion] = useState<QuestionRow | null>(null)
 
-  const questions = test?.questions.slice().sort((a, b) => a.order - b.order) ?? []
+  const questions = test.questions.slice().sort((a, b) => a.order - b.order)
   const nextOrder = questions.length > 0 ? Math.max(...questions.map((q) => q.order)) + 1 : 1
 
-  function optionOptionsFromRow(q: QuestionRow): OptionDraft[] {
+  function optionsFromRow(q: QuestionRow): OptionDraft[] {
     return q.options.map((o) => ({
       text: o.text,
       isCorrect: o.isCorrect ?? undefined,
@@ -408,102 +438,95 @@ export function TestManagement({ courseId, test }: { courseId: string; test: Tes
   }
 
   return (
-    <>
-      <div className="mt-10">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ClipboardList size={18} className="text-slate-500" />
-            <h2 className="text-lg font-semibold text-slate-900">Test</h2>
-          </div>
-
-          {!test ? (
-            <button onClick={() => setTestModal(true)}
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
-              <Plus size={14} /> Create Test
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Pass threshold: <span className="font-semibold text-slate-800">{test.passThreshold}%</span></span>
-              <button onClick={() => setTestModal(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={14} /></button>
-              <button onClick={() => setDeletingTest(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
-            </div>
-          )}
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <ClipboardList size={15} className="shrink-0 text-slate-400" />
+          <span className="truncate font-semibold text-slate-900">{test.title}</span>
+          <span className="shrink-0 text-xs text-slate-400">Pass: {test.passThreshold}%</span>
         </div>
-
-        {!test ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
-            No test yet. Create one to add questions.
-          </div>
-        ) : (
-          <>
-            {questions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center text-sm text-slate-400">
-                No questions yet.
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-5 py-3 w-10">#</th>
-                      <th className="px-5 py-3">Question</th>
-                      <th className="px-5 py-3">Type</th>
-                      <th className="px-5 py-3 text-center">Options</th>
-                      <th className="px-5 py-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {questions.map((q) => (
-                      <tr key={q.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 text-slate-400">{q.order}</td>
-                        <td className="px-5 py-3 font-medium text-slate-900 max-w-xs truncate">{q.question}</td>
-                        <td className="px-5 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${Q_STYLES[q.type]}`}>{Q_LABELS[q.type]}</span>
-                        </td>
-                        <td className="px-5 py-3 text-center text-slate-500">{q.options.length}</td>
-                        <td className="px-5 py-3">
-                          <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => setEditingQuestion(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={13} /></button>
-                            <button onClick={() => setDeletingQuestion(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <button onClick={() => setAddingQuestion(true)}
-              className="mt-3 flex items-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
-              <Plus size={14} /> Add Question
-            </button>
-          </>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          <button onClick={() => onMove(-1)} disabled={reordering || !canMoveUp}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed" title="Move up">
+            <ChevronUp size={13} />
+          </button>
+          <button onClick={() => onMove(1)} disabled={reordering || !canMoveDown}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed" title="Move down">
+            <ChevronDown size={13} />
+          </button>
+          <div className="mx-1 h-4 w-px bg-slate-200" />
+          <button onClick={() => setEditingTest(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={13} /></button>
+          <button onClick={() => setDeletingTest(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+        </div>
       </div>
 
-      {testModal && (
+      <div className="p-5">
+        {questions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 px-5 py-8 text-center text-sm text-slate-400">
+            No questions yet.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-2.5 w-10">#</th>
+                  <th className="px-4 py-2.5">Question</th>
+                  <th className="px-4 py-2.5">Type</th>
+                  <th className="px-4 py-2.5 text-center">Options</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {questions.map((q) => (
+                  <tr key={q.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 text-slate-400">{q.order}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-900 max-w-xs truncate">{q.question}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${Q_STYLES[q.type]}`}>{Q_LABELS[q.type]}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-slate-500">{q.options.length}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setEditingQuestion(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={13} /></button>
+                        <button onClick={() => setDeletingQuestion(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <button onClick={() => setAddingQuestion(true)}
+          className="mt-3 flex items-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
+          <Plus size={14} /> Add Question
+        </button>
+      </div>
+
+      {editingTest && (
         <TestSetupModal
-          initial={test?.passThreshold ?? 70}
+          initial={{ title: test.title, passThreshold: test.passThreshold }}
           courseId={courseId}
-          testId={test?.id}
-          onClose={() => setTestModal(false)}
+          testId={test.id}
+          outline={null}
+          onClose={() => setEditingTest(false)}
         />
       )}
 
-      {deletingTest && test && (
+      {deletingTest && (
         <DeleteConfirm
-          label="This test and all its questions"
+          label={`"${test.title}" and all its questions`}
           onCancel={() => setDeletingTest(false)}
           onConfirm={() => deleteTest(test.id, courseId)}
         />
       )}
 
-      {addingQuestion && test && (
+      {addingQuestion && (
         <QuestionModal
           title="Add Question"
           initial={{ type: "MULTIPLE_CHOICE", question: "", order: nextOrder, options: defaultOptions("MULTIPLE_CHOICE") }}
-          nextOrder={nextOrder}
           testId={test.id}
           courseId={courseId}
           onClose={() => setAddingQuestion(false)}
@@ -511,11 +534,10 @@ export function TestManagement({ courseId, test }: { courseId: string; test: Tes
         />
       )}
 
-      {editingQuestion && test && (
+      {editingQuestion && (
         <QuestionModal
           title="Edit Question"
-          initial={{ type: editingQuestion.type, question: editingQuestion.question, order: editingQuestion.order, options: optionOptionsFromRow(editingQuestion) }}
-          nextOrder={nextOrder}
+          initial={{ type: editingQuestion.type, question: editingQuestion.question, order: editingQuestion.order, options: optionsFromRow(editingQuestion) }}
           testId={test.id}
           courseId={courseId}
           onClose={() => setEditingQuestion(null)}
@@ -528,6 +550,82 @@ export function TestManagement({ courseId, test }: { courseId: string; test: Tes
           label={`Question ${deletingQuestion.order}: ${deletingQuestion.question}`}
           onCancel={() => setDeletingQuestion(null)}
           onConfirm={() => deleteQuestion(deletingQuestion.id, courseId)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
+export function TestManagement({ courseId, tests, outline }: { courseId: string; tests: TestRow[]; outline: OutlineItem[] }) {
+  const [creating, setCreating] = useState(false)
+  const [reordering, startReorder] = useTransition()
+
+  const sortedTests = tests.slice().sort((a, b) => a.order - b.order)
+  const maxOrder = outline.length > 0 ? Math.max(...outline.map((o) => o.order)) : 0
+
+  function neighbor(test: TestRow, dir: -1 | 1) {
+    const idx = outline.findIndex((o) => o.kind === "TEST" && o.id === test.id)
+    if (idx === -1) return null
+    return outline[idx + dir] ?? null
+  }
+
+  function move(test: TestRow, dir: -1 | 1) {
+    const other = neighbor(test, dir)
+    if (!other) return
+    startReorder(() =>
+      swapCourseItemOrder(
+        { kind: "TEST", id: test.id, order: test.order },
+        { kind: other.kind, id: other.id, order: other.order },
+        courseId
+      )
+    )
+  }
+
+  return (
+    <>
+      <div className="mt-10">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ClipboardList size={18} className="text-slate-500" />
+            <h2 className="text-lg font-semibold text-slate-900">Tests</h2>
+          </div>
+          <button onClick={() => setCreating(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
+            <Plus size={14} /> Add Test
+          </button>
+        </div>
+
+        {sortedTests.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
+            No tests yet. Add one and place it anywhere among the course contents.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {sortedTests.map((t) => (
+              <TestCard
+                key={t.id}
+                test={t}
+                courseId={courseId}
+                outline={outline}
+                reordering={reordering}
+                onMove={(dir) => move(t, dir)}
+                canMoveUp={!!neighbor(t, -1)}
+                canMoveDown={!!neighbor(t, 1)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {creating && (
+        <TestSetupModal
+          initial={{ title: "", passThreshold: 70 }}
+          courseId={courseId}
+          outline={outline}
+          initialInsertAfterOrder={maxOrder}
+          onClose={() => setCreating(false)}
         />
       )}
     </>

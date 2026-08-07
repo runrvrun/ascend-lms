@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
-import { CheckCircle2, BookOpen, Map, Star } from "lucide-react"
+import { CheckCircle2, BookOpen, Map as MapIcon, Star } from "lucide-react"
 
 function formatDate(date: Date | string) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -36,6 +36,31 @@ export default async function LearningHistoryPage() {
       _sum: { points: true },
     }),
   ])
+
+  // Average test score per completed course+pathway (a course can now have multiple tests)
+  const completedCourseIds = [...new Set(courseProgressRecords.map((cp) => cp.courseId))]
+  const tests = completedCourseIds.length
+    ? await prisma.test.findMany({
+        where: { courseId: { in: completedCourseIds }, deletedAt: null },
+        select: { id: true, courseId: true },
+      })
+    : []
+  const testCourseMap = new Map(tests.map((t) => [t.id, t.courseId]))
+  const testProgressRecords = tests.length
+    ? await prisma.testProgress.findMany({
+        where: { userId, testId: { in: tests.map((t) => t.id) } },
+        select: { testId: true, pathwayId: true, score: true },
+      })
+    : []
+  const scoresByKey = new Map<string, number[]>()
+  for (const tp of testProgressRecords) {
+    const courseId = testCourseMap.get(tp.testId)
+    if (!courseId) continue
+    const key = `${courseId}:${tp.pathwayId}`
+    const arr = scoresByKey.get(key) ?? []
+    arr.push(tp.score)
+    scoresByKey.set(key, arr)
+  }
 
   // Group completed courses by pathway
   const byPathway: Record<string, { pathwayId: string; pathwayName: string; courses: typeof courseProgressRecords }> = {}
@@ -84,7 +109,7 @@ export default async function LearningHistoryPage() {
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-1 flex items-center gap-2 text-sm text-slate-500">
-              <Map size={14} />
+              <MapIcon size={14} />
               Pathways Completed
             </div>
             <p className="text-3xl font-black text-slate-900">{completedPathwayCount}</p>
@@ -113,7 +138,7 @@ export default async function LearningHistoryPage() {
                 <div key={group.pathwayId} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
                   <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-3">
                     <div className="flex items-center gap-2">
-                      <Map size={15} className="text-blue-500" />
+                      <MapIcon size={15} className="text-blue-500" />
                       <span className="font-semibold text-slate-800">{group.pathwayName}</span>
                     </div>
                     {isPathwayComplete ? (
@@ -126,24 +151,28 @@ export default async function LearningHistoryPage() {
                     )}
                   </div>
                   <ul className="divide-y divide-slate-100">
-                    {group.courses.map((cp) => (
-                      <li key={cp.id} className="flex items-center justify-between px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <CheckCircle2 size={15} className="shrink-0 text-green-500" />
-                          <span className="text-sm text-slate-700">{cp.course.name}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-right">
-                          {cp.testScore != null && (
-                            <span className="text-xs font-medium text-slate-500">
-                              Score: {Math.round(cp.testScore)}%
+                    {group.courses.map((cp) => {
+                      const scores = scoresByKey.get(`${cp.courseId}:${cp.pathwayId}`)
+                      const avgScore = scores?.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null
+                      return (
+                        <li key={cp.id} className="flex items-center justify-between px-5 py-3">
+                          <div className="flex items-center gap-3">
+                            <CheckCircle2 size={15} className="shrink-0 text-green-500" />
+                            <span className="text-sm text-slate-700">{cp.course.name}</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-right">
+                            {avgScore != null && (
+                              <span className="text-xs font-medium text-slate-500">
+                                {scores!.length > 1 ? "Avg score" : "Score"}: {Math.round(avgScore)}%
+                              </span>
+                            )}
+                            <span className="text-xs text-slate-400">
+                              {cp.completedAt ? formatDate(cp.completedAt) : "—"}
                             </span>
-                          )}
-                          <span className="text-xs text-slate-400">
-                            {cp.completedAt ? formatDate(cp.completedAt) : "—"}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
+                          </div>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </div>
               )

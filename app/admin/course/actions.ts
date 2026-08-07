@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
-import { ContentType, QuestionType } from "@prisma/client"
+import { evaluateCourseCompletion } from "../../lib/courseCompletion"
+import { ContentType, QuestionType, Prisma } from "@prisma/client"
 
 export type CourseFormData = {
   name: string
@@ -16,8 +17,15 @@ export type ContentFormData = {
   title: string
   type: ContentType
   value: string
-  order: number
   duration: number | null // seconds, only relevant for VIDEO
+  insertAfterOrder: number // 0 = insert at the very beginning
+}
+
+export type ContentEditData = {
+  title: string
+  type: ContentType
+  value: string
+  duration: number | null
 }
 
 export async function createCourse(data: CourseFormData): Promise<string> {
@@ -55,7 +63,9 @@ export async function duplicateCourse(id: string): Promise<string> {
     include: {
       trainers: { select: { userId: true } },
       contents: { where: { deletedAt: null }, orderBy: { order: "asc" } },
-      test: {
+      tests: {
+        where: { deletedAt: null },
+        orderBy: { order: "asc" },
         include: {
           questions: {
             where: { deletedAt: null },
@@ -106,11 +116,11 @@ export async function duplicateCourse(id: string): Promise<string> {
     })
   }
 
-  if (source.test && !source.test.deletedAt) {
+  for (const test of source.tests) {
     const newTest = await prisma.test.create({
-      data: { courseId: newCourse.id, passThreshold: source.test.passThreshold },
+      data: { courseId: newCourse.id, title: test.title, order: test.order, passThreshold: test.passThreshold },
     })
-    for (const q of source.test.questions) {
+    for (const q of test.questions) {
       await prisma.question.create({
         data: {
           testId: newTest.id,
@@ -148,37 +158,92 @@ export async function duplicateCourse(id: string): Promise<string> {
 const touchCourse = (courseId: string) =>
   prisma.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
 
-export async function createContent(courseId: string, data: ContentFormData) {
-  await Promise.all([
-    prisma.content.create({
-      data: { courseId, title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
+// ── Shared course-item ordering ────────────────────────────────────────────────
+// Content and Test share one order sequence per course so they can be freely
+// interleaved. Both tables enforce their own @@unique([courseId, order]), so
+// shifting is done per-table (never cross-table collisions), but the two shifts
+// are always issued together so the merged sequence stays contiguous.
+
+async function shiftCourseItemsUpFrom(tx: Prisma.TransactionClient, courseId: string, fromOrderInclusive: number) {
+  const [contents, tests] = await Promise.all([
+    tx.content.findMany({
+      where: { courseId, deletedAt: null, order: { gte: fromOrderInclusive } },
+      orderBy: { order: "desc" },
+      select: { id: true, order: true },
     }),
-    touchCourse(courseId),
+    tx.test.findMany({
+      where: { courseId, deletedAt: null, order: { gte: fromOrderInclusive } },
+      orderBy: { order: "desc" },
+      select: { id: true, order: true },
+    }),
   ])
+  for (const c of contents) await tx.content.update({ where: { id: c.id }, data: { order: c.order! + 1 } })
+  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order + 1 } })
+}
+
+async function shiftCourseItemsDownAfter(tx: Prisma.TransactionClient, courseId: string, removedOrder: number) {
+  const [contents, tests] = await Promise.all([
+    tx.content.findMany({
+      where: { courseId, deletedAt: null, order: { gt: removedOrder } },
+      orderBy: { order: "asc" },
+      select: { id: true, order: true },
+    }),
+    tx.test.findMany({
+      where: { courseId, deletedAt: null, order: { gt: removedOrder } },
+      orderBy: { order: "asc" },
+      select: { id: true, order: true },
+    }),
+  ])
+  for (const c of contents) await tx.content.update({ where: { id: c.id }, data: { order: c.order! - 1 } })
+  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order - 1 } })
+}
+
+export type CourseItemKind = "CONTENT" | "TEST"
+
+export async function swapCourseItemOrder(
+  item1: { kind: CourseItemKind; id: string; order: number },
+  item2: { kind: CourseItemKind; id: string; order: number },
+  courseId: string,
+) {
+  await prisma.$transaction(async (tx) => {
+    const setOrder = (kind: CourseItemKind, id: string, order: number) =>
+      kind === "CONTENT" ? tx.content.update({ where: { id }, data: { order } }) : tx.test.update({ where: { id }, data: { order } })
+
+    if (item1.kind === item2.kind) {
+      // Same table — go through a temporary value to dodge the unique constraint mid-swap
+      await setOrder(item1.kind, item1.id, -1)
+      await setOrder(item2.kind, item2.id, item1.order)
+      await setOrder(item1.kind, item1.id, item2.order)
+    } else {
+      await setOrder(item1.kind, item1.id, item2.order)
+      await setOrder(item2.kind, item2.id, item1.order)
+    }
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
   revalidatePath(`/admin/course/${courseId}`)
 }
 
-export async function updateContent(id: string, courseId: string, data: ContentFormData) {
+// ── Content ───────────────────────────────────────────────────────────────────
+
+export async function createContent(courseId: string, data: ContentFormData) {
+  await prisma.$transaction(async (tx) => {
+    const target = data.insertAfterOrder + 1
+    await shiftCourseItemsUpFrom(tx, courseId, target)
+    await tx.content.create({
+      data: { courseId, title: data.title, type: data.type, value: data.value, order: target, duration: data.duration },
+    })
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
+  revalidatePath(`/admin/course/${courseId}`)
+}
+
+export async function updateContent(id: string, courseId: string, data: ContentEditData) {
   await Promise.all([
     prisma.content.update({
       where: { id },
-      data: { title: data.title, type: data.type, value: data.value, order: data.order, duration: data.duration },
+      data: { title: data.title, type: data.type, value: data.value, duration: data.duration },
     }),
     touchCourse(courseId),
-  ])
-  revalidatePath(`/admin/course/${courseId}`)
-}
-
-export async function swapContentOrder(
-  id1: string, order1: number,
-  id2: string, order2: number,
-  courseId: string,
-) {
-  await prisma.$transaction([
-    prisma.content.update({ where: { id: id1 }, data: { order: -1 } }),
-    prisma.content.update({ where: { id: id2 }, data: { order: order1 } }),
-    prisma.content.update({ where: { id: id1 }, data: { order: order2 } }),
-    prisma.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } }),
   ])
   revalidatePath(`/admin/course/${courseId}`)
 }
@@ -188,18 +253,8 @@ export async function deleteContent(id: string, courseId: string) {
     const content = await tx.content.findUnique({ where: { id }, select: { order: true } })
     if (!content || content.order === null) return
 
-    const deletedOrder = content.order
     await tx.content.update({ where: { id }, data: { deletedAt: new Date(), order: null } })
-
-    const toReorder = await tx.content.findMany({
-      where: { courseId, deletedAt: null, order: { gt: deletedOrder } },
-      orderBy: { order: "asc" },
-      select: { id: true, order: true },
-    })
-    for (const item of toReorder) {
-      await tx.content.update({ where: { id: item.id }, data: { order: item.order! - 1 } })
-    }
-
+    await shiftCourseItemsDownAfter(tx, courseId, content.order)
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
   revalidatePath(`/admin/course/${courseId}`)
@@ -207,27 +262,40 @@ export async function deleteContent(id: string, courseId: string) {
 
 // ── Test ──────────────────────────────────────────────────────────────────────
 
-export async function createTest(courseId: string, passThreshold: number) {
-  await Promise.all([
-    prisma.test.create({ data: { courseId, passThreshold } }),
-    touchCourse(courseId),
-  ])
+export type TestFormData = {
+  title: string
+  passThreshold: number
+}
+
+export async function createTest(courseId: string, data: TestFormData & { insertAfterOrder: number }) {
+  await prisma.$transaction(async (tx) => {
+    const target = data.insertAfterOrder + 1
+    await shiftCourseItemsUpFrom(tx, courseId, target)
+    await tx.test.create({
+      data: { courseId, title: data.title, passThreshold: data.passThreshold, order: target },
+    })
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
   revalidatePath(`/admin/course/${courseId}`)
 }
 
-export async function updateTest(testId: string, courseId: string, passThreshold: number) {
+export async function updateTest(testId: string, courseId: string, data: TestFormData) {
   await Promise.all([
-    prisma.test.update({ where: { id: testId }, data: { passThreshold } }),
+    prisma.test.update({ where: { id: testId }, data: { title: data.title, passThreshold: data.passThreshold } }),
     touchCourse(courseId),
   ])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function deleteTest(testId: string, courseId: string) {
-  await Promise.all([
-    prisma.test.delete({ where: { id: testId } }),
-    touchCourse(courseId),
-  ])
+  await prisma.$transaction(async (tx) => {
+    const test = await tx.test.findUnique({ where: { id: testId }, select: { order: true } })
+    if (!test) return
+
+    await tx.test.update({ where: { id: testId }, data: { deletedAt: new Date() } })
+    await shiftCourseItemsDownAfter(tx, courseId, test.order)
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
   revalidatePath(`/admin/course/${courseId}`)
 }
 
@@ -472,66 +540,9 @@ export async function gradeSubmission(
     },
   })
 
-  // If passed, check if all course contents and test (if any) are also done
+  // If passed, check if all other course requirements (contents, tests) are also done
   if (status === "PASSED") {
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        contents: { where: { deletedAt: null }, select: { id: true } },
-        test: { select: { id: true, deletedAt: true } },
-      },
-    })
-    const allContentsCount = course?.contents.length ?? 0
-    const completedCount = allContentsCount
-      ? await prisma.contentProgress.count({
-          where: {
-            userId: submission.userId,
-            pathwayId: submission.pathwayId,
-            contentId: { in: course!.contents.map((c) => c.id) },
-          },
-        })
-      : 0
-    const allContentsComplete = !allContentsCount || completedCount === allContentsCount
-
-    // Check if test also needs to be passed
-    const activeTest = course?.test && course.test.deletedAt === null ? course.test : null
-    const testPassed = activeTest
-      ? !!(await prisma.courseProgress.findUnique({
-          where: { userId_courseId_pathwayId: { userId: submission.userId, courseId, pathwayId: submission.pathwayId } },
-          select: { testStatus: true },
-        }).then((r) => r?.testStatus === "PASSED"))
-      : true // no test required
-
-    if (allContentsComplete && testPassed) {
-      await prisma.courseProgress.upsert({
-        where: {
-          userId_courseId_pathwayId: {
-            userId: submission.userId,
-            courseId,
-            pathwayId: submission.pathwayId,
-          },
-        },
-        create: { userId: submission.userId, courseId, pathwayId: submission.pathwayId, completed: true, completedAt: new Date() },
-        update: { completed: true, completedAt: new Date() }, // testScore/testStatus untouched
-      })
-
-      // Award points once
-      const referenceId = `${courseId}:${submission.pathwayId}`
-      const already = await prisma.userPoint.findFirst({
-        where: { userId: submission.userId, source: "COURSE_COMPLETION", referenceId },
-      })
-      if (!already) {
-        const pathwayCourse = await prisma.pathwayCourse.findUnique({
-          where: { pathwayId_courseId: { pathwayId: submission.pathwayId, courseId } },
-          select: { points: true },
-        })
-        if (pathwayCourse) {
-          await prisma.userPoint.create({
-            data: { userId: submission.userId, points: pathwayCourse.points, source: "COURSE_COMPLETION", referenceId },
-          })
-        }
-      }
-    }
+    await evaluateCourseCompletion(submission.userId, courseId, submission.pathwayId)
   }
 
   revalidatePath(`/admin/course/${courseId}`)

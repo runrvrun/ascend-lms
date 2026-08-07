@@ -3,7 +3,9 @@
 import { useState, useTransition } from "react"
 import { Plus, Pencil, Trash2, X, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
 import { ContentType } from "@prisma/client"
-import { createContent, updateContent, deleteContent, swapContentOrder, ContentFormData } from "../actions"
+import { createContent, updateContent, deleteContent, swapCourseItemOrder, ContentFormData, ContentEditData } from "../actions"
+import { PositionSelect } from "./PositionSelect"
+import type { OutlineItem } from "./courseOutline"
 
 type ContentRow = {
   id: string
@@ -65,22 +67,25 @@ const TYPE_STYLES: Record<ContentType, string> = {
   LINK: "bg-blue-100 text-blue-700",
 }
 
+type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null }
+
 function ContentFormModal({
   title,
   initial,
-  nextOrder,
-  courseId,
+  outline,
+  initialInsertAfterOrder,
   onClose,
   onSubmit,
 }: {
   title: string
-  initial: ContentFormData
-  nextOrder: number
-  courseId: string
+  initial: ContentDraft
+  outline: OutlineItem[] | null // null = editing, no position picker
+  initialInsertAfterOrder?: number
   onClose: () => void
-  onSubmit: (data: ContentFormData) => Promise<void>
+  onSubmit: (data: ContentDraft, insertAfterOrder: number) => Promise<void>
 }) {
-  const [form, setForm] = useState<ContentFormData>(initial)
+  const [form, setForm] = useState<ContentDraft>(initial)
+  const [insertAfterOrder, setInsertAfterOrder] = useState(initialInsertAfterOrder ?? 0)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
@@ -89,10 +94,10 @@ function ContentFormModal({
     setError("")
     startTransition(async () => {
       try {
-        await onSubmit(form)
+        await onSubmit(form, insertAfterOrder)
         onClose()
       } catch {
-        setError("Order number already in use. Choose a different one.")
+        setError("Something went wrong. Please try again.")
       }
     })
   }
@@ -106,29 +111,20 @@ function ContentFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <label className="mb-1 block text-xs font-medium text-slate-600">Title <span className="text-red-500">*</span></label>
-              <input
-                required
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Introduction"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Order <span className="text-red-500">*</span></label>
-              <input
-                required
-                type="number"
-                min={1}
-                value={form.order}
-                onChange={(e) => setForm((f) => ({ ...f, order: parseInt(e.target.value) || 1 }))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Title <span className="text-red-500">*</span></label>
+            <input
+              required
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Introduction"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
+
+          {outline && (
+            <PositionSelect outline={outline} value={insertAfterOrder} onChange={setInsertAfterOrder} />
+          )}
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Type <span className="text-red-500">*</span></label>
@@ -295,22 +291,30 @@ function DeleteConfirm({ title, onCancel, onConfirm }: { title: string; onCancel
   )
 }
 
-export function ContentManagement({ courseId, contents }: { courseId: string; contents: ContentRow[] }) {
+export function ContentManagement({ courseId, contents, outline }: { courseId: string; contents: ContentRow[]; outline: OutlineItem[] }) {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<ContentRow | null>(null)
   const [deleting, setDeleting] = useState<ContentRow | null>(null)
   const [reordering, startReorder] = useTransition()
 
-  const nextOrder = contents.length > 0 ? Math.max(...contents.map((c) => c.order)) + 1 : 1
+  const maxOrder = outline.length > 0 ? Math.max(...outline.map((o) => o.order)) : 0
 
-  function moveUp(i: number) {
-    const a = contents[i - 1], b = contents[i]
-    startReorder(() => swapContentOrder(a.id, a.order, b.id, b.order, courseId))
+  function neighbor(item: ContentRow, dir: -1 | 1) {
+    const idx = outline.findIndex((o) => o.kind === "CONTENT" && o.id === item.id)
+    if (idx === -1) return null
+    return outline[idx + dir] ?? null
   }
 
-  function moveDown(i: number) {
-    const a = contents[i], b = contents[i + 1]
-    startReorder(() => swapContentOrder(a.id, a.order, b.id, b.order, courseId))
+  function move(item: ContentRow, dir: -1 | 1) {
+    const other = neighbor(item, dir)
+    if (!other) return
+    startReorder(() =>
+      swapCourseItemOrder(
+        { kind: "CONTENT", id: item.id, order: item.order },
+        { kind: other.kind, id: other.id, order: other.order },
+        courseId
+      )
+    )
   }
 
   return (
@@ -343,7 +347,7 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {contents.map((c, i) => (
+              {contents.map((c) => (
                 <tr key={c.id} className="group hover:bg-slate-50">
                   <td className="px-4 py-3 text-slate-400">
                     <div className="flex items-center gap-1">
@@ -367,16 +371,16 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => moveUp(i)}
-                        disabled={reordering || i === 0}
+                        onClick={() => move(c, -1)}
+                        disabled={reordering || !neighbor(c, -1)}
                         className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
                         title="Move up"
                       >
                         <ChevronUp size={13} />
                       </button>
                       <button
-                        onClick={() => moveDown(i)}
-                        disabled={reordering || i === contents.length - 1}
+                        onClick={() => move(c, 1)}
+                        disabled={reordering || !neighbor(c, 1)}
                         className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
                         title="Move down"
                       >
@@ -401,19 +405,18 @@ export function ContentManagement({ courseId, contents }: { courseId: string; co
       {creating && (
         <ContentFormModal
           title="Add Content"
-          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", order: nextOrder, duration: null }}
-          nextOrder={nextOrder}
-          courseId={courseId}
+          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null }}
+          outline={outline}
+          initialInsertAfterOrder={maxOrder}
           onClose={() => setCreating(false)}
-          onSubmit={(d) => createContent(courseId, d)}
+          onSubmit={(d, insertAfterOrder) => createContent(courseId, { ...d, insertAfterOrder })}
         />
       )}
       {editing && (
         <ContentFormModal
           title="Edit Content"
-          initial={{ title: editing.title, type: editing.type, value: editing.value, order: editing.order, duration: editing.duration }}
-          nextOrder={nextOrder}
-          courseId={courseId}
+          initial={{ title: editing.title, type: editing.type, value: editing.value, duration: editing.duration }}
+          outline={null}
           onClose={() => setEditing(null)}
           onSubmit={(d) => updateContent(editing.id, courseId, d)}
         />

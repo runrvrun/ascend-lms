@@ -6,61 +6,12 @@ import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { NotificationType } from "@prisma/client"
 import { sendNewEnrollmentRequest } from "../lib/email"
+import { evaluateCourseCompletion } from "../lib/courseCompletion"
 
 async function getSession() {
   const session = await getServerSession(authOptions)
   if (!session?.user) throw new Error("Not authenticated")
   return session
-}
-
-async function awardCoursePoints(userId: string, courseId: string, pathwayId: string) {
-  // Use referenceId to ensure points are only awarded once per course+pathway
-  const referenceId = `${courseId}:${pathwayId}`
-  const already = await prisma.userPoint.findFirst({
-    where: { userId, source: "COURSE_COMPLETION", referenceId },
-  })
-  if (already) return
-
-  const pathwayCourse = await prisma.pathwayCourse.findUnique({
-    where: { pathwayId_courseId: { pathwayId, courseId } },
-    select: { points: true },
-  })
-  if (!pathwayCourse) return
-
-  await prisma.userPoint.create({
-    data: { userId, points: pathwayCourse.points, source: "COURSE_COMPLETION", referenceId },
-  })
-}
-
-async function checkCourseCompletion(userId: string, courseId: string, pathwayId: string) {
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
-    include: {
-      contents: { where: { deletedAt: null }, select: { id: true } },
-      test: { where: { deletedAt: null }, select: { id: true } },
-      assignment: { select: { id: true, deletedAt: true } },
-    },
-  })
-  if (!course) return
-
-  // Courses with a test or assignment are completed via submitTest / gradeSubmission
-  const hasAssignment = course.assignment && course.assignment.deletedAt === null
-  if (course.test || hasAssignment) return
-
-  if (course.contents.length === 0) return
-
-  const completedCount = await prisma.contentProgress.count({
-    where: { userId, pathwayId, contentId: { in: course.contents.map((c) => c.id) } },
-  })
-
-  if (completedCount === course.contents.length) {
-    await prisma.courseProgress.upsert({
-      where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },
-      create: { userId, courseId, pathwayId, completed: true, completedAt: new Date() },
-      update: { completed: true, completedAt: new Date() },
-    })
-    await awardCoursePoints(userId, courseId, pathwayId)
-  }
 }
 
 export async function enrollPathway(pathwayId: string) {
@@ -88,7 +39,7 @@ export async function toggleContentComplete(contentId: string, pathwayId: string
     })
     const content = await prisma.content.findUnique({ where: { id: contentId }, select: { courseId: true } })
     if (content) {
-      await checkCourseCompletion(userId, content.courseId, pathwayId)
+      await evaluateCourseCompletion(userId, content.courseId, pathwayId)
     }
   } else {
     await prisma.contentProgress.deleteMany({ where: { userId, contentId, pathwayId } })
@@ -203,53 +154,16 @@ export async function submitTest(
   const total = test.questions.length
   const score = total > 0 ? (correct / total) * 100 : 0
   const passed = score >= test.passThreshold
-
-  // Always fetch course to evaluate all completion conditions
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
-    include: {
-      contents: { where: { deletedAt: null }, select: { id: true } },
-      assignment: { select: { id: true, deletedAt: true } },
-    },
-  })
-
   const testStatus = passed ? ("PASSED" as const) : ("FAILED" as const)
 
-  // Always persist testScore + testStatus so the UI can reflect test state independently
-  await prisma.courseProgress.upsert({
-    where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },
-    create: { userId, courseId, pathwayId, testScore: score, testStatus },
-    update: { testScore: score, testStatus },
+  // Always persist score + status so the UI can reflect this test's state independently
+  await prisma.testProgress.upsert({
+    where: { userId_testId_pathwayId: { userId, testId, pathwayId } },
+    create: { userId, testId, pathwayId, score, status: testStatus },
+    update: { score, status: testStatus, completedAt: new Date() },
   })
 
-  let courseCompleted = false
-  if (passed) {
-    const completedContentsCount = course?.contents.length
-      ? await prisma.contentProgress.count({
-          where: { userId, pathwayId, contentId: { in: course!.contents.map((c) => c.id) } },
-        })
-      : 0
-    const allContentsComplete =
-      !course?.contents.length || completedContentsCount === course!.contents.length
-
-    const activeAssignment = course?.assignment && course.assignment.deletedAt === null
-      ? course.assignment
-      : null
-    const assignmentPassed = activeAssignment
-      ? !!(await prisma.assignmentSubmission.findFirst({
-          where: { assignmentId: activeAssignment.id, userId, pathwayId, status: "PASSED" },
-        }))
-      : true
-
-    if (allContentsComplete && assignmentPassed) {
-      await prisma.courseProgress.update({
-        where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },
-        data: { completed: true, completedAt: new Date() },
-      })
-      await awardCoursePoints(userId, courseId, pathwayId)
-      courseCompleted = true
-    }
-  }
+  const courseCompleted = passed ? await evaluateCourseCompletion(userId, courseId, pathwayId) : false
 
   revalidatePath(`/pathways/${pathwayId}`)
   return {

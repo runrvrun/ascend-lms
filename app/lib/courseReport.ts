@@ -7,7 +7,7 @@ export async function getCourseReportData(courseId: string) {
       topic: { select: { name: true } },
       trainers: { include: { user: { select: { name: true } } } },
       contents: { where: { deletedAt: null }, select: { id: true } },
-      test: { where: { deletedAt: null }, select: { id: true, passThreshold: true } },
+      tests: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, passThreshold: true } },
       assignment: { where: { deletedAt: null }, select: { id: true } },
       pathways: { include: { pathway: { select: { id: true, name: true, deletedAt: true } } } },
     },
@@ -16,8 +16,9 @@ export async function getCourseReportData(courseId: string) {
 
   const pathwayNameById = new Map(course.pathways.map((pc) => [pc.pathwayId, pc.pathway.name]))
   const pathwayIds = course.pathways.filter((pc) => !pc.pathway.deletedAt).map((pc) => pc.pathwayId)
+  const testIds = course.tests.map((t) => t.id)
 
-  const [enrollments, progresses, submissions, feedbacks] = await Promise.all([
+  const [enrollments, progresses, testProgresses, submissions, feedbacks] = await Promise.all([
     pathwayIds.length
       ? prisma.pathwayEnrollment.findMany({
           where: { pathwayId: { in: pathwayIds }, status: "APPROVED" },
@@ -38,10 +39,14 @@ export async function getCourseReportData(courseId: string) {
             userId: true,
             completed: true,
             completedAt: true,
-            testScore: true,
-            testStatus: true,
             assignmentStatus: true,
           },
+        })
+      : [],
+    testIds.length && pathwayIds.length
+      ? prisma.testProgress.findMany({
+          where: { testId: { in: testIds }, pathwayId: { in: pathwayIds } },
+          select: { userId: true, testId: true, score: true, status: true },
         })
       : [],
     course.assignment
@@ -80,7 +85,7 @@ export async function getCourseReportData(courseId: string) {
   // Likewise, collapse CourseProgress rows (also keyed per pathway) to one record per user.
   const progressByUser = new Map<
     string,
-    { completed: boolean; completedAt: Date | null; testScore: number | null; testStatus: string | null; assignmentStatus: string | null }
+    { completed: boolean; completedAt: Date | null; assignmentStatus: string | null }
   >()
   for (const p of progresses) {
     const existing = progressByUser.get(p.userId)
@@ -90,9 +95,24 @@ export async function getCourseReportData(courseId: string) {
     }
     existing.completed = existing.completed || p.completed
     if (p.completedAt && (!existing.completedAt || p.completedAt < existing.completedAt)) existing.completedAt = p.completedAt
-    if (p.testScore != null && (existing.testScore == null || p.testScore > existing.testScore)) existing.testScore = p.testScore
-    if (p.testStatus === "PASSED" || !existing.testStatus) existing.testStatus = p.testStatus ?? existing.testStatus
     if (p.assignmentStatus === "PASSED" || !existing.assignmentStatus) existing.assignmentStatus = p.assignmentStatus ?? existing.assignmentStatus
+  }
+
+  // Collapse per-test progress (also keyed per pathway) to one record per user+test,
+  // preferring a passed attempt and the highest recorded score.
+  const testProgressByUserTest = new Map<string, { score: number; status: string }>()
+  for (const tp of testProgresses) {
+    const key = `${tp.userId}:${tp.testId}`
+    const existing = testProgressByUserTest.get(key)
+    if (!existing) {
+      testProgressByUserTest.set(key, { score: tp.score, status: tp.status })
+      continue
+    }
+    if (tp.status === "PASSED" || existing.status !== "PASSED") {
+      if (tp.score > existing.score || tp.status === "PASSED") {
+        testProgressByUserTest.set(key, { score: tp.score, status: tp.status === "PASSED" ? "PASSED" : existing.status })
+      }
+    }
   }
 
   const users = [...byUser.entries()]
@@ -104,6 +124,10 @@ export async function getCourseReportData(courseId: string) {
         completed && completedAt
           ? Math.max(0, Math.round((completedAt.getTime() - info.enrollDate.getTime()) / 86_400_000))
           : null
+      const tests = course.tests.map((t) => {
+        const tp = testProgressByUserTest.get(`${userId}:${t.id}`)
+        return { id: t.id, title: t.title, status: (tp?.status as "PASSED" | "FAILED" | undefined) ?? null, score: tp?.score ?? null }
+      })
       return {
         userId,
         name: info.user.name,
@@ -115,8 +139,7 @@ export async function getCourseReportData(courseId: string) {
         completed,
         completedAt,
         timeTakenDays,
-        testScore: prog?.testScore ?? null,
-        testStatus: prog?.testStatus ?? null,
+        tests,
         assignmentStatus: prog?.assignmentStatus ?? null,
         feedback: feedbackByUserId.get(userId) ?? null,
       }
@@ -128,10 +151,20 @@ export async function getCourseReportData(courseId: string) {
   const inProgressCount = enrolledCount - completedCount
   const completionRate = enrolledCount > 0 ? Math.round((completedCount / enrolledCount) * 100) : 0
 
-  const testAttempts = users.filter((u) => u.testScore != null)
-  const testPassedCount = users.filter((u) => u.testStatus === "PASSED").length
-  const avgTestScore = testAttempts.length
-    ? Math.round(testAttempts.reduce((s, u) => s + (u.testScore ?? 0), 0) / testAttempts.length)
+  const testStats = course.tests.map((t) => {
+    const records = [...testProgressByUserTest.entries()]
+      .filter(([key]) => key.endsWith(`:${t.id}`))
+      .map(([, v]) => v)
+    const attemptCount = records.length
+    const passedCount = records.filter((r) => r.status === "PASSED").length
+    const avgScore = attemptCount ? Math.round(records.reduce((s, r) => s + r.score, 0) / attemptCount) : null
+    return { id: t.id, title: t.title, passThreshold: t.passThreshold, attemptCount, passedCount, avgScore }
+  })
+  const allTestScores = [...testProgressByUserTest.values()].map((r) => r.score)
+  const testAttemptCount = allTestScores.length
+  const testPassedCount = [...testProgressByUserTest.values()].filter((r) => r.status === "PASSED").length
+  const avgTestScore = allTestScores.length
+    ? Math.round(allTestScores.reduce((s, v) => s + v, 0) / allTestScores.length)
     : null
 
   // Submission history is the source of truth for who submitted/passed — CourseProgress.assignmentStatus
@@ -152,8 +185,7 @@ export async function getCourseReportData(courseId: string) {
       topic: course.topic?.name ?? null,
       trainers: course.trainers.map((t) => t.user.name ?? "Unknown"),
       contentCount: course.contents.length,
-      hasTest: !!course.test,
-      passThreshold: course.test?.passThreshold ?? null,
+      tests: course.tests.map((t) => ({ id: t.id, title: t.title, passThreshold: t.passThreshold })),
       hasAssignment: !!course.assignment,
       pathwayCount: pathwayIds.length,
     },
@@ -162,7 +194,8 @@ export async function getCourseReportData(courseId: string) {
       completedCount,
       inProgressCount,
       completionRate,
-      testAttemptCount: testAttempts.length,
+      tests: testStats,
+      testAttemptCount,
       testPassedCount,
       avgTestScore,
       assignmentSubmittedCount: submitterIds.size,

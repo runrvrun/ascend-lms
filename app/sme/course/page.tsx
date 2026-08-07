@@ -21,8 +21,12 @@ export default async function SmeCoursesPage() {
           courses: {
             where: { deletedAt: null },
             include: {
-              _count: { select: { contents: { where: { deletedAt: null } } } },
-              test: { where: { deletedAt: null }, select: { id: true } },
+              _count: {
+                select: {
+                  contents: { where: { deletedAt: null } },
+                  tests: { where: { deletedAt: null } },
+                },
+              },
               assignment: { where: { deletedAt: null }, select: { id: true } },
               trainers: { include: { user: { select: { id: true, name: true } } } },
             },

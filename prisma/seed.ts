@@ -29,11 +29,11 @@ async function upsertContent(
   })
 }
 
-async function upsertTest(courseId: string, passThreshold: number) {
+async function upsertTest(courseId: string, order: number, title: string, passThreshold: number) {
   return prisma.test.upsert({
-    where: { courseId },
-    create: { courseId, passThreshold },
-    update: { passThreshold },
+    where: { courseId_order: { courseId, order } },
+    create: { courseId, order, title, passThreshold },
+    update: { title, passThreshold },
   })
 }
 
@@ -187,9 +187,20 @@ Core Pillars:
 
 At YCP, titles and tenure do not define contribution — ideas and effort do.`)
 
-  await upsertContent(c1.id, 3, "YCP Official Website", "LINK", "https://www.ycp.com")
+  // A short mid-course quiz placed between content items, demonstrating that a
+  // course can have more than one test interleaved with its contents.
+  const t1_mid = await upsertTest(c1.id, 3, "Quick Check: Who We Are", 60)
+  const q1_mid_1 = await upsertQuestion(t1_mid.id, 1, "MULTIPLE_CHOICE", "YCP Holdings is best described as a…")
+  await seedOptions(q1_mid_1.id, [
+    { text: "Pan-Asian management consulting and investment firm", isCorrect: true },
+    { text: "Regional retail bank", isCorrect: false },
+    { text: "Software-as-a-service company", isCorrect: false },
+    { text: "Government agency", isCorrect: false },
+  ])
 
-  const t1 = await upsertTest(c1.id, 75)
+  await upsertContent(c1.id, 4, "YCP Official Website", "LINK", "https://www.ycp.com")
+
+  const t1 = await upsertTest(c1.id, 100, "Final Test", 75)
   const q1_1 = await upsertQuestion(t1.id, 1, "MULTIPLE_CHOICE", "Where is YCP Holdings headquartered?")
   await seedOptions(q1_1.id, [
     { text: "Singapore", isCorrect: false },
@@ -249,7 +260,7 @@ Practical habits for building a growth mindset:
 • Ask for feedback proactively rather than waiting for performance reviews
 • Spend 30 minutes each week reading something outside your current domain of expertise`)
 
-  const t2 = await upsertTest(c2.id, 70)
+  const t2 = await upsertTest(c2.id, 100, "Final Test", 70)
   const q2_1 = await upsertQuestion(t2.id, 1, "MULTIPLE_CHOICE", "Which of the following best describes 'hypothesis-driven thinking'?")
   await seedOptions(q2_1.id, [
     { text: "Waiting until all data is collected before drawing any conclusions", isCorrect: false },
@@ -352,7 +363,7 @@ Receiving Feedback:
 • Reflect before responding — avoid defensive reactions in the moment
 • Identify one concrete action you can take as a result`)
 
-  const t4 = await upsertTest(c4.id, 75)
+  const t4 = await upsertTest(c4.id, 100, "Final Test", 75)
   const q4_1 = await upsertQuestion(t4.id, 1, "MULTIPLE_CHOICE", "According to YCP's leadership model, what is a leader's most important job?")
   await seedOptions(q4_1.id, [
     { text: "Maximising billable utilisation of the team", isCorrect: false },
@@ -419,7 +430,7 @@ Communicating Across Teams:
 Remote and Async Communication:
 In a geographically dispersed firm like YCP, written communication is critical. Write emails and messages as if the reader has no prior context. Be specific about deadlines and expected actions.`)
 
-  const t5 = await upsertTest(c5.id, 70)
+  const t5 = await upsertTest(c5.id, 100, "Final Test", 70)
   const q5_1 = await upsertQuestion(t5.id, 1, "MULTIPLE_CHOICE", "When communicating project updates to a client, what should you do if there is an unexpected delay?")
   await seedOptions(q5_1.id, [
     { text: "Wait until you have a complete solution before informing the client", isCorrect: false },
@@ -483,7 +494,7 @@ Tips for Building Good Trees:
 • Limit each level to 3–5 branches to keep it manageable
 • Make your hypotheses specific enough to be falsifiable`)
 
-  const t6 = await upsertTest(c6.id, 75)
+  const t6 = await upsertTest(c6.id, 100, "Final Test", 75)
   const q6_1 = await upsertQuestion(t6.id, 1, "MULTIPLE_CHOICE", "What does MECE stand for?")
   await seedOptions(q6_1.id, [
     { text: "Mutually Exclusive, Collectively Exhaustive", isCorrect: true },
@@ -551,7 +562,7 @@ Building Good Analytical Habits:
 • Peer-review important analyses before sharing with clients
 • Maintain a healthy scepticism about data that confirms what you hoped to find`)
 
-  const t7 = await upsertTest(c7.id, 70)
+  const t7 = await upsertTest(c7.id, 100, "Final Test", 70)
   const q7_1 = await upsertQuestion(t7.id, 1, "MULTIPLE_CHOICE", "What is the first step when beginning a data analysis, according to YCP's approach?")
   await seedOptions(q7_1.id, [
     { text: "Collect as much data as possible", isCorrect: false },
@@ -654,7 +665,7 @@ Progress Tracking:
 • Compare actual progress against the baseline plan — do not update the baseline unless there is a formal scope change
 • Escalate issues early; surprises are always more damaging than managed risks`)
 
-  const t8 = await upsertTest(c8.id, 75)
+  const t8 = await upsertTest(c8.id, 100, "Final Test", 75)
   const q8_1 = await upsertQuestion(t8.id, 1, "MULTIPLE_CHOICE", "What is the primary purpose of a Work Breakdown Structure (WBS)?")
   await seedOptions(q8_1.id, [
     { text: "To assign budget to individual team members", isCorrect: false },
@@ -730,7 +741,7 @@ For each key stakeholder, define:
 • Potential concerns or resistance points
 • How you will address those concerns proactively`)
 
-  const t9 = await upsertTest(c9.id, 70)
+  const t9 = await upsertTest(c9.id, 100, "Final Test", 70)
   const q9_1 = await upsertQuestion(t9.id, 1, "MULTIPLE_CHOICE", "Which risk response strategy involves shifting the risk to a third party?")
   await seedOptions(q9_1.id, [
     { text: "Avoid", isCorrect: false },
@@ -810,7 +821,7 @@ Red Flags to Watch For:
 • Pending litigation or regulatory investigations
 • Off-balance-sheet liabilities`)
 
-  const t10 = await upsertTest(c10.id, 75)
+  const t10 = await upsertTest(c10.id, 100, "Final Test", 75)
   const q10_1 = await upsertQuestion(t10.id, 1, "MULTIPLE_CHOICE", "What is the primary purpose of a Letter of Intent (LOI) in an M&A process?")
   await seedOptions(q10_1.id, [
     { text: "To finalise the legal terms of the transaction", isCorrect: false },
@@ -891,7 +902,7 @@ In competitive auctions, the winning bidder often pays a price that fully or ove
 
 Rule of thumb: if you need every synergy to materialise perfectly to justify the price, the deal is overpriced.`)
 
-  const t11 = await upsertTest(c11.id, 75)
+  const t11 = await upsertTest(c11.id, 100, "Final Test", 75)
   const q11_1 = await upsertQuestion(t11.id, 1, "MULTIPLE_CHOICE", "Which valuation methodology is most sensitive to changes in long-term growth and discount rate assumptions?")
   await seedOptions(q11_1.id, [
     { text: "Comparable Company Analysis", isCorrect: false },
@@ -972,7 +983,7 @@ Survey Design Principles:
 • Test your survey on a small group before launching
 • Keep it short — every additional minute of survey length reduces completion rates`)
 
-  const t12 = await upsertTest(c12.id, 70)
+  const t12 = await upsertTest(c12.id, 100, "Final Test", 70)
   const q12_1 = await upsertQuestion(t12.id, 1, "MULTIPLE_CHOICE", "Which research method is best suited for understanding the 'why' behind customer behaviour?")
   await seedOptions(q12_1.id, [
     { text: "Online survey with 500 respondents", isCorrect: false },
@@ -1047,7 +1058,7 @@ Visualisation Principles:
 • Highlight the key number or trend — do not make the audience search for the insight
 • Keep it simple — one insight per chart`)
 
-  const t13 = await upsertTest(c13.id, 70)
+  const t13 = await upsertTest(c13.id, 100, "Final Test", 70)
   const q13_1 = await upsertQuestion(t13.id, 1, "MULTIPLE_CHOICE", "Which segmentation dimension groups customers by their values, lifestyle, and attitudes?")
   await seedOptions(q13_1.id, [
     { text: "Demographic", isCorrect: false },
@@ -1112,7 +1123,7 @@ Lean workplaces use visual cues to make the status of operations instantly appar
 
 The goal of visual management is to make abnormalities instantly visible so they can be addressed immediately.`)
 
-  const t14 = await upsertTest(c14.id, 75)
+  const t14 = await upsertTest(c14.id, 100, "Final Test", 75)
   const q14_1 = await upsertQuestion(t14.id, 1, "MULTIPLE_CHOICE", "In Lean thinking, who defines 'value'?")
   await seedOptions(q14_1.id, [
     { text: "The production manager", isCorrect: false },
@@ -1198,7 +1209,7 @@ In most processes, 80% of the problems are caused by 20% of the causes. A Pareto
 Hypothesis Testing:
 Once potential root causes are identified, use data to confirm or disprove them. Correlation analysis, regression analysis, or simple before/after comparisons can validate whether a suspected cause is statistically significant.`)
 
-  const t15 = await upsertTest(c15.id, 75)
+  const t15 = await upsertTest(c15.id, 100, "Final Test", 75)
   const q15_1 = await upsertQuestion(t15.id, 1, "RANKING", "Arrange the DMAIC phases in the correct order.")
   await seedOptions(q15_1.id, [
     { text: "Define", order: 1 },
@@ -1266,7 +1277,7 @@ When meetings are necessary, make them count:
 • Use video — it increases engagement and builds connection
 • Declare a "camera-optional" meeting only when appropriate, not as a default`)
 
-  const t16 = await upsertTest(c16.id, 70)
+  const t16 = await upsertTest(c16.id, 100, "Final Test", 70)
   const q16_1 = await upsertQuestion(t16.id, 1, "MULTIPLE_CHOICE", "What does 'asynchronous communication' mean in a remote work context?")
   await seedOptions(q16_1.id, [
     { text: "Communication that happens in real time, requiring immediate response", isCorrect: false },
@@ -1342,7 +1353,7 @@ Report Writing Tips:
 • Every chart and table needs a title and a callout box highlighting the key insight
 • Use consistent formatting throughout — inconsistency signals lack of care`)
 
-  const t17 = await upsertTest(c17.id, 70)
+  const t17 = await upsertTest(c17.id, 100, "Final Test", 70)
   const q17_1 = await upsertQuestion(t17.id, 1, "MULTIPLE_CHOICE", "In the Pyramid Principle for business writing, what comes first?")
   await seedOptions(q17_1.id, [
     { text: "Background and context", isCorrect: false },
@@ -1412,7 +1423,7 @@ Handling Q&A:
 • If you do not know the answer, say so: "That is a great question and I do not have that data to hand — I will follow up with you by tomorrow."
 • Do not let one questioner dominate — invite questions from different parts of the room`)
 
-  const t18 = await upsertTest(c18.id, 70)
+  const t18 = await upsertTest(c18.id, 100, "Final Test", 70)
   const q18_1 = await upsertQuestion(t18.id, 1, "MULTIPLE_CHOICE", "In the SCR presentation structure, what does the 'Complication' represent?")
   await seedOptions(q18_1.id, [
     { text: "The shared context between the presenter and audience", isCorrect: false },
@@ -1488,7 +1499,7 @@ Porter identified three generic strategies for achieving competitive advantage:
 Stuck in the Middle:
 Companies that try to be all things to all customers — neither lowest cost nor meaningfully differentiated — tend to be outcompeted by more focused rivals. Strategic clarity requires making choices about what you will not do.`)
 
-  const t19 = await upsertTest(c19.id, 75)
+  const t19 = await upsertTest(c19.id, 100, "Final Test", 75)
   const q19_1 = await upsertQuestion(t19.id, 1, "MATCHING", "Match each BCG Matrix quadrant to its description.")
   await seedOptions(q19_1.id, [
     { text: "Stars", matchKey: "High growth, high market share — tomorrow's cash cows" },
@@ -1551,7 +1562,7 @@ Common Execution Pitfalls:
 Building an Execution Culture:
 Execution is not a process — it is a culture. It is built through consistent follow-through, visible accountability, and leaders who model the discipline they expect from their teams.`)
 
-  const t20 = await upsertTest(c20.id, 75)
+  const t20 = await upsertTest(c20.id, 100, "Final Test", 75)
   const q20_1 = await upsertQuestion(t20.id, 1, "MULTIPLE_CHOICE", "In the OKR framework, what should a Key Result always be?")
   await seedOptions(q20_1.id, [
     { text: "A list of activities the team plans to complete", isCorrect: false },
@@ -1619,7 +1630,7 @@ Are the new behaviours being reinforced and sustained? Recognition, consequences
 Diagnosing Change Resistance:
 When someone resists change, identify where they are in the ADKAR model and address that specific gap. Providing training (K) to someone who lacks desire (D) wastes everyone's time.`)
 
-  const t21 = await upsertTest(c21.id, 70)
+  const t21 = await upsertTest(c21.id, 100, "Final Test", 70)
   const q21_1 = await upsertQuestion(t21.id, 1, "MULTIPLE_CHOICE", "According to research, what is the most common reason large-scale change initiatives fail?")
   await seedOptions(q21_1.id, [
     { text: "The change strategy was poorly designed", isCorrect: false },
@@ -1689,7 +1700,7 @@ Map out:
 Communicating the "WIIFM":
 Every person experiencing change is silently asking "What's in it for me?" (WIIFM). Change communication that speaks only to organisational benefits and not individual impact will fail to inspire genuine commitment. Be explicit about how the change affects each stakeholder group — and address concerns directly rather than hoping they will not come up.`)
 
-  const t22 = await upsertTest(c22.id, 70)
+  const t22 = await upsertTest(c22.id, 100, "Final Test", 70)
   const q22_1 = await upsertQuestion(t22.id, 1, "MULTIPLE_CHOICE", "What does 'passive resistance' to change look like?")
   await seedOptions(q22_1.id, [
     { text: "Openly refusing to implement new processes", isCorrect: false },
@@ -1758,7 +1769,7 @@ Pitching Principles:
 • Anticipate objections — address the top 3 objections before they are raised
 • End with a clear next step — always leave every conversation with an agreed action`)
 
-  const t23 = await upsertTest(c23.id, 70)
+  const t23 = await upsertTest(c23.id, 100, "Final Test", 70)
   const q23_1 = await upsertQuestion(t23.id, 1, "MULTIPLE_CHOICE", "What does a 'healthy' BD pipeline have?")
   await seedOptions(q23_1.id, [
     { text: "A few large, high-confidence opportunities only", isCorrect: false },
@@ -1823,7 +1834,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
 • Acknowledge impact — validate the client's frustration before defending your team
 • Over-deliver on recovery — a problem well-handled can strengthen the relationship more than a flawless delivery`)
 
-  const t24 = await upsertTest(c24.id, 70)
+  const t24 = await upsertTest(c24.id, 100, "Final Test", 70)
   const q24_1 = await upsertQuestion(t24.id, 1, "TRUE_FALSE", "Acquiring a new client is generally cheaper than retaining an existing one.")
   await seedOptions(q24_1.id, [
     { text: "True", isCorrect: false },

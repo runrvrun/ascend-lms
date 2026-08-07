@@ -12,6 +12,7 @@ import { TrainerManagement } from "../../../admin/course/[id]/TrainerManagement"
 import { CourseStatusToggle } from "../../../admin/course/[id]/CourseStatusToggle"
 import { FeedbackSection } from "../../../admin/course/[id]/FeedbackSection"
 import { CourseTabLayout } from "../../../admin/course/[id]/CourseTabLayout"
+import { buildCourseOutline } from "../../../admin/course/[id]/courseOutline"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -36,7 +37,7 @@ export default async function SmeCourseDetailPage({ params }: { params: Promise<
     if (!isSME) redirect("/sme/course")
   }
 
-  const [course, test, trainers, allUsers, assignment, feedbacks] = await Promise.all([
+  const [course, tests, trainers, allUsers, assignment, feedbacks] = await Promise.all([
     prisma.course.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -54,8 +55,9 @@ export default async function SmeCourseDetailPage({ params }: { params: Promise<
         topic: { select: { id: true, name: true } },
       },
     }),
-    prisma.test.findFirst({
-      where: { course: { id, deletedAt: null } },
+    prisma.test.findMany({
+      where: { courseId: id, deletedAt: null },
+      orderBy: { order: "asc" },
       include: {
         questions: {
           where: { deletedAt: null },
@@ -97,6 +99,7 @@ export default async function SmeCourseDetailPage({ params }: { params: Promise<
 
   const youtubeContents = course.contents.filter((c) => c.type === "YOUTUBE_VIDEO").map((c) => ({ id: c.id, title: c.title }))
   const popQuizzes = course.contents.flatMap((c) => c.popQuizzes)
+  const outline = buildCourseOutline(course.contents, tests)
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
@@ -129,9 +132,9 @@ export default async function SmeCourseDetailPage({ params }: { params: Promise<
       <CourseTabLayout
         content={
           <div className="flex flex-col gap-8">
-            <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} />
+            <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} outline={outline} />
             <PopQuizManagement courseId={course.id} youtubeContents={youtubeContents} popQuizzes={popQuizzes} />
-            <TestManagement courseId={course.id} test={test} />
+            <TestManagement courseId={course.id} tests={tests} outline={outline} />
             <AssignmentManagement courseId={course.id} assignment={assignment} />
           </div>
         }

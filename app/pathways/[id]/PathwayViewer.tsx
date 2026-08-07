@@ -76,9 +76,11 @@ type Question = {
 
 type TestItem = {
   id: string
+  title: string
+  order: number
   passThreshold: number
   questions: Question[]
-} | null
+}
 
 type AssignmentItem = {
   id: string
@@ -103,7 +105,7 @@ type CourseEntry = {
     id: string
     name: string
     contents: ContentItem[]
-    test: TestItem
+    tests: TestItem[]
     assignment: AssignmentItem
     feedbackEnabled: boolean
   }
@@ -118,7 +120,7 @@ type PathwayData = {
 
 type Selection =
   | { kind: "content"; content: ContentItem; courseId: string }
-  | { kind: "test"; test: NonNullable<TestItem>; courseId: string; courseName: string }
+  | { kind: "test"; test: TestItem; courseId: string; courseName: string }
   | { kind: "assignment"; assignment: NonNullable<AssignmentItem>; courseId: string; courseName: string }
   | { kind: "feedback"; courseId: string; courseName: string }
   | { kind: "growth-plan" }
@@ -376,7 +378,7 @@ function TestViewer({
   isAlreadyPassed,
   isPreview,
 }: {
-  test: NonNullable<TestItem>
+  test: TestItem
   courseId: string
   pathwayId: string
   courseName: string
@@ -454,7 +456,7 @@ function TestViewer({
           )}
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">{courseName} — Test</h2>
+          <h2 className="text-xl font-bold text-slate-900">{courseName} — {test.title}</h2>
           <p className="mt-1 text-sm text-slate-500">
             {test.questions.length} question{test.questions.length !== 1 ? "s" : ""} · Pass:{" "}
             {test.passThreshold}%
@@ -584,7 +586,7 @@ function TestViewer({
   return (
     <div className="h-full overflow-y-auto p-6 md:p-8">
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-slate-900">{courseName} — Test</h2>
+        <h2 className="text-xl font-bold text-slate-900">{courseName} — {test.title}</h2>
         <p className="mt-1 text-sm text-slate-500">
           {test.questions.length} question{test.questions.length !== 1 ? "s" : ""} · Pass:{" "}
           {test.passThreshold}%
@@ -892,7 +894,7 @@ function ContentViewer({
   completedCourseIds,
   currentUserId,
   latestSubmissionByAssignmentId,
-  testStatusByCourseId,
+  testStatusByTestId,
   assignmentStatusByCourseId,
   feedbackByCourseId,
   isPreview,
@@ -903,7 +905,7 @@ function ContentViewer({
   completedCourseIds: Set<string>
   currentUserId: string
   latestSubmissionByAssignmentId: Record<string, SubmissionItem>
-  testStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  testStatusByTestId: Record<string, "PASSED" | "FAILED">
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   isPreview?: boolean
@@ -972,7 +974,7 @@ function ContentViewer({
         courseId={selection.courseId}
         pathwayId={pathwayId}
         courseName={selection.courseName}
-        isAlreadyPassed={testStatusByCourseId[selection.courseId] === "PASSED"}
+        isAlreadyPassed={testStatusByTestId[selection.test.id] === "PASSED"}
         isPreview={isPreview}
       />
     )
@@ -1121,7 +1123,7 @@ function CourseSection({
   selectedId,
   completedContentIds,
   completedCourseIds,
-  testStatusByCourseId,
+  testStatusByTestId,
   assignmentStatusByCourseId,
   feedbackByCourseId,
   onSelect,
@@ -1130,7 +1132,7 @@ function CourseSection({
   selectedId: string | null
   completedContentIds: Set<string>
   completedCourseIds: Set<string>
-  testStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  testStatusByTestId: Record<string, "PASSED" | "FAILED">
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   onSelect: (sel: Selection) => void
@@ -1162,61 +1164,66 @@ function CourseSection({
 
       {open && (
         <div className="pb-1">
-          {course.contents.map((c) => {
-            const active = selectedId === c.id
-            const done = completedContentIds.has(c.id)
-            return (
-              <button
-                key={c.id}
-                onClick={() => onSelect({ kind: "content", content: c, courseId: course.id })}
-                className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
-                  active
-                    ? "bg-blue-50 text-blue-700 font-medium"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {done ? (
-                  <CheckCircle2 size={13} className="shrink-0 text-green-500" />
-                ) : (
-                  <span className={active ? "text-blue-500" : "text-slate-400"}>
-                    {TYPE_ICON[c.type]}
-                  </span>
-                )}
-                <span className="truncate">{c.title}</span>
-              </button>
-            )
-          })}
-
-          {course.test && (
-            <button
-              onClick={() =>
-                onSelect({
-                  kind: "test",
-                  test: course.test!,
-                  courseId: course.id,
-                  courseName: course.name,
-                })
+          {[
+            ...course.contents.map((c) => ({ kind: "content" as const, order: c.order ?? 0, data: c })),
+            ...course.tests.map((t) => ({ kind: "test" as const, order: t.order, data: t })),
+          ]
+            .sort((a, b) => a.order - b.order)
+            .map((item) => {
+              if (item.kind === "content") {
+                const c = item.data
+                const active = selectedId === c.id
+                const done = completedContentIds.has(c.id)
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => onSelect({ kind: "content", content: c, courseId: course.id })}
+                    className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                      active
+                        ? "bg-blue-50 text-blue-700 font-medium"
+                        : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {done ? (
+                      <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+                    ) : (
+                      <span className={active ? "text-blue-500" : "text-slate-400"}>
+                        {TYPE_ICON[c.type]}
+                      </span>
+                    )}
+                    <span className="truncate">{c.title}</span>
+                  </button>
+                )
               }
-              className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
-                selectedId === `test-${course.test.id}`
-                  ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {testStatusByCourseId[course.id] === "PASSED" ? (
-                <CheckCircle2 size={13} className="shrink-0 text-green-500" />
-              ) : (
-                <span
-                  className={
-                    selectedId === `test-${course.test.id}` ? "text-blue-500" : "text-slate-400"
+
+              const t = item.data
+              const active = selectedId === `test-${t.id}`
+              return (
+                <button
+                  key={t.id}
+                  onClick={() =>
+                    onSelect({
+                      kind: "test",
+                      test: t,
+                      courseId: course.id,
+                      courseName: course.name,
+                    })
                   }
+                  className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                    active ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
+                  }`}
                 >
-                  <ClipboardList size={13} />
-                </span>
-              )}
-              <span className="truncate">Test</span>
-            </button>
-          )}
+                  {testStatusByTestId[t.id] === "PASSED" ? (
+                    <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+                  ) : (
+                    <span className={active ? "text-blue-500" : "text-slate-400"}>
+                      <ClipboardList size={13} />
+                    </span>
+                  )}
+                  <span className="truncate">{t.title}</span>
+                </button>
+              )
+            })}
 
           {course.assignment && (
             <button
@@ -1520,7 +1527,7 @@ export function PathwayViewer({
   isPathwayComplete,
   currentUserId,
   latestSubmissionByAssignmentId,
-  testStatusByCourseId,
+  testStatusByTestId,
   assignmentStatusByCourseId,
   feedbackByCourseId,
   allGrowthPlans,
@@ -1534,7 +1541,7 @@ export function PathwayViewer({
   isPathwayComplete: boolean
   currentUserId: string
   latestSubmissionByAssignmentId: Record<string, SubmissionItem>
-  testStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  testStatusByTestId: Record<string, "PASSED" | "FAILED">
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   allGrowthPlans: GrowthPlanItem[]
@@ -1628,7 +1635,7 @@ export function PathwayViewer({
                   selectedId={selectedId}
                   completedContentIds={completedContentIds}
                   completedCourseIds={completedCourseIds}
-                  testStatusByCourseId={testStatusByCourseId}
+                  testStatusByTestId={testStatusByTestId}
                   assignmentStatusByCourseId={assignmentStatusByCourseId}
                   feedbackByCourseId={feedbackByCourseId}
                   onSelect={setSelected}
@@ -1674,7 +1681,7 @@ export function PathwayViewer({
               completedCourseIds={completedCourseIds}
               currentUserId={currentUserId}
               latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
-              testStatusByCourseId={testStatusByCourseId}
+              testStatusByTestId={testStatusByTestId}
               assignmentStatusByCourseId={assignmentStatusByCourseId}
               feedbackByCourseId={feedbackByCourseId}
               isPreview={isPreview}

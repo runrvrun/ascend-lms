@@ -29,15 +29,20 @@ type ContentDetail = {
   completedAt: string | null
 }
 
+type TestDetail = {
+  id: string
+  title: string
+  status: "PASSED" | "FAILED" | null
+  score: number | null
+}
+
 type CourseDetail = {
   id: string
   name: string
   sectionTitle: string | null
   completed: boolean
   completedAt: string | null
-  hasTest: boolean
-  testStatus: "PASSED" | "FAILED" | null
-  testScore: number | null
+  tests: TestDetail[]
   hasAssignment: boolean
   assignmentStatus: "SUBMITTED" | "PASSED" | "FAILED" | null
   totalContents: number
@@ -224,7 +229,7 @@ function RequirementIcon({ status }: { status: "PASSED" | "FAILED" | "SUBMITTED"
 
 function CourseRow({ course }: { course: CourseDetail }) {
   const [open, setOpen] = useState(false)
-  const hasExpandable = course.totalContents > 0 || course.hasTest || course.hasAssignment
+  const hasExpandable = course.totalContents > 0 || course.tests.length > 0 || course.hasAssignment
 
   return (
     <div className="rounded-lg border border-slate-100 bg-white">
@@ -281,20 +286,20 @@ function CourseRow({ course }: { course: CourseDetail }) {
               )}
             </div>
           ))}
-          {course.hasTest && (
-            <div className="flex items-center justify-between gap-3 py-1.5 pl-5">
+          {course.tests.map((test) => (
+            <div key={test.id} className="flex items-center justify-between gap-3 py-1.5 pl-5">
               <div className="flex min-w-0 items-center gap-2">
-                <RequirementIcon status={course.testStatus ?? "PENDING"} />
-                <span className="truncate text-xs text-slate-600">Test</span>
+                <RequirementIcon status={test.status ?? "PENDING"} />
+                <span className="truncate text-xs text-slate-600">{test.title}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {course.testScore != null && (
-                  <span className="text-[11px] text-slate-400">{Math.round(course.testScore)}%</span>
+                {test.score != null && (
+                  <span className="text-[11px] text-slate-400">{Math.round(test.score)}%</span>
                 )}
-                <StatusBadge status={course.testStatus ?? "PENDING"} />
+                <StatusBadge status={test.status ?? "PENDING"} />
               </div>
             </div>
-          )}
+          ))}
           {course.hasAssignment && (
             <div className="flex items-center justify-between gap-3 py-1.5 pl-5">
               <div className="flex min-w-0 items-center gap-2">

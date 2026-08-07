@@ -17,8 +17,12 @@ export default async function TrainerCoursesPage() {
     include: {
       course: {
         include: {
-          _count: { select: { contents: { where: { deletedAt: null } } } },
-          test: { where: { deletedAt: null }, select: { id: true } },
+          _count: {
+            select: {
+              contents: { where: { deletedAt: null } },
+              tests: { where: { deletedAt: null } },
+            },
+          },
           assignment: { where: { deletedAt: null }, select: { id: true } },
         },
       },
@@ -61,10 +65,10 @@ export default async function TrainerCoursesPage() {
                   <FileText size={12} />
                   {course._count.contents} content{course._count.contents !== 1 ? "s" : ""}
                 </span>
-                {course.test && (
+                {course._count.tests > 0 && (
                   <span className="flex items-center gap-1">
                     <ClipboardList size={12} />
-                    Test
+                    {course._count.tests} test{course._count.tests !== 1 ? "s" : ""}
                   </span>
                 )}
                 {course.assignment && (

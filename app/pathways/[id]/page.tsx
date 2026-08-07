@@ -35,7 +35,7 @@ export default async function PathwayDetailPage({
     if (!isPrivileged) redirect("/pathways")
   }
 
-  const [pathway, enrollment, completedRecords, courseProgressRecords, assignmentSubmissions, courseFeedbacks, allGrowthPlanRecords] = await Promise.all([
+  const [pathway, enrollment, completedRecords, courseProgressRecords, testProgressRecords, assignmentSubmissions, courseFeedbacks, allGrowthPlanRecords] = await Promise.all([
     prisma.pathway.findFirst({
       where: { id, deletedAt: null, ...(isPreviewMode ? {} : { status: "PUBLISHED" }) },
       include: {
@@ -61,8 +61,9 @@ export default async function PathwayDetailPage({
                     },
                   },
                 },
-                test: {
+                tests: {
                   where: { deletedAt: null },
+                  orderBy: { order: "asc" },
                   include: {
                     questions: {
                       where: { deletedAt: null },
@@ -91,7 +92,11 @@ export default async function PathwayDetailPage({
     }),
     isPreviewMode ? Promise.resolve([]) : prisma.courseProgress.findMany({
       where: { userId, pathwayId: id },
-      select: { courseId: true, completed: true, testStatus: true, assignmentStatus: true },
+      select: { courseId: true, completed: true, assignmentStatus: true },
+    }),
+    isPreviewMode ? Promise.resolve([]) : prisma.testProgress.findMany({
+      where: { userId, pathwayId: id },
+      select: { testId: true, status: true },
     }),
     isPreviewMode ? Promise.resolve([]) : prisma.assignmentSubmission.findMany({
       where: { userId, pathwayId: id },
@@ -129,10 +134,12 @@ export default async function PathwayDetailPage({
 
   const completedContentIds = new Set((completedRecords as { contentId: string }[]).map((r) => r.contentId))
   const completedCourseIds = new Set((courseProgressRecords as { courseId: string; completed: boolean }[]).filter((r) => r.completed).map((r) => r.courseId))
-  const testStatusByCourseId: Record<string, "PASSED" | "FAILED"> = {}
+  const testStatusByTestId: Record<string, "PASSED" | "FAILED"> = {}
   const assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED"> = {}
-  for (const r of courseProgressRecords as { courseId: string; testStatus: string | null; assignmentStatus: string | null }[]) {
-    if (r.testStatus) testStatusByCourseId[r.courseId] = r.testStatus as "PASSED" | "FAILED"
+  for (const r of testProgressRecords as { testId: string; status: string }[]) {
+    testStatusByTestId[r.testId] = r.status as "PASSED" | "FAILED"
+  }
+  for (const r of courseProgressRecords as { courseId: string; assignmentStatus: string | null }[]) {
     if (r.assignmentStatus) assignmentStatusByCourseId[r.courseId] = r.assignmentStatus as "PASSED" | "FAILED"
   }
   const isPathwayComplete =
@@ -162,7 +169,7 @@ export default async function PathwayDetailPage({
         isPathwayComplete={isPathwayComplete}
         currentUserId={userId}
         latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
-        testStatusByCourseId={testStatusByCourseId}
+        testStatusByTestId={testStatusByTestId}
         assignmentStatusByCourseId={assignmentStatusByCourseId}
         feedbackByCourseId={feedbackByCourseId}
         allGrowthPlans={allGrowthPlanRecords.map((g) => ({

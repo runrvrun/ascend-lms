@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ["Topic", course.topic ?? "—"],
     ["Trainers", course.trainers.join(", ") || "—"],
     ["Content Items", course.contentCount],
-    ["Has Test", course.hasTest ? "Yes" : "No"],
+    ["Number of Tests", course.tests.length],
     ["Has Assignment", course.hasAssignment ? "Yes" : "No"],
     ["Used in Pathways", course.pathwayCount],
     [],
@@ -34,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ["Completed", stats.completedCount],
     ["In Progress", stats.inProgressCount],
     ["Completion Rate", `${stats.completionRate}%`],
-    ["Average Test Score", stats.avgTestScore != null ? `${stats.avgTestScore}%` : "—"],
+    ["Average Test Score (all tests)", stats.avgTestScore != null ? `${stats.avgTestScore}%` : "—"],
     ["Average Feedback Rating", stats.avgFeedbackRating != null ? `${stats.avgFeedbackRating} / 5` : "—"],
   ]
   const wsOverview = xlsx.utils.aoa_to_sheet(overviewRows)
@@ -43,7 +43,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   // ── Users ────────────────────────────────────────────────────────────────
   const userRows: (string | number)[][] = [
-    ["Name", "Email", "Division", "Office", "Pathway(s)", "Enroll Date", "Completion Status", "Complete Date", "Time Taken (days)", "Test Score (%)", "Test Status"],
+    [
+      "Name", "Email", "Division", "Office", "Pathway(s)", "Enroll Date", "Completion Status", "Complete Date", "Time Taken (days)",
+      ...course.tests.flatMap((t) => [`${t.title} Score (%)`, `${t.title} Status`]),
+    ],
     ...users.map((u) => [
       u.name ?? "",
       u.email ?? "",
@@ -54,26 +57,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       u.completed ? "Completed" : "In Progress",
       fmtDate(u.completedAt),
       u.timeTakenDays ?? "",
-      u.testScore != null ? Math.round(u.testScore) : "",
-      u.testStatus ?? "",
+      ...u.tests.flatMap((t) => [t.score != null ? Math.round(t.score) : "", t.status ?? ""]),
     ]),
   ]
   const wsUsers = xlsx.utils.aoa_to_sheet(userRows)
   wsUsers["!cols"] = [
     { wch: 25 }, { wch: 32 }, { wch: 12 }, { wch: 22 }, { wch: 28 },
-    { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 12 },
+    { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
+    ...course.tests.flatMap(() => [{ wch: 14 }, { wch: 12 }]),
   ]
   xlsx.utils.book_append_sheet(wb, wsUsers, "Users")
 
   // ── Tests ────────────────────────────────────────────────────────────────
-  const testRows: (string | number)[][] = course.hasTest
+  const testRows: (string | number)[][] = stats.tests.length > 0
     ? [
-        ["Test Name", "Attempts", "Passed", "Average Score (%)"],
-        [`${course.name} Test`, stats.testAttemptCount, stats.testPassedCount, stats.avgTestScore ?? ""],
+        ["Test Name", "Pass Threshold (%)", "Attempts", "Passed", "Average Score (%)"],
+        ...stats.tests.map((t) => [t.title, t.passThreshold, t.attemptCount, t.passedCount, t.avgScore ?? ""]),
       ]
-    : [["No test configured for this course."]]
+    : [["No tests configured for this course."]]
   const wsTests = xlsx.utils.aoa_to_sheet(testRows)
-  wsTests["!cols"] = [{ wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 18 }]
+  wsTests["!cols"] = [{ wch: 30 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 18 }]
   xlsx.utils.book_append_sheet(wb, wsTests, "Tests")
 
   // ── Assignment ───────────────────────────────────────────────────────────

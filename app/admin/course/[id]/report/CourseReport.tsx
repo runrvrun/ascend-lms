@@ -153,15 +153,15 @@ export function CourseReport({ data }: { data: CourseReportData }) {
         />
       </div>
 
-      {(course.hasTest || course.hasAssignment || stats.feedbackCount > 0) && (
+      {(course.tests.length > 0 || course.hasAssignment || stats.feedbackCount > 0) && (
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {course.hasTest && (
+          {course.tests.length > 0 && (
             <StatCard
-              label="Test Average Score"
+              label={course.tests.length > 1 ? "Tests Average Score" : "Test Average Score"}
               value={stats.avgTestScore != null ? `${stats.avgTestScore}%` : "—"}
               icon={ClipboardCheck}
               color="blue"
-              sub={`${stats.testPassedCount} passed of ${stats.testAttemptCount} attempt${stats.testAttemptCount !== 1 ? "s" : ""}`}
+              sub={`${stats.testPassedCount} passed of ${stats.testAttemptCount} attempt${stats.testAttemptCount !== 1 ? "s" : ""} across ${course.tests.length} test${course.tests.length !== 1 ? "s" : ""}`}
             />
           )}
           {course.hasAssignment && (
@@ -185,6 +185,36 @@ export function CourseReport({ data }: { data: CourseReportData }) {
         </div>
       )}
 
+      {stats.tests.length > 1 && (
+        <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-3">
+            <h2 className="text-sm font-semibold text-slate-900">Per-Test Breakdown</h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-5 py-2.5">Test</th>
+                <th className="px-5 py-2.5 text-center">Pass Threshold</th>
+                <th className="px-5 py-2.5 text-center">Attempts</th>
+                <th className="px-5 py-2.5 text-center">Passed</th>
+                <th className="px-5 py-2.5 text-center">Average Score</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {stats.tests.map((t) => (
+                <tr key={t.id}>
+                  <td className="px-5 py-2.5 font-medium text-slate-800">{t.title}</td>
+                  <td className="px-5 py-2.5 text-center text-slate-600">{t.passThreshold}%</td>
+                  <td className="px-5 py-2.5 text-center text-slate-600">{t.attemptCount}</td>
+                  <td className="px-5 py-2.5 text-center text-slate-600">{t.passedCount}</td>
+                  <td className="px-5 py-2.5 text-center text-slate-600">{t.avgScore != null ? `${t.avgScore}%` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="mb-4 relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
@@ -205,7 +235,7 @@ export function CourseReport({ data }: { data: CourseReportData }) {
               <th className="px-5 py-3 text-center min-w-[130px]">Status</th>
               <th className="px-5 py-3 min-w-[110px]">Completed</th>
               <th className="px-5 py-3 text-center min-w-[100px]">Time Taken</th>
-              <th className="px-5 py-3 text-center min-w-[90px]">Test</th>
+              <th className="px-5 py-3 text-center min-w-[100px]">Tests</th>
               <th className="px-5 py-3 text-center min-w-[100px]">Assignment</th>
               <th className="px-5 py-3 text-center min-w-[90px]">Feedback</th>
             </tr>
@@ -239,8 +269,14 @@ export function CourseReport({ data }: { data: CourseReportData }) {
                 <td className="px-5 py-3 text-center text-slate-600">
                   {u.timeTakenDays != null ? `${u.timeTakenDays}d` : "—"}
                 </td>
-                <td className="px-5 py-3 text-center text-slate-600">
-                  {u.testScore != null ? `${Math.round(u.testScore)}%` : "—"}
+                <td className="px-5 py-3 text-center text-slate-600" title={u.tests.map((t) => `${t.title}: ${t.score != null ? Math.round(t.score) + "%" : "not attempted"}`).join(", ")}>
+                  {u.tests.length === 0 ? (
+                    "—"
+                  ) : (
+                    <span className={u.tests.every((t) => t.status === "PASSED") ? "text-green-600 font-medium" : ""}>
+                      {u.tests.filter((t) => t.status === "PASSED").length}/{u.tests.length} passed
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-center">
                   {u.assignmentStatus === "PASSED" ? (

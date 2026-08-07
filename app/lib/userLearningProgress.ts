@@ -8,15 +8,20 @@ export type ContentDetail = {
   completedAt: string | null
 }
 
+export type TestDetail = {
+  id: string
+  title: string
+  status: "PASSED" | "FAILED" | null
+  score: number | null
+}
+
 export type CourseDetail = {
   id: string
   name: string
   sectionTitle: string | null
   completed: boolean
   completedAt: string | null
-  hasTest: boolean
-  testStatus: "PASSED" | "FAILED" | null
-  testScore: number | null
+  tests: TestDetail[]
   hasAssignment: boolean
   assignmentStatus: "SUBMITTED" | "PASSED" | "FAILED" | null
   totalContents: number
@@ -55,7 +60,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
 
   const pathwayIds = [...new Set(enrollmentRecords.map((e) => e.pathwayId))]
 
-  const [pathwayCourses, courseProgressRecords, contentProgressRecords] = await Promise.all([
+  const [pathwayCourses, courseProgressRecords, testProgressRecords, contentProgressRecords] = await Promise.all([
     prisma.pathwayCourse.findMany({
       where: { pathwayId: { in: pathwayIds } },
       orderBy: [{ pathwayId: "asc" }, { order: "asc" }],
@@ -66,7 +71,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
           select: {
             id: true,
             name: true,
-            test: { where: { deletedAt: null }, select: { id: true } },
+            tests: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true } },
             assignment: { where: { deletedAt: null }, select: { id: true } },
             contents: {
               where: { deletedAt: null },
@@ -84,10 +89,12 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
         courseId: true,
         completed: true,
         completedAt: true,
-        testStatus: true,
-        testScore: true,
         assignmentStatus: true,
       },
+    }),
+    prisma.testProgress.findMany({
+      where: { userId, pathwayId: { in: pathwayIds } },
+      select: { pathwayId: true, testId: true, status: true, score: true },
     }),
     prisma.contentProgress.findMany({
       where: { userId, pathwayId: { in: pathwayIds } },
@@ -96,6 +103,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
   ])
 
   const courseProgressMap = new Map(courseProgressRecords.map((cp) => [`${cp.pathwayId}:${cp.courseId}`, cp]))
+  const testProgressMap = new Map(testProgressRecords.map((tp) => [`${tp.pathwayId}:${tp.testId}`, tp]))
   const contentCompletedAtMap = new Map(
     contentProgressRecords.map((cp) => [`${cp.pathwayId}:${cp.contentId}`, cp.completedAt])
   )
@@ -135,15 +143,18 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       ? latestSubmissionStatusMap.get(`${pc.pathwayId}:${assignmentId}`) ?? null
       : null
 
+    const tests: TestDetail[] = pc.course.tests.map((t) => {
+      const tp = testProgressMap.get(`${pc.pathwayId}:${t.id}`)
+      return { id: t.id, title: t.title, status: tp?.status ?? null, score: tp?.score ?? null }
+    })
+
     const detail: CourseDetail = {
       id: pc.course.id,
       name: pc.course.name,
       sectionTitle: pc.sectionTitle,
       completed: progress?.completed ?? false,
       completedAt: progress?.completedAt ? progress.completedAt.toISOString() : null,
-      hasTest: !!pc.course.test,
-      testStatus: progress?.testStatus ?? null,
-      testScore: progress?.testScore ?? null,
+      tests,
       hasAssignment: !!pc.course.assignment,
       // Graded verdict (progress.assignmentStatus) wins once set; otherwise fall back to the
       // raw submission status so a pending review still shows up instead of looking untouched.

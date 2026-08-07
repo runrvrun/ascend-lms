@@ -28,6 +28,7 @@ model User {
   requestsMade   PathwayEnrollment[] @relation("Requester")
   courseProgress    CourseProgress[]
   contentProgresses ContentProgress[]
+  testProgresses    TestProgress[]
   points            UserPoint[]
   managers       UserManager[]       @relation("UserManagers")
   managedUsers   UserManager[]       @relation("ManagedUsers")
@@ -207,6 +208,7 @@ model Pathway {
   pathwayEnrollments PathwayEnrollment[]
   courseProgresses   CourseProgress[]
   contentProgresses  ContentProgress[]
+  testProgresses     TestProgress[]
   comments              Comment[]
   notifications         Notification[]
   assignmentSubmissions AssignmentSubmission[]
@@ -230,7 +232,7 @@ model Course {
   status          PublishStatus @default(PUBLISHED)
   feedbackEnabled Boolean       @default(true)
   topicId         String?
-  test       Test?
+  tests      Test[]
   assignment Assignment?
 
   topic            Topic?          @relation(fields: [topicId], references: [id])
@@ -376,17 +378,22 @@ model PopQuizOption {
 
 model Test {
   id       String @id @default(dbgenerated("gen_random_uuid()::text"))
-  courseId String @unique
+  courseId String
 
+  title         String
+  order         Int // position among this course's Content + Test items
   passThreshold Int // percentage (e.g., 70)
 
   questions Question[]
+  progresses TestProgress[]
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
+
+  @@unique([courseId, order])
 }
 
 model Question {
@@ -531,8 +538,6 @@ model CourseProgress {
   pathwayId String
 
   completed        Boolean     @default(false)
-  testScore        Float?
-  testStatus       TestStatus?
   assignmentStatus TestStatus?
 
   completedAt DateTime?
@@ -544,6 +549,26 @@ model CourseProgress {
   @@unique([userId, courseId, pathwayId])
   @@index([userId, pathwayId])
   @@index([pathwayId, completed])
+}
+
+model TestProgress {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  userId    String
+  testId    String
+  pathwayId String
+
+  score  Float
+  status TestStatus
+
+  completedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  test    Test    @relation(fields: [testId], references: [id], onDelete: Cascade)
+  pathway Pathway @relation(fields: [pathwayId], references: [id])
+
+  @@unique([userId, testId, pathwayId])
+  @@index([userId, pathwayId])
 }
 
 enum TestStatus {
