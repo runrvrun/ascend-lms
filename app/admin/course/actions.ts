@@ -178,7 +178,7 @@ async function shiftCourseItemsUpFrom(tx: Prisma.TransactionClient, courseId: st
     }),
   ])
   for (const c of contents) await tx.content.update({ where: { id: c.id }, data: { order: c.order! + 1 } })
-  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order + 1 } })
+  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order! + 1 } })
 }
 
 async function shiftCourseItemsDownAfter(tx: Prisma.TransactionClient, courseId: string, removedOrder: number) {
@@ -195,7 +195,7 @@ async function shiftCourseItemsDownAfter(tx: Prisma.TransactionClient, courseId:
     }),
   ])
   for (const c of contents) await tx.content.update({ where: { id: c.id }, data: { order: c.order! - 1 } })
-  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order - 1 } })
+  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order! - 1 } })
 }
 
 export type CourseItemKind = "CONTENT" | "TEST"
@@ -290,9 +290,9 @@ export async function updateTest(testId: string, courseId: string, data: TestFor
 export async function deleteTest(testId: string, courseId: string) {
   await prisma.$transaction(async (tx) => {
     const test = await tx.test.findUnique({ where: { id: testId }, select: { order: true } })
-    if (!test) return
+    if (!test || test.order === null) return
 
-    await tx.test.update({ where: { id: testId }, data: { deletedAt: new Date() } })
+    await tx.test.update({ where: { id: testId }, data: { deletedAt: new Date(), order: null } })
     await shiftCourseItemsDownAfter(tx, courseId, test.order)
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })

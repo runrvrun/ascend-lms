@@ -74,7 +74,7 @@ export default async function CoursePreviewPage({ params }: { params: Promise<{ 
           id: course.id,
           name: course.name,
           contents: course.contents,
-          tests: course.tests,
+          tests: course.tests.map((t) => ({ ...t, order: t.order! })),
           assignment: course.assignment,
           feedbackEnabled: course.feedbackEnabled,
         },

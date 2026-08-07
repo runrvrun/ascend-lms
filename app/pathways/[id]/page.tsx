@@ -147,6 +147,14 @@ export default async function PathwayDetailPage({
     pathway.courses.length > 0 &&
     pathway.courses.every((entry) => completedCourseIds.has(entry.course.id))
 
+  const normalizedPathway = {
+    ...pathway,
+    courses: pathway.courses.map((entry) => ({
+      ...entry,
+      course: { ...entry.course, tests: entry.course.tests.map((t) => ({ ...t, order: t.order! })) },
+    })),
+  }
+
   const latestSubmissionByAssignmentId: Record<string, (typeof assignmentSubmissions)[0]> = {}
   for (const sub of assignmentSubmissions as typeof assignmentSubmissions) {
     if (!latestSubmissionByAssignmentId[sub.assignmentId]) {
@@ -163,7 +171,7 @@ export default async function PathwayDetailPage({
     <div className="min-h-screen bg-slate-50 md:pl-72">
       <SidebarWithStats session={session} />
       <PathwayViewer
-        pathway={pathway}
+        pathway={normalizedPathway}
         completedContentIds={completedContentIds}
         completedCourseIds={completedCourseIds}
         isPathwayComplete={isPathwayComplete}

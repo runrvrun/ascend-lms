@@ -381,7 +381,7 @@ model Test {
   courseId String
 
   title         String
-  order         Int // position among this course's Content + Test items
+  order         Int? // position among this course's Content + Test items; nulled out on soft-delete to free the slot, same as Content.order
   passThreshold Int // percentage (e.g., 70)
 
   questions Question[]

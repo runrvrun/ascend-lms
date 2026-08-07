@@ -83,7 +83,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
 
   const youtubeContents = course.contents.filter((c) => c.type === "YOUTUBE_VIDEO").map((c) => ({ id: c.id, title: c.title }))
   const popQuizzes = course.contents.flatMap((c) => c.popQuizzes)
-  const outline = buildCourseOutline(course.contents, tests)
+  // Fetched with deletedAt: null, so order is always populated in practice — only nulled on soft-delete
+  const liveTests = tests.map((t) => ({ ...t, order: t.order! }))
+  const outline = buildCourseOutline(course.contents, liveTests)
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
@@ -127,7 +129,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
           <div className="flex flex-col gap-8">
             <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} outline={outline} />
             <PopQuizManagement courseId={course.id} youtubeContents={youtubeContents} popQuizzes={popQuizzes} />
-            <TestManagement courseId={course.id} tests={tests} outline={outline} />
+            <TestManagement courseId={course.id} tests={liveTests} outline={outline} />
             <AssignmentManagement courseId={course.id} assignment={assignment} />
           </div>
         }
