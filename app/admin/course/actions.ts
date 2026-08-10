@@ -155,6 +155,151 @@ export async function duplicateCourse(id: string): Promise<string> {
   return newCourse.id
 }
 
+async function assertAdmin() {
+  const session = await getServerSession(authOptions)
+  const roles = ((session?.user as any)?.roles as string[]) ?? []
+  if (!session?.user || !roles.includes("ADMIN")) {
+    throw new Error("Only admins can do this.")
+  }
+}
+
+// Shape written by the "Export" action below. Kept loose (not the Prisma
+// types) since this is untrusted, hand-editable JSON coming back in.
+type CourseExport = {
+  course: {
+    name: string
+    description: string | null
+    status?: "DRAFT" | "PUBLISHED"
+    feedbackEnabled?: boolean
+    topicName?: string | null
+  }
+  contents?: {
+    title: string
+    type: ContentType
+    value: string
+    duration: number | null
+    order: number | null
+    popQuizzes?: {
+      time: number
+      question: string
+      options: { text: string; isCorrect: boolean; order: number }[]
+    }[]
+  }[]
+  tests?: {
+    title: string
+    order: number | null
+    passThreshold: number
+    questions: {
+      type: QuestionType
+      question: string
+      order: number
+      options: { text: string; isCorrect?: boolean | null; matchKey?: string | null; order?: number | null }[]
+    }[]
+  }[]
+  assignment?: { description: string; submitUrl: string } | null
+}
+
+export async function importCourse(formData: FormData): Promise<string> {
+  await assertAdmin()
+
+  const file = formData.get("file") as File | null
+  if (!file) throw new Error("No file provided.")
+
+  let data: CourseExport
+  try {
+    data = JSON.parse(await file.text())
+  } catch {
+    throw new Error("That file isn't valid JSON.")
+  }
+  if (!data?.course?.name) {
+    throw new Error("This doesn't look like a course export file.")
+  }
+
+  const topicId = data.course.topicName
+    ? (await prisma.topic.findFirst({ where: { name: data.course.topicName } }))?.id ?? null
+    : null
+
+  // Unique name: "{name}", then "{name} (imported)", "{name} (imported 2)"…
+  const baseName = data.course.name
+  let newName = baseName
+  let suffix = 2
+  while (await prisma.course.findFirst({ where: { name: newName, deletedAt: null } })) {
+    newName = suffix === 2 ? `${baseName} (imported)` : `${baseName} (imported ${suffix})`
+    suffix++
+  }
+
+  const newCourseId = await prisma.$transaction(async (tx) => {
+    const newCourse = await tx.course.create({
+      data: {
+        name: newName,
+        description: data.course.description ?? null,
+        status: data.course.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
+        feedbackEnabled: data.course.feedbackEnabled ?? true,
+        topicId,
+      },
+    })
+
+    for (const c of data.contents ?? []) {
+      const content = await tx.content.create({
+        data: {
+          courseId: newCourse.id,
+          title: c.title,
+          type: c.type,
+          value: c.value,
+          duration: c.duration ?? null,
+          order: c.order,
+        },
+      })
+      for (const pq of c.popQuizzes ?? []) {
+        await tx.popQuiz.create({
+          data: {
+            contentId: content.id,
+            time: pq.time,
+            question: pq.question,
+            options: { create: pq.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect, order: o.order })) },
+          },
+        })
+      }
+    }
+
+    for (const t of data.tests ?? []) {
+      const test = await tx.test.create({
+        data: { courseId: newCourse.id, title: t.title, order: t.order, passThreshold: t.passThreshold },
+      })
+      for (const q of t.questions) {
+        await tx.question.create({
+          data: {
+            testId: test.id,
+            type: q.type,
+            question: q.question,
+            order: q.order,
+            options: {
+              create: q.options.map((o) => ({
+                text: o.text,
+                isCorrect: o.isCorrect ?? null,
+                matchKey: o.matchKey ?? null,
+                order: o.order ?? null,
+              })),
+            },
+          },
+        })
+      }
+    }
+
+    if (data.assignment) {
+      await tx.assignment.create({
+        data: { courseId: newCourse.id, description: data.assignment.description, submitUrl: data.assignment.submitUrl },
+      })
+    }
+
+    return newCourse.id
+  })
+
+  revalidatePath("/admin/course")
+  revalidatePath("/sme/course")
+  return newCourseId
+}
+
 const touchCourse = (courseId: string) =>
   prisma.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
 
