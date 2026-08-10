@@ -10,6 +10,7 @@ interface DashboardSidebarProps {
   streak?: number
   totalPoints?: number
   unreadNotifications?: number
+  isTestServer?: boolean
 }
 
 const sidebarBackground = {
@@ -86,7 +87,7 @@ function SettingsMenu() {
   )
 }
 
-export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadNotifications = 0 }: DashboardSidebarProps) {
+export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadNotifications = 0, isTestServer = false }: DashboardSidebarProps) {
   const roles = ((session?.user as any)?.roles as string[]) ?? []
   const isAdmin = roles.includes("ADMIN")
   const isManager = roles.includes("MANAGER")
@@ -114,7 +115,7 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
           <img src="/logo-ycp-white.svg" alt="YCP Logo" className="h-8 w-auto" />
           <div className="text-lg font-bold">Ascend</div>
         </div>
-        <p className="text-xs text-blue-200">Training Platform</p>
+        <p className="text-xs text-blue-200">Training Platform{isTestServer ? " (Test Server)" : ""}</p>
       </div>
 
       <nav className="mb-auto flex flex-col gap-1 px-4 pt-4">

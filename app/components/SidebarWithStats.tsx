@@ -61,6 +61,18 @@ export async function SidebarWithStats({ session }: { session: Session | null })
 
   const streak = computeStreak(progressDates.map((r) => r.completedAt))
   const totalPoints = pointsAgg._sum.points ?? 0
+  // Vercel sets this automatically on every deployment (build + runtime); the
+  // self-hosted production server never has it — used to flag the Vercel
+  // deployment (which runs against separate test data) in the sidebar.
+  const isTestServer = !!process.env.VERCEL
 
-  return <DashboardSidebar session={session} streak={streak} totalPoints={totalPoints} unreadNotifications={unreadCount} />
+  return (
+    <DashboardSidebar
+      session={session}
+      streak={streak}
+      totalPoints={totalPoints}
+      unreadNotifications={unreadCount}
+      isTestServer={isTestServer}
+    />
+  )
 }
