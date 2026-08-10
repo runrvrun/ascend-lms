@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "../../lib/prisma"
+import { sendPathwayAssigned } from "../../lib/email"
 
 export type PathwayFormData = {
   name: string
@@ -154,6 +155,30 @@ export async function adminEnrollUsers(pathwayId: string, userIds: string[]) {
     })),
     skipDuplicates: true,
   })
+
+  const [pathway, users] = await Promise.all([
+    prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }),
+  ])
+
+  if (pathway) {
+    await prisma.notification.createMany({
+      data: users.map((u) => ({
+        userId: u.id,
+        type: "PATHWAY_ASSIGNED" as const,
+        message: `You have been assigned to "${pathway.name}".`,
+        pathwayId,
+      })),
+      skipDuplicates: true,
+    })
+
+    await Promise.all(
+      users.map((u) =>
+        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId) : Promise.resolve()
+      )
+    )
+  }
+
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
 }
 
@@ -169,7 +194,7 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
     prisma.cohort.findUnique({
       where: { id: cohortId },
-      select: { name: true, users: { select: { userId: true } } },
+      select: { name: true, users: { select: { userId: true, user: { select: { name: true, email: true } } } } },
     }),
   ])
 
@@ -194,6 +219,12 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
       })),
       skipDuplicates: true,
     })
+
+    await Promise.all(
+      cohort.users.map(({ user }) =>
+        user.email ? sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name) : Promise.resolve()
+      )
+    )
   }
 
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)

@@ -5,13 +5,14 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { NotificationType } from "@prisma/client"
+import { sendPathwayAssigned } from "../../lib/email"
 
 export async function assignPathway(userId: string, pathwayId: string, deadline: string | null) {
   const session = await getServerSession(authOptions)
   if (!session?.user) throw new Error("Not authenticated")
   const managerId = (session.user as any).id as string
 
-  const [, manager, pathway] = await Promise.all([
+  const [, manager, pathway, user] = await Promise.all([
     prisma.pathwayEnrollment.create({
       data: {
         userId,
@@ -24,6 +25,7 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
     }),
     prisma.user.findUnique({ where: { id: managerId }, select: { name: true } }),
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
   ])
 
   await prisma.notification.create({
@@ -34,6 +36,10 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
       pathwayId,
     },
   })
+
+  if (user?.email && pathway) {
+    await sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId)
+  }
 
   revalidatePath("/manager/professionals")
   revalidatePath("/dashboard")

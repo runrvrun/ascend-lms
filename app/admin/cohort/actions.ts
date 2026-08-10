@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import * as xlsx from "xlsx"
 import { prisma } from "../../lib/prisma"
+import { sendPathwayAssigned } from "../../lib/email"
 
 export type BulkAddMembersResult = {
   added: number
@@ -38,10 +39,10 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
   })
   if (cohortPathways.length === 0) return
 
-  const cohort = await prisma.cohort.findUnique({
-    where: { id: cohortId },
-    select: { name: true },
-  })
+  const [cohort, users] = await Promise.all([
+    prisma.cohort.findUnique({ where: { id: cohortId }, select: { name: true } }),
+    prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }),
+  ])
   if (!cohort) return
 
   await prisma.pathwayEnrollment.createMany({
@@ -68,6 +69,14 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
     ),
     skipDuplicates: true,
   })
+
+  await Promise.all(
+    cohortPathways.flatMap(({ pathwayId, pathway }) =>
+      users.map((u) =>
+        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId, cohort.name) : Promise.resolve()
+      )
+    )
+  )
 }
 
 export async function addUserToCohort(cohortId: string, userId: string) {
@@ -187,7 +196,7 @@ export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
   const [cohort, pathway] = await Promise.all([
     prisma.cohort.findUnique({
       where: { id: cohortId },
-      select: { name: true, users: { select: { userId: true } } },
+      select: { name: true, users: { select: { userId: true, user: { select: { name: true, email: true } } } } },
     }),
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
   ])
@@ -214,6 +223,12 @@ export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
       })),
       skipDuplicates: true,
     })
+
+    await Promise.all(
+      cohort.users.map(({ user }) =>
+        user.email ? sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name) : Promise.resolve()
+      )
+    )
   }
 
   revalidatePath(`/admin/cohort/${cohortId}`)

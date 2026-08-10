@@ -142,6 +142,35 @@ export async function sendEnrollmentRejected(
   )
 }
 
+export async function sendPathwayAssigned(
+  to: string,
+  userName: string,
+  pathwayName: string,
+  pathwayId: string,
+  cohortName?: string
+) {
+  const link = `${BASE_URL}/pathways/${pathwayId}`
+  await send(
+    to,
+    `You've been assigned to "${pathwayName}"`,
+    layout(`
+      <p>Hi <strong>${userName}</strong>,</p>
+      <p>${
+        cohortName
+          ? `A new pathway has been assigned to your cohort <strong>${cohortName}</strong>:`
+          : `You have been assigned to a new pathway:`
+      }</p>
+      <p style="font-size:16px;font-weight:600;margin:12px 0 20px;">${pathwayName}</p>
+      <p>
+        <a href="${link}"
+           style="background:#194693;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;">
+          View Pathway
+        </a>
+      </p>
+    `)
+  )
+}
+
 export async function sendNewEnrollmentRequest(
   to: string,
   managerName: string,
