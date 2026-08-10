@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Eye } from "lucide-react"
 import { authOptions } from "../../../api/auth/[...nextauth]/route"
 import { prisma } from "../../../lib/prisma"
 import { ContentManagement } from "../../../admin/course/[id]/ContentManagement"
@@ -104,7 +104,16 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
               <p className="mt-2 text-sm text-slate-500">{course.description}</p>
             )}
           </div>
-          <CourseStatusToggle id={course.id} status={course.status} />
+          <div className="flex shrink-0 items-center gap-2">
+            <a
+              href={`/trainer/course/${course.id}/preview`}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Eye size={14} />
+              Preview
+            </a>
+            <CourseStatusToggle id={course.id} status={course.status} />
+          </div>
         </div>
       </div>
 

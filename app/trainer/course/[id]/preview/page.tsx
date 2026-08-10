@@ -11,16 +11,21 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: course ? `Preview: ${course.name}` : "Course Preview" }
 }
 
-export default async function CoursePreviewPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TrainerCoursePreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
   const session = await getServerSession(authOptions)
   if (!session?.user) redirect("/")
   const userId = (session.user as any).id as string
+  const roles = ((session.user as any).roles as string[]) ?? []
 
-  const roles = await prisma.userRole.findMany({ where: { userId }, select: { role: true } })
-  const isPrivileged = roles.some((r) => ["ADMIN", "TRAINER", "SME"].includes(r.role))
-  if (!isPrivileged) redirect("/")
+  // Must be assigned trainer (admins can also access via /admin/course/[id]/preview)
+  if (!roles.includes("ADMIN")) {
+    const trainerRecord = await prisma.courseTrainer.findUnique({
+      where: { courseId_userId: { courseId: id, userId } },
+    })
+    if (!trainerRecord) redirect("/trainer/course")
+  }
 
   const course = await prisma.course.findFirst({
     where: { id, deletedAt: null },
@@ -94,7 +99,7 @@ export default async function CoursePreviewPage({ params }: { params: Promise<{ 
       feedbackByCourseId={{}}
       allGrowthPlans={[]}
       isPreview
-      backHref={`/admin/course/${course.id}`}
+      backHref={`/trainer/course/${course.id}`}
       backLabel="Back to Course"
     />
   )
