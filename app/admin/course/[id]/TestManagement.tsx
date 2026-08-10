@@ -323,7 +323,7 @@ function QuestionModal({
 
 function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfterOrder, onClose }: {
   initial: TestFormData; courseId: string; testId?: string
-  outline: OutlineItem[] | null // null = editing, no position picker
+  outline: OutlineItem[]
   initialInsertAfterOrder?: number
   onClose: () => void
 }) {
@@ -334,7 +334,7 @@ function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfter
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      if (testId) await updateTest(testId, courseId, form)
+      if (testId) await updateTest(testId, courseId, { ...form, insertAfterOrder })
       else await createTest(courseId, { ...form, insertAfterOrder })
       onClose()
     })
@@ -358,9 +358,7 @@ function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfter
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          {outline && (
-            <PositionSelect outline={outline} value={insertAfterOrder} onChange={setInsertAfterOrder} />
-          )}
+          <PositionSelect outline={outline} value={insertAfterOrder} onChange={setInsertAfterOrder} />
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
               Pass Threshold (%) <span className="text-red-500">*</span>
@@ -427,6 +425,10 @@ function TestCard({
 
   const questions = test.questions.slice().sort((a, b) => a.order - b.order)
   const nextOrder = questions.length > 0 ? Math.max(...questions.map((q) => q.order)) + 1 : 1
+
+  const outlineIdx = outline.findIndex((o) => o.kind === "TEST" && o.id === test.id)
+  const outlineExcludingSelf = outline.filter((_, i) => i !== outlineIdx)
+  const currentInsertAfterOrder = outlineIdx > 0 ? outline[outlineIdx - 1].order : 0
 
   function optionsFromRow(q: QuestionRow): OptionDraft[] {
     return q.options.map((o) => ({
@@ -510,7 +512,8 @@ function TestCard({
           initial={{ title: test.title, passThreshold: test.passThreshold }}
           courseId={courseId}
           testId={test.id}
-          outline={null}
+          outline={outlineExcludingSelf}
+          initialInsertAfterOrder={currentInsertAfterOrder}
           onClose={() => setEditingTest(false)}
         />
       )}

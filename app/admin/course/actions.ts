@@ -200,6 +200,37 @@ async function shiftCourseItemsDownAfter(tx: Prisma.TransactionClient, courseId:
 
 export type CourseItemKind = "CONTENT" | "TEST"
 
+// Moves an existing Content/Test to sit right after the item currently at
+// `insertAfterOrder` (0 = beginning), closing the gap it leaves behind and
+// opening one at the new spot. No-op if it's already there.
+async function moveCourseItemInTx(
+  tx: Prisma.TransactionClient,
+  courseId: string,
+  item: { kind: CourseItemKind; id: string },
+  insertAfterOrder: number,
+) {
+  const getOrder = (kind: CourseItemKind, id: string) =>
+    kind === "CONTENT"
+      ? tx.content.findUnique({ where: { id }, select: { order: true } })
+      : tx.test.findUnique({ where: { id }, select: { order: true } })
+  const setOrder = (kind: CourseItemKind, id: string, order: number) =>
+    kind === "CONTENT" ? tx.content.update({ where: { id }, data: { order } }) : tx.test.update({ where: { id }, data: { order } })
+
+  const current = await getOrder(item.kind, item.id)
+  if (!current || current.order === null) return
+  const oldOrder = current.order
+  const target = insertAfterOrder + 1
+  if (target === oldOrder) return
+
+  // Park it out of the way so the shifts below don't touch it, close the gap
+  // it leaves, then open a gap at the (possibly shifted) target and drop it in.
+  await setOrder(item.kind, item.id, -1)
+  await shiftCourseItemsDownAfter(tx, courseId, oldOrder)
+  const adjustedTarget = target > oldOrder ? target - 1 : target
+  await shiftCourseItemsUpFrom(tx, courseId, adjustedTarget)
+  await setOrder(item.kind, item.id, adjustedTarget)
+}
+
 export async function swapCourseItemOrder(
   item1: { kind: CourseItemKind; id: string; order: number },
   item2: { kind: CourseItemKind; id: string; order: number },
@@ -279,11 +310,12 @@ export async function createTest(courseId: string, data: TestFormData & { insert
   revalidatePath(`/admin/course/${courseId}`)
 }
 
-export async function updateTest(testId: string, courseId: string, data: TestFormData) {
-  await Promise.all([
-    prisma.test.update({ where: { id: testId }, data: { title: data.title, passThreshold: data.passThreshold } }),
-    touchCourse(courseId),
-  ])
+export async function updateTest(testId: string, courseId: string, data: TestFormData & { insertAfterOrder: number }) {
+  await prisma.$transaction(async (tx) => {
+    await tx.test.update({ where: { id: testId }, data: { title: data.title, passThreshold: data.passThreshold } })
+    await moveCourseItemInTx(tx, courseId, { kind: "TEST", id: testId }, data.insertAfterOrder)
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
   revalidatePath(`/admin/course/${courseId}`)
 }
 
