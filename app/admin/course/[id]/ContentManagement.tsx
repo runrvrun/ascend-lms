@@ -186,7 +186,7 @@ function ContentFormModal({
                 )}
                 {form.type === "PDF" && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint files: open the PDF → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
+                    For SharePoint files: open the PDF → click the <span className="font-medium text-slate-700">•••</span> (more options) → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
                     <br />For non-SharePoint PDFs, paste the direct URL to the file.
                   </p>
                 )}
