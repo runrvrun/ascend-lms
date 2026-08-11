@@ -192,7 +192,7 @@ function ContentFormModal({
                 )}
                 {form.type === "PPT" && (
                   <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint presentations: open the PPT in Web → click <span className="font-medium text-slate-700">File</span> → <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed this presentation</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The embed URL will be extracted automatically.
+                    For SharePoint presentations: open the PPT in a web browser (not the desktop app) → click <span className="font-medium text-slate-700">File</span> → <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed this presentation</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The embed URL will be extracted automatically.
                     <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/Doc.aspx?sourcedoc=&#123;GUID&#125;&amp;action=embedview
                   </p>
                 )}
