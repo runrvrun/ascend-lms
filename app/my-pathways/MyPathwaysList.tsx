@@ -79,22 +79,20 @@ function EnrollmentRow({ item }: { item: PathwayEnrollmentItem }) {
           <p className="mt-0.5 text-xs text-slate-500">{enrollmentLabel(item)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {item.isCompleted ? (
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Completed</span>
-          ) : item.status === "PENDING" ? (
+          {item.isCompleted ? null : item.status === "PENDING" ? (
             <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">Awaiting Approval</span>
           ) : (
             <DeadlineChip deadline={item.deadline} />
           )}
-          {item.status === "APPROVED" && !item.isCompleted && (
+          {item.status === "APPROVED" && (
             <a
               href={`/pathways/${item.pathwayId}`}
               className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50"
             >
-              Open <ArrowRight size={11} />
+              {item.isCompleted ? "Review" : "Open"} <ArrowRight size={11} />
             </a>
           )}
-          <UnenrollButton pathwayId={item.pathwayId} />
+          {!item.isCompleted && <UnenrollButton pathwayId={item.pathwayId} />}
         </div>
       </div>
       {item.status === "REJECTED" && item.rejectionReason && (

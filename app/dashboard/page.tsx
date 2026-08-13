@@ -18,7 +18,7 @@ export default async function DashboardPage() {
 
   const [enrollments, totalAgg, recentPoints, courseProgressRecords, pathwayCourseCounts, pointsGrouped, allContentProgress] = await Promise.all([
     prisma.pathwayEnrollment.findMany({
-      where: { userId, status: { not: "REJECTED" } },
+      where: { userId, status: { not: "REJECTED" }, pathway: { deletedAt: null, status: "PUBLISHED" } },
       include: {
         pathway: { select: { name: true, description: true } },
         cohort: { select: { name: true } },
@@ -79,6 +79,9 @@ export default async function DashboardPage() {
     const completed = completedByPathway[e.pathwayId] ?? 0
     return { ...e, isCompleted: total > 0 && completed >= total }
   })
+
+  // Dashboard widget only shows ongoing pathways — completed ones live on /my-pathways
+  const ongoingEnrollments = enrollmentsWithCompletion.filter((e) => !e.isCompleted)
 
   // Parse courseId:pathwayId from referenceId and resolve names in one batch
   const completionRefs = recentPoints
@@ -185,7 +188,7 @@ export default async function DashboardPage() {
         <h1 className="mb-6 text-2xl font-bold text-slate-900">Dashboard</h1>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <MyPathwaysCard enrollments={enrollmentsWithCompletion} />
+          <MyPathwaysCard enrollments={ongoingEnrollments} />
           <MyPointsCard total={totalAgg._sum.points ?? 0} recent={pointItems} />
         </div>
 
