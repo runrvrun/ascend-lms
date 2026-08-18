@@ -1028,7 +1028,24 @@ function ContentViewer({
   if (content.type === "VIDEO" || content.type === "YOUTUBE_VIDEO") {
     return (
       <div className="h-full overflow-y-auto p-6 md:p-8">
-        <h2 className="mb-4 text-xl font-bold text-slate-900">{content.title}</h2>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
+          {/* SharePoint only: if the embed is blocked (no M365 session in this
+              browser, or no permission on the file), the iframe shows
+              "refused to connect" — this is the learner's way out. Deliberately
+              not offered for YouTube, where it would let them skip pop quizzes. */}
+          {content.type === "VIDEO" && (
+            <a
+              href={content.value}
+              target="_blank"
+              rel="noreferrer"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <ExternalLink size={12} />
+              Open in new tab
+            </a>
+          )}
+        </div>
         <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />

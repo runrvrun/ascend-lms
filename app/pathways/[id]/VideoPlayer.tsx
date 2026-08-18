@@ -262,6 +262,7 @@ export function VideoPlayer({
           src={url}
           className={absoluteFill}
           allowFullScreen
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
         />
       </div>
     )
