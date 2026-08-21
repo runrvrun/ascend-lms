@@ -41,6 +41,10 @@ function isSharePointUrl(url: string) {
   return url.includes("sharepoint.com") || url.includes("microsoftstream.com")
 }
 
+function sharePointSignInHint(noun: string) {
+  return `This ${noun} is hosted on SharePoint. If it doesn't load, make sure you're signed in to your Microsoft account in this browser, then refresh the page. On Safari, you'll also need to turn off "Prevent cross-site tracking" (Safari menu → Settings → Privacy) — Safari blocks SharePoint's sign-in cookie by default.`
+}
+
 type PopQuizOptionItem = {
   id: string
   text: string
@@ -1051,16 +1055,16 @@ function ContentViewer({
             </a>
           )}
         </div>
-        {content.type === "VIDEO" && isSharePointUrl(content.value) && (
-          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            <AlertTriangle size={16} className="shrink-0" />
-            This video is hosted on SharePoint. If it doesn&apos;t load, make sure you&apos;re signed in to your Microsoft account in this browser, then refresh the page.
-          </div>
-        )}
         <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
         </div>
+        {content.type === "VIDEO" && isSharePointUrl(content.value) && (
+          <div className="mt-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertTriangle size={16} className="shrink-0" />
+            {sharePointSignInHint("video")}
+          </div>
+        )}
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>
     )
@@ -1084,7 +1088,7 @@ function ContentViewer({
         {isSharePointUrl(content.value) && (
           <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             <AlertTriangle size={16} className="shrink-0" />
-            This {content.type === "PPT" ? "presentation" : "document"} is hosted on SharePoint. If it doesn&apos;t load, make sure you&apos;re signed in to your Microsoft account in this browser, then refresh the page.
+            {sharePointSignInHint(content.type === "PPT" ? "presentation" : "document")}
           </div>
         )}
         <iframe
