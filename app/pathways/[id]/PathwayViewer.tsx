@@ -29,12 +29,17 @@ import {
   Check,
   Eye,
   Users,
+  AlertTriangle,
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedback } from "../actions"
 import { createGrowthPlan, updateGrowthPlan, deleteGrowthPlan, toggleGrowthPlanComplete } from "../../growth-plan/actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
 import { VideoPlayer } from "./VideoPlayer"
+
+function isSharePointUrl(url: string) {
+  return url.includes("sharepoint.com") || url.includes("microsoftstream.com")
+}
 
 type PopQuizOptionItem = {
   id: string
@@ -1046,6 +1051,12 @@ function ContentViewer({
             </a>
           )}
         </div>
+        {content.type === "VIDEO" && isSharePointUrl(content.value) && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertTriangle size={16} className="shrink-0" />
+            This video is hosted on SharePoint. If it doesn&apos;t load, make sure you&apos;re signed in to your Microsoft account in this browser, then refresh the page.
+          </div>
+        )}
         <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
@@ -1070,6 +1081,12 @@ function ContentViewer({
             Open in new tab
           </a>
         </div>
+        {isSharePointUrl(content.value) && (
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertTriangle size={16} className="shrink-0" />
+            This {content.type === "PPT" ? "presentation" : "document"} is hosted on SharePoint. If it doesn&apos;t load, make sure you&apos;re signed in to your Microsoft account in this browser, then refresh the page.
+          </div>
+        )}
         <iframe
           src={content.value}
           title={content.title}
