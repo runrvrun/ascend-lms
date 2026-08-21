@@ -1085,12 +1085,6 @@ function ContentViewer({
             Open in new tab
           </a>
         </div>
-        {isSharePointUrl(content.value) && (
-          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            <AlertTriangle size={16} className="shrink-0" />
-            {sharePointSignInHint(content.type === "PPT" ? "presentation" : "document")}
-          </div>
-        )}
         <iframe
           src={content.value}
           title={content.title}
@@ -1099,6 +1093,12 @@ function ContentViewer({
         <div className="mt-6">
           <CompleteButton contentId={content.id} />
         </div>
+        {isSharePointUrl(content.value) && (
+          <div className="mt-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertTriangle size={16} className="shrink-0" />
+            {sharePointSignInHint(content.type === "PPT" ? "presentation" : "document")}
+          </div>
+        )}
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>
     )
