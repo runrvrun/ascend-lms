@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useTransition, useRef, useEffect } from "react"
+import { useState, useTransition } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
-import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, ChevronDown, Mail, KeyRound, BarChart2 } from "lucide-react"
+import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, Mail, KeyRound, BarChart2 } from "lucide-react"
 import { SearchableSelect } from "../../components/SearchableSelect"
+import { ActionsMenu } from "../../components/ActionsMenu"
 import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, addUserManager, removeUserManager, UserFormData, BulkImportResult } from "./actions"
 
 type ManagerOption = { id: string; name: string | null }
@@ -38,58 +39,6 @@ const empty: UserFormData = {
   division: Division.MSD,
   title: JobTitle.ANALYST,
   officeId: "",
-}
-
-function ActionsMenu({ items }: {
-  items: { label: string; icon: React.ReactNode; onClick: () => void; variant?: "danger" }[]
-}) {
-  const [open, setOpen] = useState(false)
-  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
-  const ref = useRef<HTMLDivElement>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
-
-  function handleToggle() {
-    if (!open && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      setMenuStyle({ position: "fixed", bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right })
-    }
-    setOpen((o) => !o)
-  }
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        ref={btnRef}
-        onClick={handleToggle}
-        className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-      >
-        Actions
-        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div style={menuStyle} className="z-[9999] min-w-[160px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-          {items.map((item, i) => (
-            <button
-              key={i}
-              onClick={() => { item.onClick(); setOpen(false) }}
-              className={`flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50 ${item.variant === "danger" ? "text-red-600" : "text-slate-700"}`}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 
 function RoleBadge({ role }: { role: Role }) {

@@ -1,77 +1,14 @@
 "use client"
 
-import { useState, useTransition, useRef, useEffect } from "react"
-import { Plus, Pencil, Trash2, X, Users, Search, ChevronDown, BarChart2, BookOpen } from "lucide-react"
+import { useState, useTransition } from "react"
+import { Plus, Pencil, Trash2, X, Users, Search, BarChart2, BookOpen } from "lucide-react"
 import { createCohort, updateCohort, deleteCohort } from "./actions"
+import { ActionsMenu } from "../../components/ActionsMenu"
 
 type CohortRow = {
   id: string
   name: string
   _count: { users: number }
-}
-
-function ActionsMenu({ items }: {
-  items: { label: string; icon: React.ReactNode; onClick?: () => void; href?: string; variant?: "danger" }[]
-}) {
-  const [open, setOpen] = useState(false)
-  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
-  const ref = useRef<HTMLDivElement>(null)
-  const btnRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
-
-  function handleToggle() {
-    if (!open && btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect()
-      setMenuStyle({ position: "fixed", bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right })
-    }
-    setOpen((o) => !o)
-  }
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        ref={btnRef}
-        onClick={handleToggle}
-        className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-      >
-        Actions
-        <ChevronDown size={11} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div style={menuStyle} className="z-[9999] min-w-[160px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-          {items.map((item, i) =>
-            item.href ? (
-              <a
-                key={i}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50"
-              >
-                {item.icon}
-                {item.label}
-              </a>
-            ) : (
-              <button
-                key={i}
-                onClick={() => { item.onClick?.(); setOpen(false) }}
-                className={`flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50 ${item.variant === "danger" ? "text-red-600" : "text-slate-700"}`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            )
-          )}
-        </div>
-      )}
-    </div>
-  )
 }
 
 function CohortFormModal({
