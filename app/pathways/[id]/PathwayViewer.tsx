@@ -41,8 +41,13 @@ function isSharePointUrl(url: string) {
   return url.includes("sharepoint.com") || url.includes("microsoftstream.com")
 }
 
-function sharePointSignInHint(noun: string) {
-  return `This ${noun} is hosted on SharePoint. If it doesn't load, make sure you're signed in to your Microsoft account in this browser, then refresh the page. Some browsers block SharePoint's sign-in cookie by default — on Safari, turn off "Prevent cross-site tracking" (Safari menu → Settings → Privacy); on Edge, turn off "Block third-party cookies" (Settings → Cookies and site permissions → Cookies and site data).`
+function sharePointSignInLines(noun: string) {
+  return [
+    `This ${noun} is hosted on SharePoint. If it doesn't load, make sure you're signed in to your Microsoft account in this browser, then refresh the page.`,
+    `Some browsers block SharePoint's sign-in cookie by default:`,
+    `On Edge: turn off "Block third-party cookies" (Settings → Cookies and site permissions → Cookies and site data).`,
+    `On Safari: turn off "Prevent cross-site tracking" (Safari menu → Settings → Privacy).`,
+  ]
 }
 
 function SharePointHelp({ noun }: { noun: string }) {
@@ -58,11 +63,11 @@ function SharePointHelp({ noun }: { noun: string }) {
   }, [])
 
   return (
-    <div className="absolute bottom-2 right-2 z-10" ref={ref}>
+    <div className="relative inline-block" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-500 shadow-sm ring-1 ring-slate-200 hover:bg-white hover:text-slate-700"
+        className="text-xs font-medium text-slate-400 underline decoration-dotted underline-offset-2 hover:text-slate-600"
       >
         Content not loading?
       </button>
@@ -70,7 +75,11 @@ function SharePointHelp({ noun }: { noun: string }) {
         <div className="absolute bottom-full right-0 z-10 mb-2 w-72 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-700 shadow-lg">
           <div className="flex items-start gap-2">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span>{sharePointSignInHint(noun)}</span>
+            <div className="space-y-1.5">
+              {sharePointSignInLines(noun).map((line, i) => (
+                <p key={i}>{line}</p>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -1088,10 +1097,12 @@ function ContentViewer({
             </a>
           )}
         </div>
-        <div className="relative">
-          <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
-          {content.type === "VIDEO" && isSharePointUrl(content.value) && <SharePointHelp noun="video" />}
-        </div>
+        <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
+        {content.type === "VIDEO" && isSharePointUrl(content.value) && (
+          <div className="mt-1.5 flex justify-end">
+            <SharePointHelp noun="video" />
+          </div>
+        )}
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
         </div>
@@ -1115,14 +1126,16 @@ function ContentViewer({
             Open in new tab
           </a>
         </div>
-        <div className="relative">
-          <iframe
-            src={content.value}
-            title={content.title}
-            className="h-[400px] w-full rounded-xl border border-slate-200"
-          />
-          {isSharePointUrl(content.value) && <SharePointHelp noun={content.type === "PPT" ? "presentation" : "document"} />}
-        </div>
+        <iframe
+          src={content.value}
+          title={content.title}
+          className="h-[400px] w-full rounded-xl border border-slate-200"
+        />
+        {isSharePointUrl(content.value) && (
+          <div className="mt-1.5 flex justify-end">
+            <SharePointHelp noun={content.type === "PPT" ? "presentation" : "document"} />
+          </div>
+        )}
         <div className="mt-6">
           <CompleteButton contentId={content.id} />
         </div>
