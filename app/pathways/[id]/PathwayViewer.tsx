@@ -42,7 +42,7 @@ function isSharePointUrl(url: string) {
 }
 
 function sharePointSignInHint(noun: string) {
-  return `This ${noun} is hosted on SharePoint. If it doesn't load, make sure you're signed in to your Microsoft account in this browser, then refresh the page. On Safari, you'll also need to turn off "Prevent cross-site tracking" (Safari menu → Settings → Privacy) — Safari blocks SharePoint's sign-in cookie by default.`
+  return `This ${noun} is hosted on SharePoint. If it doesn't load, make sure you're signed in to your Microsoft account in this browser, then refresh the page. Some browsers block SharePoint's sign-in cookie by default — on Safari, turn off "Prevent cross-site tracking" (Safari menu → Settings → Privacy); on Edge, turn off "Block third-party cookies" (Settings → Cookies and site permissions → Cookies and site data).`
 }
 
 function SharePointHelp({ noun }: { noun: string }) {
