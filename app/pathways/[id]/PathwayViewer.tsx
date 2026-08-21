@@ -45,6 +45,39 @@ function sharePointSignInHint(noun: string) {
   return `This ${noun} is hosted on SharePoint. If it doesn't load, make sure you're signed in to your Microsoft account in this browser, then refresh the page. On Safari, you'll also need to turn off "Prevent cross-site tracking" (Safari menu → Settings → Privacy) — Safari blocks SharePoint's sign-in cookie by default.`
 }
 
+function SharePointHelp({ noun }: { noun: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  return (
+    <div className="absolute bottom-2 right-2 z-10" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-500 shadow-sm ring-1 ring-slate-200 hover:bg-white hover:text-slate-700"
+      >
+        Content not loading?
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 z-10 mb-2 w-72 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-700 shadow-lg">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>{sharePointSignInHint(noun)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type PopQuizOptionItem = {
   id: string
   text: string
@@ -1055,16 +1088,13 @@ function ContentViewer({
             </a>
           )}
         </div>
-        <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
+        <div className="relative">
+          <VideoPlayer key={content.id} url={content.value} duration={content.duration ?? undefined} popQuizzes={content.popQuizzes} onProgress={setVideoProgress} />
+          {content.type === "VIDEO" && isSharePointUrl(content.value) && <SharePointHelp noun="video" />}
+        </div>
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
         </div>
-        {content.type === "VIDEO" && isSharePointUrl(content.value) && (
-          <div className="mt-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            <AlertTriangle size={16} className="shrink-0" />
-            {sharePointSignInHint("video")}
-          </div>
-        )}
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>
     )
@@ -1085,20 +1115,17 @@ function ContentViewer({
             Open in new tab
           </a>
         </div>
-        <iframe
-          src={content.value}
-          title={content.title}
-          className="h-[400px] w-full rounded-xl border border-slate-200"
-        />
+        <div className="relative">
+          <iframe
+            src={content.value}
+            title={content.title}
+            className="h-[400px] w-full rounded-xl border border-slate-200"
+          />
+          {isSharePointUrl(content.value) && <SharePointHelp noun={content.type === "PPT" ? "presentation" : "document"} />}
+        </div>
         <div className="mt-6">
           <CompleteButton contentId={content.id} />
         </div>
-        {isSharePointUrl(content.value) && (
-          <div className="mt-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            <AlertTriangle size={16} className="shrink-0" />
-            {sharePointSignInHint(content.type === "PPT" ? "presentation" : "document")}
-          </div>
-        )}
         <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
       </div>
     )
