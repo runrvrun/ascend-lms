@@ -34,12 +34,12 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Map,
         steps: [
           "Click Pathways in the left sidebar.",
-          "Browse all available published pathways. Each card shows the pathway name, description, and tags.",
+          "Browse all publicly visible pathways. Each card shows the pathway name, description, and tags. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
           "Click a pathway card to view its details and the list of courses inside.",
           {
             heading: "To enroll:",
             items: [
-              "If the pathway does not require approval, click Enroll — you will be enrolled immediately.",
+              "If the pathway is free enroll, click Enroll — you will be enrolled immediately.",
               "If the pathway requires manager approval, click Request Enrollment, add an optional note, and submit. You will be notified once your manager approves or rejects the request.",
             ],
           },
@@ -142,7 +142,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Go to Admin → Pathways.",
           "Click Add Pathway to create a new pathway. Fill in the name, description, and tags.",
-          "Toggle Requires Approval if learners need manager sign-off before enrolling.",
+          "Set the pathway's visibility: Public — free enroll, Public — needs approval (manager sign-off required), or Hidden — assigned only (not shown on the Pathways page; only reachable by an admin or manager assigning it directly).",
           "Open a pathway to manage its courses — add, reorder, or remove courses, and set point values per course.",
           "Use the status toggle to publish or draft a pathway.",
         ],

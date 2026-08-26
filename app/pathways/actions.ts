@@ -18,6 +18,9 @@ export async function enrollPathway(pathwayId: string) {
   const session = await getSession()
   const userId = (session.user as any).id as string
 
+  const pathway = await prisma.pathway.findUnique({ where: { id: pathwayId }, select: { visibility: true } })
+  if (pathway?.visibility !== "PUBLIC_FREE") throw new Error("This pathway is not open for self-enrollment.")
+
   await prisma.pathwayEnrollment.upsert({
     where: { userId_pathwayId: { userId, pathwayId } },
     create: { userId, pathwayId, type: "SELF_ENROLL", status: "APPROVED" },
@@ -180,6 +183,9 @@ export async function submitTest(
 export async function requestPathway(pathwayId: string, note: string) {
   const session = await getSession()
   const userId = (session.user as any).id as string
+
+  const target = await prisma.pathway.findUnique({ where: { id: pathwayId }, select: { visibility: true } })
+  if (target?.visibility !== "PUBLIC_APPROVAL") throw new Error("This pathway does not accept enrollment requests.")
 
   const [, user, pathway] = await Promise.all([
     prisma.pathwayEnrollment.upsert({

@@ -70,12 +70,12 @@ async function seedOptions(
 async function upsertPathway(
   name: string,
   description: string,
-  requiresApproval: boolean
+  visibility: "PUBLIC_FREE" | "PUBLIC_APPROVAL" | "HIDDEN"
 ) {
   return prisma.pathway.upsert({
     where: { name },
-    create: { name, description, requiresApproval },
-    update: { description, requiresApproval },
+    create: { name, description, visibility },
+    update: { description, visibility },
   })
 }
 
@@ -594,7 +594,7 @@ Building Good Analytical Habits:
   const p1 = await upsertPathway(
     "YCP New Joiner Program",
     "Everything you need to know to hit the ground running as a new YCP professional. Covers the firm's history, culture, mindset, and code of conduct.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p1.id, c1.id, 1, 10)
   await linkCourseToPathway(p1.id, c2.id, 2, 10)
@@ -603,7 +603,7 @@ Building Good Analytical Habits:
   const p2 = await upsertPathway(
     "Leadership Development Program",
     "A curated program for YCP managers and senior professionals. Covers the foundations of leadership, coaching, and stakeholder communication. Requires manager approval to enrol.",
-    true
+    "PUBLIC_APPROVAL"
   )
   await linkCourseToPathway(p2.id, c4.id, 1, 20)
   await linkCourseToPathway(p2.id, c5.id, 2, 20)
@@ -611,7 +611,7 @@ Building Good Analytical Habits:
   const p3 = await upsertPathway(
     "Consulting Fundamentals",
     "The core analytical and problem-solving toolkit for YCP consultants at every level. Covers structured thinking, MECE, issue trees, and data-driven decision making.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p3.id, c6.id, 1, 15)
   await linkCourseToPathway(p3.id, c7.id, 2, 15)
@@ -1862,7 +1862,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p4 = await upsertPathway(
     "Project Management Fundamentals",
     "A practical introduction to managing projects from initiation to delivery. Covers scope, scheduling, risk, and stakeholder management.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p4.id, c8.id, 1, 15)
   await linkCourseToPathway(p4.id, c9.id, 2, 15)
@@ -1870,7 +1870,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p5 = await upsertPathway(
     "Mergers and Acquisitions",
     "A comprehensive guide to the M&A process — from deal strategy and due diligence to valuation and synergy analysis. Requires approval to enrol.",
-    true
+    "PUBLIC_APPROVAL"
   )
   await linkCourseToPathway(p5.id, c10.id, 1, 25)
   await linkCourseToPathway(p5.id, c11.id, 2, 25)
@@ -1878,7 +1878,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p6 = await upsertPathway(
     "Market Research and Consumer Insights",
     "Learn how to design research studies, avoid common biases, and translate raw data into compelling business insights.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p6.id, c12.id, 1, 15)
   await linkCourseToPathway(p6.id, c13.id, 2, 15)
@@ -1886,7 +1886,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p7 = await upsertPathway(
     "Lean Six Sigma Fundamentals",
     "Master the principles of Lean thinking and the DMAIC problem-solving framework to eliminate waste and reduce variation in any process.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p7.id, c14.id, 1, 20)
   await linkCourseToPathway(p7.id, c15.id, 2, 20)
@@ -1894,14 +1894,14 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p8 = await upsertPathway(
     "Remote Work Excellence",
     "Build the productivity routines, communication habits, and collaboration skills needed to thrive in a remote or hybrid work environment.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p8.id, c16.id, 1, 10)
 
   const p9 = await upsertPathway(
     "Professional Communication",
     "Master business writing and presentation skills to communicate with clarity, confidence, and impact in any professional setting.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p9.id, c17.id, 1, 10)
   await linkCourseToPathway(p9.id, c18.id, 2, 10)
@@ -1909,7 +1909,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p10 = await upsertPathway(
     "Strategic Planning and Execution",
     "From SWOT and Porter's Five Forces to OKRs and execution disciplines — a complete toolkit for setting direction and delivering results. Requires approval to enrol.",
-    true
+    "PUBLIC_APPROVAL"
   )
   await linkCourseToPathway(p10.id, c19.id, 1, 20)
   await linkCourseToPathway(p10.id, c20.id, 2, 20)
@@ -1917,7 +1917,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p11 = await upsertPathway(
     "Change Management",
     "Understand the psychology of change and learn practical frameworks — Kotter's 8 Steps, ADKAR, and communication planning — to lead organisations through transformation.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p11.id, c21.id, 1, 15)
   await linkCourseToPathway(p11.id, c22.id, 2, 15)
@@ -1925,7 +1925,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p12 = await upsertPathway(
     "Business Development and Client Management",
     "Build and manage a BD pipeline, craft compelling value propositions, and develop the client relationship skills that drive long-term growth.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p12.id, c23.id, 1, 15)
   await linkCourseToPathway(p12.id, c24.id, 2, 15)
@@ -1933,7 +1933,7 @@ Despite best efforts, difficult situations arise — missed deadlines, quality i
   const p13 = await upsertPathway(
     "Virtual Collaboration and Team Dynamics",
     "Develop the skills to lead and contribute effectively in remote and distributed teams, from async communication to virtual meeting best practices.",
-    false
+    "PUBLIC_FREE"
   )
   await linkCourseToPathway(p13.id, c16.id, 1, 10)
   await linkCourseToPathway(p13.id, c17.id, 2, 10)

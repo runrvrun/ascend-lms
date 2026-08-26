@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "../../lib/prisma"
 import { sendPathwayAssigned } from "../../lib/email"
+import { PathwayVisibility } from "@prisma/client"
 
 export type PathwayFormData = {
   name: string
   description: string
-  requiresApproval: boolean
+  visibility: PathwayVisibility
   tags: string[]
 }
 
@@ -16,7 +17,7 @@ export async function createPathway(data: PathwayFormData) {
     data: {
       name: data.name,
       description: data.description || null,
-      requiresApproval: data.requiresApproval,
+      visibility: data.visibility,
       tags: data.tags,
       status: "DRAFT",
     },
@@ -30,7 +31,7 @@ export async function updatePathway(id: string, data: PathwayFormData) {
     data: {
       name: data.name,
       description: data.description || null,
-      requiresApproval: data.requiresApproval,
+      visibility: data.visibility,
       tags: data.tags,
     },
   })
@@ -70,7 +71,7 @@ export async function duplicatePathway(id: string): Promise<string> {
       name: newName,
       description: source.description,
       status: "DRAFT",
-      requiresApproval: source.requiresApproval,
+      visibility: source.visibility,
       tags: source.tags,
     },
   })

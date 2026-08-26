@@ -16,12 +16,12 @@ export default async function PathwaysPage() {
 
   const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts, currentUser, divisionEnrollments] = await Promise.all([
     prisma.pathway.findMany({
-      where: { deletedAt: null, status: "PUBLISHED" },
+      where: { deletedAt: null, status: "PUBLISHED", visibility: { not: "HIDDEN" } },
       select: {
         id: true,
         name: true,
         description: true,
-        requiresApproval: true,
+        visibility: true,
         tags: true,
         _count: { select: { courses: true, pathwayEnrollments: true } },
       },

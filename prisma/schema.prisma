@@ -199,7 +199,7 @@ model Pathway {
   id                String        @id @default(dbgenerated("gen_random_uuid()::text"))
   name              String        @unique
   description       String?
-  requiresApproval  Boolean       @default(false)
+  visibility        PathwayVisibility @default(PUBLIC_FREE)
   tags              String[]      @default([])
   status            PublishStatus @default(PUBLISHED)
 
@@ -223,6 +223,12 @@ model Pathway {
 enum PublishStatus {
   DRAFT
   PUBLISHED
+}
+
+enum PathwayVisibility {
+  PUBLIC_FREE
+  PUBLIC_APPROVAL
+  HIDDEN
 }
 
 model Course {

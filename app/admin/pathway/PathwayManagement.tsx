@@ -4,12 +4,13 @@ import { useState, useTransition, useRef } from "react"
 import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Users, Copy, Eye } from "lucide-react"
 import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, PathwayFormData } from "./actions"
 import { ActionsMenu } from "../../components/ActionsMenu"
+import type { PathwayVisibility } from "@prisma/client"
 
 type PathwayRow = {
   id: string
   name: string
   description: string | null
-  requiresApproval: boolean
+  visibility: PathwayVisibility
   tags: string[]
   status: "DRAFT" | "PUBLISHED"
   _count: { courses: number }
@@ -18,7 +19,19 @@ type PathwayRow = {
   createdAt: Date
 }
 
-const empty: PathwayFormData = { name: "", description: "", requiresApproval: false, tags: [] }
+const VISIBILITY_OPTIONS: { value: PathwayVisibility; label: string; description: string }[] = [
+  { value: "PUBLIC_FREE", label: "Public — free enroll", description: "Visible to everyone. Users can enroll immediately, no approval needed." },
+  { value: "PUBLIC_APPROVAL", label: "Public — needs approval", description: "Visible to everyone. Users must request enrollment and get approval from their manager." },
+  { value: "HIDDEN", label: "Hidden — assigned only", description: "Not shown on the Pathways page. Only enrolled by an admin or manager assigning it directly." },
+]
+
+const VISIBILITY_BADGE: Record<PathwayVisibility, { label: string; className: string }> = {
+  PUBLIC_FREE: { label: "Free enroll", className: "bg-green-100 text-green-700" },
+  PUBLIC_APPROVAL: { label: "Approval required", className: "bg-amber-100 text-amber-700" },
+  HIDDEN: { label: "Hidden", className: "bg-slate-200 text-slate-600" },
+}
+
+const empty: PathwayFormData = { name: "", description: "", visibility: "PUBLIC_FREE", tags: [] }
 
 function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[]) => void }) {
   const [input, setInput] = useState("")
@@ -155,18 +168,27 @@ function PathwayFormModal({
           </div>
 
           <div>
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={form.requiresApproval ?? false}
-                onChange={(e) => setForm((f) => ({ ...f, requiresApproval: e.target.checked }))}
-                className="mt-0.5 h-4 w-4 rounded accent-blue-600"
-              />
-              <div>
-                <p className="text-sm font-medium text-slate-800">Requires approval</p>
-                <p className="text-xs text-slate-500">Enrollment must be approved by the user's manager before starting.</p>
-              </div>
-            </label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Visibility</label>
+            <div className="flex flex-col gap-2">
+              {VISIBILITY_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50 has-[:checked]:border-blue-300 has-[:checked]:bg-blue-50/50"
+                >
+                  <input
+                    type="radio"
+                    name="visibility"
+                    checked={form.visibility === opt.value}
+                    onChange={() => setForm((f) => ({ ...f, visibility: opt.value }))}
+                    className="mt-0.5 h-4 w-4 accent-blue-600"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{opt.label}</p>
+                    <p className="text-xs text-slate-500">{opt.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
 
           <TagInput tags={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
@@ -266,7 +288,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
               <th className="px-5 py-3">Description</th>
               <th className="px-5 py-3">Tags</th>
               <th className="px-5 py-3 text-center">Status</th>
-              <th className="px-5 py-3 text-center">Enrollment</th>
+              <th className="px-5 py-3 text-center">Visibility</th>
               <th className="px-5 py-3 text-center">Courses</th>
               <th className="px-5 py-3 text-center">Enrolled Users</th>
               <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
@@ -306,11 +328,9 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                   <StatusToggle id={p.id} status={p.status} />
                 </td>
                 <td className="px-5 py-3 text-center">
-                  {p.requiresApproval ? (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">Approval required</span>
-                  ) : (
-                    <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Free enroll</span>
-                  )}
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${VISIBILITY_BADGE[p.visibility].className}`}>
+                    {VISIBILITY_BADGE[p.visibility].label}
+                  </span>
                 </td>
                 <td className="px-5 py-3 text-center text-slate-600">{p._count.courses}</td>
                 <td className="px-5 py-3 text-center">
@@ -356,7 +376,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
       {editing && (
         <PathwayFormModal
           title="Edit Pathway"
-          initial={{ name: editing.name, description: editing.description ?? "", requiresApproval: editing.requiresApproval, tags: editing.tags }}
+          initial={{ name: editing.name, description: editing.description ?? "", visibility: editing.visibility, tags: editing.tags }}
           onClose={() => setEditing(null)}
           onSubmit={(data) => updatePathway(editing.id, data)}
         />

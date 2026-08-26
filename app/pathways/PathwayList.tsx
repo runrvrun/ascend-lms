@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles } from "lucide-react"
-import { EnrollmentStatus } from "@prisma/client"
+import { EnrollmentStatus, PathwayVisibility } from "@prisma/client"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
 
 type EnrollmentInfo = {
@@ -15,7 +15,7 @@ type PathwayCard = {
   id: string
   name: string
   description: string | null
-  requiresApproval: boolean
+  visibility: PathwayVisibility
   tags: string[]
   isCompleted: boolean
   completedCourses: number
@@ -126,7 +126,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
       )
     }
 
-    if (pathway.requiresApproval) {
+    if (pathway.visibility === "PUBLIC_APPROVAL") {
       return (
         <button
           onClick={() => setRequesting(true)}
@@ -164,7 +164,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
             </div>
             <h3 className="font-semibold text-slate-900 leading-snug">{pathway.name}</h3>
           </div>
-          {pathway.requiresApproval ? (
+          {pathway.visibility === "PUBLIC_APPROVAL" ? (
             <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Approval required</span>
           ) : (
             <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Free enroll</span>
