@@ -76,6 +76,7 @@ function UserFormModal({
 }) {
   const [form, setForm] = useState<UserFormData>(initial)
   const [pending, startTransition] = useTransition()
+  const [error, setError] = useState("")
 
   function set(field: keyof UserFormData, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -83,9 +84,14 @@ function UserFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setError("")
     startTransition(async () => {
-      await onSubmit(form)
-      onClose()
+      try {
+        await onSubmit(form)
+        onClose()
+      } catch (err: any) {
+        setError(err.message ?? "Failed to save user.")
+      }
     })
   }
 
@@ -161,6 +167,8 @@ function UserFormModal({
               clearLabel="— No office —"
             />
           </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">

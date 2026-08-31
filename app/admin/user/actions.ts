@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "../../lib/prisma"
-import { Division, JobTitle, Role } from "@prisma/client"
+import { Division, JobTitle, Prisma, Role } from "@prisma/client"
 import * as xlsx from "xlsx"
 import crypto from "crypto"
 import bcrypt from "bcryptjs"
@@ -19,30 +19,48 @@ export type UserFormData = {
   officeId: string
 }
 
+function isDuplicateEmailError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002" &&
+    (error.meta?.target as string[] | undefined)?.includes("email")
+  )
+}
+
 export async function createUser(data: UserFormData) {
-  await prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      division: data.division,
-      title: data.title,
-      officeId: data.officeId || null,
-    },
-  })
+  try {
+    await prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email,
+        division: data.division,
+        title: data.title,
+        officeId: data.officeId || null,
+      },
+    })
+  } catch (error) {
+    if (isDuplicateEmailError(error)) throw new Error("A user with this email already exists.")
+    throw error
+  }
   revalidatePath("/admin/user")
 }
 
 export async function updateUser(id: string, data: UserFormData) {
-  await prisma.user.update({
-    where: { id },
-    data: {
-      name: data.name,
-      email: data.email,
-      division: data.division,
-      title: data.title,
-      officeId: data.officeId || null,
-    },
-  })
+  try {
+    await prisma.user.update({
+      where: { id },
+      data: {
+        name: data.name,
+        email: data.email,
+        division: data.division,
+        title: data.title,
+        officeId: data.officeId || null,
+      },
+    })
+  } catch (error) {
+    if (isDuplicateEmailError(error)) throw new Error("A user with this email already exists.")
+    throw error
+  }
   revalidatePath("/admin/user")
 }
 

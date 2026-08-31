@@ -45,3 +45,6 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# M365 sync script's delta-query cursor (per-host state, not shared)
+/scripts/.m365-sync-state.json

@@ -7,7 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx --env-file=.env prisma/seed.ts"
+    "seed": "tsx --env-file=.env prisma/seed.ts",
+    "sync-m365-users": "tsx --env-file=.env scripts/sync-m365-users.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"
