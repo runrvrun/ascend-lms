@@ -1223,19 +1223,19 @@ function CourseSection({
     <div>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-100"
+        className="flex w-full items-start gap-2 px-4 py-2.5 text-left hover:bg-slate-100"
       >
         {open ? (
-          <ChevronDown size={13} className="shrink-0 text-slate-400" />
+          <ChevronDown size={13} className="mt-0.5 shrink-0 text-slate-400" />
         ) : (
-          <ChevronRight size={13} className="shrink-0 text-slate-400" />
+          <ChevronRight size={13} className="mt-0.5 shrink-0 text-slate-400" />
         )}
         {courseCompleted ? (
-          <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+          <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-green-500" />
         ) : (
-          <BookOpen size={13} className="shrink-0 text-blue-500" />
+          <BookOpen size={13} className="mt-0.5 shrink-0 text-blue-500" />
         )}
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-700 truncate">
+        <span className="line-clamp-2 min-w-0 text-xs font-semibold uppercase tracking-wide text-slate-700">
           {course.name}
         </span>
       </button>
