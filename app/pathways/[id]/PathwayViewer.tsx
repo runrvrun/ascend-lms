@@ -1176,7 +1176,6 @@ function ContentViewer({
         </div>
         <div>
           <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
-          <p className="mt-1 max-w-sm text-sm text-slate-500 break-all">{content.value}</p>
         </div>
         <a
           href={content.value}
