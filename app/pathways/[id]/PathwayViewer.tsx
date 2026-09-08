@@ -1256,20 +1256,20 @@ function CourseSection({
                   <button
                     key={c.id}
                     onClick={() => onSelect({ kind: "content", content: c, courseId: course.id })}
-                    className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                    className={`flex w-full items-start gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
                       active
                         ? "bg-blue-50 text-blue-700 font-medium"
                         : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
                     {done ? (
-                      <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+                      <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-green-500" />
                     ) : (
-                      <span className={active ? "text-blue-500" : "text-slate-400"}>
+                      <span className={`mt-0.5 shrink-0 ${active ? "text-blue-500" : "text-slate-400"}`}>
                         {TYPE_ICON[c.type]}
                       </span>
                     )}
-                    <span className="truncate">{c.title}</span>
+                    <span className="line-clamp-2 min-w-0">{c.title}</span>
                   </button>
                 )
               }
@@ -1287,18 +1287,18 @@ function CourseSection({
                       courseName: course.name,
                     })
                   }
-                  className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                  className={`flex w-full items-start gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
                     active ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
                   {testStatusByTestId[t.id] === "PASSED" ? (
-                    <CheckCircle2 size={13} className="shrink-0 text-green-500" />
+                    <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-green-500" />
                   ) : (
-                    <span className={active ? "text-blue-500" : "text-slate-400"}>
+                    <span className={`mt-0.5 shrink-0 ${active ? "text-blue-500" : "text-slate-400"}`}>
                       <ClipboardList size={13} />
                     </span>
                   )}
-                  <span className="truncate">{t.title}</span>
+                  <span className="line-clamp-2 min-w-0">{t.title}</span>
                 </button>
               )
             })}
