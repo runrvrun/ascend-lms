@@ -1235,7 +1235,7 @@ function CourseSection({
         ) : (
           <BookOpen size={13} className="mt-0.5 shrink-0 text-blue-500" />
         )}
-        <span className="line-clamp-2 min-w-0 text-xs font-semibold uppercase tracking-wide text-slate-700">
+        <span className="line-clamp-2 min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
           {course.name}
         </span>
       </button>
@@ -1269,7 +1269,7 @@ function CourseSection({
                         {TYPE_ICON[c.type]}
                       </span>
                     )}
-                    <span className="line-clamp-2 min-w-0">{c.title}</span>
+                    <span className="line-clamp-2 min-w-0 flex-1">{c.title}</span>
                   </button>
                 )
               }
@@ -1298,7 +1298,7 @@ function CourseSection({
                       <ClipboardList size={13} />
                     </span>
                   )}
-                  <span className="line-clamp-2 min-w-0">{t.title}</span>
+                  <span className="line-clamp-2 min-w-0 flex-1">{t.title}</span>
                 </button>
               )
             })}
