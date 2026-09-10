@@ -17,10 +17,10 @@ export default async function PathwayDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ preview?: string }>
+  searchParams: Promise<{ preview?: string; course?: string }>
 }) {
   const { id } = await params
-  const { preview } = await searchParams
+  const { preview, course: initialCourseId } = await searchParams
   const isPreviewMode = preview === "1"
 
   const session = await getServerSession(authOptions)
@@ -191,6 +191,7 @@ export default async function PathwayDetailPage({
         isPreview={isPreviewMode}
         backHref={isPreviewMode ? "/admin/pathway" : "/pathways"}
         backLabel={isPreviewMode ? "Pathways (Admin)" : "Pathways"}
+        initialCourseId={initialCourseId}
       />
     </div>
   )

@@ -18,3 +18,13 @@ export async function changePassword(newPassword: string): Promise<{ error?: str
   await prisma.user.update({ where: { id: userId }, data: { password: hashed } })
   return {}
 }
+
+export async function updateEmailReminderPreference(optIn: boolean) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return
+
+  const userId = (session.user as any).id as string
+  if (!userId) return
+
+  await prisma.user.update({ where: { id: userId }, data: { emailReminderOptIn: optIn } })
+}

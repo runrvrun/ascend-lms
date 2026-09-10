@@ -13,6 +13,7 @@ model User {
   emailVerified DateTime?
   image         String?
   status        UserStatus @default(ACTIVE)
+  emailReminderOptIn Boolean @default(true)
 
   //employee data
   division     Division @default(MSD)

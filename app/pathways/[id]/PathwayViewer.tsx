@@ -1611,6 +1611,7 @@ export function PathwayViewer({
   isPreview,
   backHref,
   backLabel,
+  initialCourseId,
 }: {
   pathway: PathwayData
   completedContentIds: Set<string>
@@ -1625,8 +1626,11 @@ export function PathwayViewer({
   isPreview?: boolean
   backHref?: string
   backLabel?: string
+  initialCourseId?: string
 }) {
-  const firstCourse = pathway.courses[0]?.course
+  const firstCourse =
+    (initialCourseId && pathway.courses.find((e) => e.course.id === initialCourseId)?.course) ||
+    pathway.courses[0]?.course
   const firstContent = firstCourse?.contents[0]
   const [selected, setSelected] = useState<Selection | null>(
     firstContent

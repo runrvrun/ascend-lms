@@ -171,6 +171,39 @@ export async function sendPathwayAssigned(
   )
 }
 
+export async function sendLearningReminder(
+  to: string,
+  userName: string,
+  message: string,
+  pathways: { pathwayId: string; pathwayName: string; nextCourseName: string }[],
+  startLearningUrl: string
+) {
+  const pathwayItems = pathways
+    .map(
+      (p) => `
+      <li style="margin-bottom:8px;">
+        <strong>${p.pathwayName}</strong> — Next up: ${p.nextCourseName}
+      </li>`
+    )
+    .join("")
+
+  await send(
+    to,
+    message,
+    layout(`
+      <p>Hi <strong>${userName}</strong>,</p>
+      <p style="font-size:16px;font-weight:600;margin:12px 0 20px;">${message}</p>
+      <ul style="margin:0 0 20px;padding-left:20px;">${pathwayItems}</ul>
+      <p>
+        <a href="${startLearningUrl}"
+           style="background:#194693;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;">
+          Start Learning
+        </a>
+      </p>
+    `)
+  )
+}
+
 export async function sendNewEnrollmentRequest(
   to: string,
   managerName: string,
