@@ -237,3 +237,48 @@ export async function adminRemoveCohortFromPathway(cohortPathwayId: string, path
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
   revalidatePath(`/admin/pathway`)
 }
+
+// ── Pathway Reminders ─────────────────────────────────────────────────────────
+
+function assertOnTheHour(scheduledAt: Date) {
+  // Use UTC getters so this check doesn't depend on the server process's local
+  // timezone — it only assumes the admin's own timezone has a whole-hour UTC
+  // offset (true for Singapore/Japan), which the client-side picker relies on too.
+  if (scheduledAt.getUTCMinutes() !== 0 || scheduledAt.getUTCSeconds() !== 0 || scheduledAt.getUTCMilliseconds() !== 0) {
+    throw new Error("Reminders can only be scheduled on the hour.")
+  }
+  if (scheduledAt.getTime() <= Date.now()) {
+    throw new Error("Reminder time must be in the future.")
+  }
+}
+
+export async function adminAddEnrollmentReminder(
+  enrollmentId: string,
+  pathwayId: string,
+  scheduledAt: Date,
+  message?: string
+) {
+  assertOnTheHour(scheduledAt)
+  await prisma.pathwayReminder.create({
+    data: { enrollmentId, pathwayId, scheduledAt, message: message || null },
+  })
+  revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
+}
+
+export async function adminAddCohortReminder(
+  cohortPathwayId: string,
+  pathwayId: string,
+  scheduledAt: Date,
+  message?: string
+) {
+  assertOnTheHour(scheduledAt)
+  await prisma.pathwayReminder.create({
+    data: { cohortPathwayId, pathwayId, scheduledAt, message: message || null },
+  })
+  revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
+}
+
+export async function adminDeleteReminder(reminderId: string, pathwayId: string) {
+  await prisma.pathwayReminder.delete({ where: { id: reminderId } })
+  revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
+}

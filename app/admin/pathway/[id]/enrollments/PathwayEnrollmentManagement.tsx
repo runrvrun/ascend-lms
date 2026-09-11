@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from "react"
 import {
   Plus, Trash2, X, UserCircle2, Search,
-  CheckSquare, Square, Users, UsersRound,
+  CheckSquare, Square, Users, UsersRound, Bell,
 } from "lucide-react"
 import {
   adminEnrollUsers,
@@ -11,6 +11,7 @@ import {
   adminAssignCohortToPathway,
   adminRemoveCohortFromPathway,
 } from "../../actions"
+import { ReminderModal, ReminderItem } from "./ReminderModal"
 
 type IndividualEnrollment = {
   id: string
@@ -18,11 +19,13 @@ type IndividualEnrollment = {
   status: "PENDING" | "APPROVED" | "REJECTED"
   createdAt: Date
   user: { id: string; name: string | null; email: string | null; division: string }
+  reminders: ReminderItem[]
 }
 
 type CohortAssignment = {
   id: string
   cohort: { id: string; name: string; _count: { users: number } }
+  reminders: ReminderItem[]
 }
 
 type UserOption = {
@@ -54,6 +57,10 @@ function statusBadge(status: IndividualEnrollment["status"]) {
 
 function formatDate(d: Date) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+function pendingReminderCount(reminders: ReminderItem[]) {
+  return reminders.filter((r) => !r.sentAt).length
 }
 
 // ── Add Users Modal ───────────────────────────────────────────────────────────
@@ -365,6 +372,12 @@ export function PathwayEnrollmentManagement({
   const [assigningCohort, setAssigningCohort] = useState(false)
   const [removingEnrollment, setRemovingEnrollment] = useState<IndividualEnrollment | null>(null)
   const [removingCohort, setRemovingCohort] = useState<CohortAssignment | null>(null)
+  const [remindingEnrollmentId, setRemindingEnrollmentId] = useState<string | null>(null)
+  const [remindingCohortId, setRemindingCohortId] = useState<string | null>(null)
+  // Derived (not just captured at click-time) so the modal reflects fresh
+  // `reminders` after an add/delete triggers a server revalidation.
+  const remindingEnrollment = individualEnrollments.find((e) => e.id === remindingEnrollmentId) ?? null
+  const remindingCohort = cohortAssignments.find((c) => c.id === remindingCohortId) ?? null
 
   const cohortMemberTotal = cohortAssignments.reduce((s, ca) => s + ca.cohort._count.users, 0)
   const total = individualEnrollments.length + cohortMemberTotal
@@ -434,7 +447,20 @@ export function PathwayEnrollmentManagement({
                     <td className="px-5 py-3">{statusBadge(e.status)}</td>
                     <td className="px-5 py-3 text-xs text-slate-400">{formatDate(e.createdAt)}</td>
                     <td className="px-5 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          disabled={e.status !== "APPROVED"}
+                          onClick={() => setRemindingEnrollmentId(e.id)}
+                          title={e.status !== "APPROVED" ? "Reminders are only available for approved enrollments" : "Reminders"}
+                          className="relative rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                        >
+                          <Bell size={14} />
+                          {pendingReminderCount(e.reminders) > 0 && (
+                            <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white">
+                              {pendingReminderCount(e.reminders)}
+                            </span>
+                          )}
+                        </button>
                         <button
                           onClick={() => setRemovingEnrollment(e)}
                           className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
@@ -493,7 +519,19 @@ export function PathwayEnrollmentManagement({
                       </span>
                     </td>
                     <td className="px-5 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={() => setRemindingCohortId(ca.id)}
+                          title="Reminders"
+                          className="relative rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Bell size={14} />
+                          {pendingReminderCount(ca.reminders) > 0 && (
+                            <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white">
+                              {pendingReminderCount(ca.reminders)}
+                            </span>
+                          )}
+                        </button>
                         <button
                           onClick={() => setRemovingCohort(ca)}
                           className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
@@ -539,6 +577,26 @@ export function PathwayEnrollmentManagement({
           description={`"${removingCohort.cohort.name}" will be unassigned. Existing individual enrollments created through this cohort are not removed.`}
           onCancel={() => setRemovingCohort(null)}
           onConfirm={() => adminRemoveCohortFromPathway(removingCohort.id, pathwayId)}
+        />
+      )}
+      {remindingEnrollment && (
+        <ReminderModal
+          pathwayId={pathwayId}
+          target={{
+            kind: "enrollment",
+            id: remindingEnrollment.id,
+            label: remindingEnrollment.user.name ?? remindingEnrollment.user.email ?? "—",
+          }}
+          reminders={remindingEnrollment.reminders}
+          onClose={() => setRemindingEnrollmentId(null)}
+        />
+      )}
+      {remindingCohort && (
+        <ReminderModal
+          pathwayId={pathwayId}
+          target={{ kind: "cohort", id: remindingCohort.id, label: remindingCohort.cohort.name }}
+          reminders={remindingCohort.reminders}
+          onClose={() => setRemindingCohortId(null)}
         />
       )}
     </>

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "seed": "tsx --env-file=.env prisma/seed.ts",
     "sync-m365-users": "tsx --env-file=.env scripts/sync-m365-users.ts",
-    "send-pathway-reminders": "tsx --env-file=.env scripts/send-pathway-reminders.ts"
+    "send-pathway-reminders": "tsx --env-file=.env scripts/send-pathway-reminders.ts",
+    "send-custom-pathway-reminders": "tsx --env-file=.env scripts/send-custom-pathway-reminders.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"

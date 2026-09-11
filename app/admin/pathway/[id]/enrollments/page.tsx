@@ -27,6 +27,10 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
             status: true,
             createdAt: true,
             user: { select: { id: true, name: true, email: true, division: true } },
+            reminders: {
+              select: { id: true, scheduledAt: true, message: true, sentAt: true },
+              orderBy: { scheduledAt: "asc" },
+            },
           },
           orderBy: { createdAt: "desc" },
         },
@@ -39,6 +43,10 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
                 name: true,
                 _count: { select: { users: true } },
               },
+            },
+            reminders: {
+              select: { id: true, scheduledAt: true, message: true, sentAt: true },
+              orderBy: { scheduledAt: "asc" },
             },
           },
           orderBy: { id: "desc" },

@@ -193,6 +193,8 @@ model CohortPathway {
   cohort  Cohort  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
   pathway Pathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
 
+  reminders PathwayReminder[]
+
   @@unique([cohortId, pathwayId])
 }
 
@@ -215,6 +217,7 @@ model Pathway {
   assignmentSubmissions AssignmentSubmission[]
   courseFeedbacks       CourseFeedback[]
   growthPlans           GrowthPlan[]
+  reminders             PathwayReminder[]
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -516,6 +519,8 @@ model PathwayEnrollment {
   approver  User?   @relation("Approver", fields: [approvedById], references: [id])
   pathway   Pathway @relation(fields: [pathwayId], references: [id])
 
+  reminders PathwayReminder[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -523,6 +528,26 @@ model PathwayEnrollment {
   @@index([userId, status])
   @@index([pathwayId, status])
   @@index([cohortId])
+}
+
+model PathwayReminder {
+  id String @id @default(dbgenerated("gen_random_uuid()::text"))
+
+  pathwayId       String
+  enrollmentId    String?
+  cohortPathwayId String?
+
+  scheduledAt DateTime
+  message     String?
+  sentAt      DateTime?
+
+  pathway       Pathway            @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  enrollment    PathwayEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  cohortPathway CohortPathway?     @relation(fields: [cohortPathwayId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([sentAt, scheduledAt])
 }
 
 enum EnrollmentType {
