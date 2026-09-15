@@ -1,6 +1,6 @@
 // Sends a cheerful reminder email to every learner with an incomplete pathway,
 // pointing them at their next course. Intended to run on a schedule (cron),
-// twice a week, against the production DB.
+// weekly (Wednesdays), against the production DB.
 //
 //   npx tsx --env-file=.env scripts/send-pathway-reminders.ts
 import { PrismaClient } from "@prisma/client"
