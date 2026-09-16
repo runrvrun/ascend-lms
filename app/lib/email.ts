@@ -1,24 +1,35 @@
 // Email utility.
-// Production: set RESEND_API_KEY in .env → emails sent via Resend.
-// Development: leave RESEND_API_KEY unset → emails captured by Mailtrap sandbox.
+// Production: set SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD in .env → emails sent via SMTP.
+// Development: leave those unset → emails captured by Mailtrap sandbox.
 
-import { Resend } from "resend"
+import nodemailer from "nodemailer"
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://ycp-ascend-lms.vercel.app"
 
+let transporter: ReturnType<typeof nodemailer.createTransport> | null = null
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: true,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+    })
+  }
+  return transporter
+}
+
 async function send(to: string, subject: string, html: string) {
-  if (process.env.RESEND_API_KEY) {
+  if (process.env.SMTP_HOST) {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      const { error } = await resend.emails.send({
-        from: "Ascend LMS <noreply@ascend.ycp.com>",
-        to: [to],
+      await getTransporter().sendMail({
+        from: `Ascend LMS <${process.env.SMTP_USER}>`,
+        to,
         subject,
         html,
       })
-      if (error) console.error("[email] Resend error:", error)
     } catch (err) {
-      console.error("[email] Failed to send to", to, err)
+      console.error("[email] SMTP send failed to", to, err)
     }
     return
   }
