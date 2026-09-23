@@ -411,7 +411,13 @@ export function PathwayCourseManagement({
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <GraduationCap size={14} className="shrink-0 text-blue-400" />
-                        <span className="font-medium text-slate-900">{e.course.name}</span>
+                        <a
+                          href={`/admin/course/${e.course.id}`}
+                          className="font-medium text-slate-900 hover:text-blue-600 hover:underline"
+                          title="Edit course"
+                        >
+                          {e.course.name}
+                        </a>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
