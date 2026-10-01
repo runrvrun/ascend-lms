@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { Fragment, useState } from "react"
+import Link from "next/link"
 import {
   ArrowLeft,
   Download,
@@ -14,7 +15,10 @@ import {
   Search,
   X,
   MessageSquare,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react"
+import { CourseProgressDetail } from "../../../../components/CourseProgressTracker"
 import type { CourseReportData } from "../../../../lib/courseReport"
 
 type ReportUser = CourseReportData["users"][number]
@@ -100,6 +104,16 @@ export function CourseReport({ data }: { data: CourseReportData }) {
   const { course, stats, users, feedbacks } = data
   const [search, setSearch] = useState("")
   const [viewingFeedback, setViewingFeedback] = useState<ReportUser | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  function toggleExpanded(userId: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
+      return next
+    })
+  }
 
   const filtered = search
     ? users.filter(
@@ -249,10 +263,29 @@ export function CourseReport({ data }: { data: CourseReportData }) {
               </tr>
             )}
             {filtered.map((u) => (
-              <tr key={u.userId} className="hover:bg-slate-50">
+              <Fragment key={u.userId}>
+              <tr className="hover:bg-slate-50">
                 <td className="px-5 py-3">
-                  <div className="font-medium text-slate-900">{u.name ?? "Unknown"}</div>
+                  <div className="flex items-start gap-1.5">
+                  <button
+                    onClick={() => toggleExpanded(u.userId)}
+                    aria-label={expanded.has(u.userId) ? "Hide progress" : "Show progress"}
+                    className="mt-0.5 shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    {expanded.has(u.userId) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                  <div className="min-w-0">
+                  <Link href={`/admin/user/${u.userId}/progress`} className="font-medium text-slate-900 hover:text-blue-600 hover:underline">
+                    {u.name ?? "Unknown"}
+                  </Link>
                   <div className="text-xs text-slate-400">{u.email}</div>
+                  {u.progress.totalContents > 0 && (
+                    <div className="text-[11px] text-slate-400">
+                      {u.progress.completedContents}/{u.progress.totalContents} lessons
+                    </div>
+                  )}
+                  </div>
+                  </div>
                 </td>
                 <td className="px-5 py-3 text-slate-600">{u.division}</td>
                 <td className="px-5 py-3 text-slate-600">{formatDate(u.enrollDate)}</td>
@@ -300,6 +333,18 @@ export function CourseReport({ data }: { data: CourseReportData }) {
                   )}
                 </td>
               </tr>
+              {expanded.has(u.userId) && (
+                <tr>
+                  <td colSpan={9} className="bg-slate-50/60 px-5 pb-3 pt-0">
+                    {u.progress.totalContents + u.progress.tests.length > 0 || u.progress.hasAssignment ? (
+                      <CourseProgressDetail course={u.progress} className="rounded-lg border" />
+                    ) : (
+                      <p className="py-2 text-xs text-slate-400">This course has no lessons, tests, or assignment yet.</p>
+                    )}
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

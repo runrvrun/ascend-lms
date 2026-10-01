@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import type { CourseDetail } from "./userLearningProgress"
 
 export async function getCourseReportData(courseId: string) {
   const course = await prisma.course.findFirst({
@@ -6,7 +7,7 @@ export async function getCourseReportData(courseId: string) {
     include: {
       topic: { select: { name: true } },
       trainers: { include: { user: { select: { name: true } } } },
-      contents: { where: { deletedAt: null }, select: { id: true } },
+      contents: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, type: true } },
       tests: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, passThreshold: true } },
       assignment: { where: { deletedAt: null }, select: { id: true } },
       pathways: { include: { pathway: { select: { id: true, name: true, deletedAt: true } } } },
@@ -17,8 +18,9 @@ export async function getCourseReportData(courseId: string) {
   const pathwayNameById = new Map(course.pathways.map((pc) => [pc.pathwayId, pc.pathway.name]))
   const pathwayIds = course.pathways.filter((pc) => !pc.pathway.deletedAt).map((pc) => pc.pathwayId)
   const testIds = course.tests.map((t) => t.id)
+  const contentIds = course.contents.map((c) => c.id)
 
-  const [enrollments, progresses, testProgresses, submissions, feedbacks] = await Promise.all([
+  const [enrollments, progresses, testProgresses, submissions, feedbacks, contentProgresses] = await Promise.all([
     pathwayIds.length
       ? prisma.pathwayEnrollment.findMany({
           where: { pathwayId: { in: pathwayIds }, status: "APPROVED" },
@@ -52,6 +54,7 @@ export async function getCourseReportData(courseId: string) {
     course.assignment
       ? prisma.assignmentSubmission.findMany({
           where: { assignmentId: course.assignment.id },
+          orderBy: { createdAt: "asc" },
           select: { userId: true, status: true },
         })
       : [],
@@ -59,7 +62,26 @@ export async function getCourseReportData(courseId: string) {
       where: { courseId },
       select: { userId: true, rating: true, comment: true, createdAt: true, user: { select: { name: true } } },
     }),
+    contentIds.length && pathwayIds.length
+      ? prisma.contentProgress.findMany({
+          where: { contentId: { in: contentIds }, pathwayId: { in: pathwayIds } },
+          select: { userId: true, contentId: true, completedAt: true },
+        })
+      : [],
   ])
+
+  // Content progress is keyed per pathway too — a lesson counts as done if it was
+  // completed in any pathway, using the earliest completion date.
+  const contentCompletedAt = new Map<string, Date>()
+  for (const cp of contentProgresses) {
+    const key = `${cp.userId}:${cp.contentId}`
+    const existing = contentCompletedAt.get(key)
+    if (!existing || cp.completedAt < existing) contentCompletedAt.set(key, cp.completedAt)
+  }
+
+  // Latest submission per user (resubmits override), so an ungraded submission
+  // shows as awaiting review instead of untouched.
+  const latestSubmissionStatus = new Map(submissions.map((s) => [s.userId, s.status]))
 
   const feedbackByUserId = new Map(
     feedbacks.map((f) => [f.userId, { rating: f.rating, comment: f.comment, date: f.createdAt }])
@@ -128,6 +150,24 @@ export async function getCourseReportData(courseId: string) {
         const tp = testProgressByUserTest.get(`${userId}:${t.id}`)
         return { id: t.id, title: t.title, status: (tp?.status as "PASSED" | "FAILED" | undefined) ?? null, score: tp?.score ?? null }
       })
+      const contents = course.contents.map((c) => {
+        const at = contentCompletedAt.get(`${userId}:${c.id}`) ?? null
+        return { id: c.id, title: c.title, type: c.type, completed: !!at, completedAt: at ? at.toISOString() : null }
+      })
+      const progress: CourseDetail = {
+        id: course.id,
+        name: course.name,
+        sectionTitle: null,
+        completed,
+        completedAt: completedAt ? completedAt.toISOString() : null,
+        tests,
+        hasAssignment: !!course.assignment,
+        assignmentStatus:
+          (prog?.assignmentStatus as CourseDetail["assignmentStatus"]) ?? latestSubmissionStatus.get(userId) ?? null,
+        totalContents: contents.length,
+        completedContents: contents.filter((c) => c.completed).length,
+        contents,
+      }
       return {
         userId,
         name: info.user.name,
@@ -142,6 +182,7 @@ export async function getCourseReportData(courseId: string) {
         tests,
         assignmentStatus: prog?.assignmentStatus ?? null,
         feedback: feedbackByUserId.get(userId) ?? null,
+        progress,
       }
     })
     .sort((a, b) => (a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""))
