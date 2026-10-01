@@ -2,11 +2,15 @@
 // pointing them at their next course. Intended to run on a schedule (cron),
 // weekly (Wednesdays), against the production DB.
 //
+// Enrollments whose deadline day has already passed are skipped — those learners
+// got their deadline reminders (scripts/send-deadline-reminders.ts) instead.
+//
 //   npx tsx --env-file=.env scripts/send-pathway-reminders.ts
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { sendLearningReminder } from "../app/lib/email"
 import { pickMessage, sendThrottled } from "../app/lib/pathwayReminders"
+import { startOfUtcDay } from "../app/lib/pathwayDeadline"
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
@@ -20,6 +24,7 @@ async function main() {
       status: "APPROVED",
       user: { deletedAt: null, status: "ACTIVE", email: { not: null }, emailReminderOptIn: true },
       pathway: { deletedAt: null, status: "PUBLISHED" },
+      OR: [{ deadline: null }, { deadline: { gte: startOfUtcDay(new Date()) } }],
     },
     select: {
       userId: true,

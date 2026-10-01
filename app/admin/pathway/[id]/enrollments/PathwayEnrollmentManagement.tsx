@@ -3,20 +3,24 @@
 import { useState, useTransition, useMemo } from "react"
 import {
   Plus, Trash2, X, UserCircle2, Search,
-  CheckSquare, Square, Users, UsersRound, Bell,
+  CheckSquare, Square, Users, UsersRound, Bell, Pencil, Check,
 } from "lucide-react"
 import {
   adminEnrollUsers,
   adminRemoveEnrollment,
   adminAssignCohortToPathway,
   adminRemoveCohortFromPathway,
+  adminUpdateEnrollmentDeadline,
+  adminUpdateCohortDeadline,
 } from "../../actions"
+import { DEADLINE_GRACE_DAYS, isDeadlineLocked, isDeadlinePassed, toDeadlineInput } from "../../../../lib/pathwayDeadline"
 import { ReminderModal, ReminderItem } from "./ReminderModal"
 
 type IndividualEnrollment = {
   id: string
   type: "SELF_ENROLL" | "ASSIGNED" | "USER_REQUEST"
   status: "PENDING" | "APPROVED" | "REJECTED"
+  deadline: Date | null
   createdAt: Date
   user: { id: string; name: string | null; email: string | null; division: string }
   reminders: ReminderItem[]
@@ -24,6 +28,7 @@ type IndividualEnrollment = {
 
 type CohortAssignment = {
   id: string
+  deadline: Date | null
   cohort: { id: string; name: string; _count: { users: number } }
   reminders: ReminderItem[]
 }
@@ -59,6 +64,80 @@ function formatDate(d: Date) {
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
 }
 
+// Deadlines are calendar dates stored as UTC midnight — always format in UTC.
+function formatDeadline(d: Date) {
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
+}
+
+function DeadlineField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-slate-600">
+      Deadline
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <span className="text-xs text-slate-400">(optional)</span>
+    </label>
+  )
+}
+
+function DeadlineCell({ deadline, onSave }: { deadline: Date | null; onSave: (value: string | null) => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(toDeadlineInput(deadline))
+  const [pending, startTransition] = useTransition()
+
+  function save(next: string | null) {
+    startTransition(async () => {
+      await onSave(next)
+      setEditing(false)
+    })
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          type="date"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="w-[8.5rem] rounded-md border border-slate-200 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          autoFocus
+        />
+        <button disabled={pending} onClick={() => save(value || null)} title="Save" className="rounded p-1 text-green-600 hover:bg-green-50 disabled:opacity-50">
+          <Check size={13} />
+        </button>
+        <button disabled={pending} onClick={() => { setValue(toDeadlineInput(deadline)); setEditing(false) }} title="Cancel" className="rounded p-1 text-slate-400 hover:bg-slate-100">
+          <X size={13} />
+        </button>
+      </div>
+    )
+  }
+
+  const locked = isDeadlineLocked(deadline)
+  const passed = isDeadlinePassed(deadline)
+  return (
+    <div className="flex items-center gap-1.5">
+      {deadline ? (
+        <span
+          className={`text-xs ${locked ? "font-medium text-red-600" : passed ? "font-medium text-amber-600" : "text-slate-600"}`}
+          title={locked ? "Closed — learners can no longer record progress" : passed ? `Overdue — closes ${DEADLINE_GRACE_DAYS} days after the deadline` : undefined}
+        >
+          {formatDeadline(deadline)}
+          {locked ? " · closed" : passed ? " · overdue" : ""}
+        </span>
+      ) : (
+        <span className="text-xs text-slate-300">—</span>
+      )}
+      <button onClick={() => setEditing(true)} title="Edit deadline" className="rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-600">
+        <Pencil size={11} />
+      </button>
+    </div>
+  )
+}
+
 function pendingReminderCount(reminders: ReminderItem[]) {
   return reminders.filter((r) => !r.sentAt).length
 }
@@ -76,6 +155,7 @@ function AddUsersModal({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState("")
+  const [deadline, setDeadline] = useState("")
   const [pending, startTransition] = useTransition()
 
   const filtered = useMemo(() => {
@@ -105,7 +185,7 @@ function AddUsersModal({
   function handleSubmit() {
     if (selected.size === 0) return
     startTransition(async () => {
-      await adminEnrollUsers(pathwayId, Array.from(selected))
+      await adminEnrollUsers(pathwayId, Array.from(selected), deadline || null)
       onClose()
     })
   }
@@ -185,7 +265,10 @@ function AddUsersModal({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-between border-t border-slate-100 px-6 py-4">
+        <div className="shrink-0 border-t border-slate-100 px-6 pt-4">
+          <DeadlineField value={deadline} onChange={setDeadline} />
+        </div>
+        <div className="flex shrink-0 items-center justify-between px-6 py-4">
           <p className="text-sm text-slate-500">
             {selected.size === 0 ? "Select users to enroll" : `Enrolling ${selected.size} user${selected.size !== 1 ? "s" : ""}`}
           </p>
@@ -219,6 +302,7 @@ function AssignCohortModal({
   onClose: () => void
 }) {
   const [selectedId, setSelectedId] = useState(availableCohorts[0]?.id ?? "")
+  const [deadline, setDeadline] = useState("")
   const [pending, startTransition] = useTransition()
   const [search, setSearch] = useState("")
 
@@ -230,7 +314,7 @@ function AssignCohortModal({
   function handleSubmit() {
     if (!selectedId) return
     startTransition(async () => {
-      await adminAssignCohortToPathway(pathwayId, selectedId)
+      await adminAssignCohortToPathway(pathwayId, selectedId, deadline || null)
       onClose()
     })
   }
@@ -300,7 +384,11 @@ function AssignCohortModal({
           )}
         </div>
 
-        <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 px-6 py-4">
+        <div className="shrink-0 border-t border-slate-100 px-6 pt-4">
+          <DeadlineField value={deadline} onChange={setDeadline} />
+          <p className="mt-1 text-xs text-slate-400">Applies to current members and anyone added to the cohort later.</p>
+        </div>
+        <div className="flex shrink-0 justify-end gap-2 px-6 py-4">
           <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
             Cancel
           </button>
@@ -427,6 +515,7 @@ export function PathwayEnrollmentManagement({
                   <th className="px-5 py-3">Type</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Enrolled</th>
+                  <th className="px-5 py-3">Deadline</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
@@ -446,6 +535,13 @@ export function PathwayEnrollmentManagement({
                     <td className="px-5 py-3 text-slate-500 text-xs">{typeLabel(e.type)}</td>
                     <td className="px-5 py-3">{statusBadge(e.status)}</td>
                     <td className="px-5 py-3 text-xs text-slate-400">{formatDate(e.createdAt)}</td>
+                    <td className="px-5 py-3">
+                      <DeadlineCell
+                        key={toDeadlineInput(e.deadline)}
+                        deadline={e.deadline}
+                        onSave={(v) => adminUpdateEnrollmentDeadline(e.id, pathwayId, v)}
+                      />
+                    </td>
                     <td className="px-5 py-3">
                       <div className="flex justify-end gap-1">
                         <button
@@ -501,6 +597,7 @@ export function PathwayEnrollmentManagement({
                 <tr>
                   <th className="px-5 py-3">Cohort</th>
                   <th className="px-5 py-3 text-center">Members</th>
+                  <th className="px-5 py-3">Deadline</th>
                   <th className="px-5 py-3" />
                 </tr>
               </thead>
@@ -517,6 +614,13 @@ export function PathwayEnrollmentManagement({
                       <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
                         {ca.cohort._count.users}
                       </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <DeadlineCell
+                        key={toDeadlineInput(ca.deadline)}
+                        deadline={ca.deadline}
+                        onSave={(v) => adminUpdateCohortDeadline(ca.id, pathwayId, v)}
+                      />
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex justify-end gap-1">

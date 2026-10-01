@@ -190,6 +190,9 @@ model CohortPathway {
   cohortId  String
   pathwayId String
 
+  // Copied onto each member's PathwayEnrollment.deadline, including members who join later.
+  deadline DateTime?
+
   cohort  Cohort  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
   pathway Pathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
 
@@ -513,6 +516,8 @@ model PathwayEnrollment {
   type   EnrollmentType
   status EnrollmentStatus
 
+  // A calendar date stored as UTC midnight. See app/lib/pathwayDeadline.ts for
+  // the reminder / lockout rules derived from it.
   deadline DateTime?
 
   requestedById String?

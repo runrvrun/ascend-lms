@@ -33,6 +33,7 @@ import {
   Upload,
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
+import { DEADLINE_GRACE_DAYS } from "../../lib/pathwayDeadline"
 import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedback } from "../actions"
 import { createGrowthPlan, updateGrowthPlan, deleteGrowthPlan, toggleGrowthPlanComplete } from "../../growth-plan/actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
@@ -422,7 +423,36 @@ function QuestionCard({
   )
 }
 
+// ─── Deadline banner ──────────────────────────────────────────────────────────
+
+// `deadline` is a calendar date ("YYYY-MM-DD"); day math is done in UTC to match the server.
+function DeadlineBanner({ deadline }: { deadline: string }) {
+  const due = new Date(`${deadline}T00:00:00Z`)
+  const today = new Date()
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+  const daysLeft = Math.round((due.getTime() - todayUtc) / 86_400_000)
+  const label = due.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+
+  if (daysLeft < 0) {
+    const closesIn = DEADLINE_GRACE_DAYS + daysLeft + 1
+    return (
+      <div className="flex shrink-0 items-center justify-center gap-2 bg-red-50 px-4 py-2 text-center text-sm font-medium text-red-700">
+        <AlertTriangle size={14} className="shrink-0" />
+        Deadline passed on {label}. You have {closesIn} day{closesIn !== 1 ? "s" : ""} left to finish before this pathway closes.
+      </div>
+    )
+  }
+  return (
+    <div className={`flex shrink-0 items-center justify-center gap-2 px-4 py-2 text-center text-sm font-medium ${daysLeft <= 1 ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
+      <Clock size={14} className="shrink-0" />
+      Due {daysLeft === 0 ? "today" : daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`} ({label})
+    </div>
+  )
+}
+
 // ─── Test viewer ──────────────────────────────────────────────────────────────
+
+const LOCKED_NOTICE = `This pathway closed ${DEADLINE_GRACE_DAYS} days after its deadline. You can still view the content, but progress can no longer be recorded.`
 
 function TestViewer({
   test,
@@ -431,6 +461,7 @@ function TestViewer({
   courseName,
   isAlreadyPassed,
   isPreview,
+  isLocked,
 }: {
   test: TestItem
   courseId: string
@@ -438,6 +469,7 @@ function TestViewer({
   courseName: string
   isAlreadyPassed: boolean
   isPreview?: boolean
+  isLocked?: boolean
 }) {
   const [phase, setPhase] = useState<"idle" | "taking" | "result">("idle")
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
@@ -662,6 +694,8 @@ function TestViewer({
       <div className="mt-8">
         {isPreview ? (
           <p className="text-xs font-medium text-amber-600">Test submission is disabled in preview mode.</p>
+        ) : isLocked ? (
+          <p className="text-xs font-medium text-red-600">{LOCKED_NOTICE}</p>
         ) : (
           <button
             disabled={pending || !canSubmit}
@@ -690,6 +724,7 @@ function AssignmentViewer({
   submission,
   isAlreadyPassed,
   isPreview,
+  isLocked,
 }: {
   assignment: NonNullable<AssignmentItem>
   courseId: string
@@ -698,6 +733,7 @@ function AssignmentViewer({
   submission: SubmissionItem
   isAlreadyPassed: boolean
   isPreview?: boolean
+  isLocked?: boolean
 }) {
   const [mode, setMode] = useState<"file" | "link">("file")
   const [url, setUrl] = useState("")
@@ -825,7 +861,12 @@ function AssignmentViewer({
           Assignment submission is disabled in preview mode.
         </div>
       )}
-      {!isPreview && !isAlreadyPassed && status !== "PASSED" && !submitted && (
+      {isLocked && !isPreview && !isAlreadyPassed && status !== "PASSED" && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {LOCKED_NOTICE}
+        </div>
+      )}
+      {!isPreview && !isLocked && !isAlreadyPassed && status !== "PASSED" && !submitted && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <p className="mb-3 text-sm font-semibold text-slate-700">
             {status === "FAILED" ? "Resubmit your assignment" : "Submit your assignment"}
@@ -1032,6 +1073,7 @@ function ContentViewer({
   assignmentStatusByCourseId,
   feedbackByCourseId,
   isPreview,
+  isLocked,
 }: {
   selection: Selection | null
   pathwayId: string
@@ -1043,6 +1085,7 @@ function ContentViewer({
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   isPreview?: boolean
+  isLocked?: boolean
 }) {
   const [pending, startTransition] = useTransition()
   const [videoProgress, setVideoProgress] = useState(0)
@@ -1063,6 +1106,20 @@ function ContentViewer({
         <button disabled className="flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400 opacity-60">
           <Circle size={15} />
           Mark as Completed
+        </button>
+      )
+    }
+    if (isLocked) {
+      return (
+        <button
+          disabled
+          title={LOCKED_NOTICE}
+          className={`flex cursor-not-allowed items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold ${
+            done ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400 opacity-60"
+          }`}
+        >
+          {done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+          {done ? "Completed" : "Mark as Completed"}
         </button>
       )
     }
@@ -1110,6 +1167,7 @@ function ContentViewer({
         courseName={selection.courseName}
         isAlreadyPassed={testStatusByTestId[selection.test.id] === "PASSED"}
         isPreview={isPreview}
+        isLocked={isLocked}
       />
     )
   }
@@ -1124,6 +1182,7 @@ function ContentViewer({
         submission={latestSubmissionByAssignmentId[selection.assignment.id] ?? null}
         isAlreadyPassed={assignmentStatusByCourseId[selection.courseId] === "PASSED"}
         isPreview={isPreview}
+        isLocked={isLocked}
       />
     )
   }
@@ -1691,6 +1750,8 @@ export function PathwayViewer({
   assignmentStatusByCourseId,
   feedbackByCourseId,
   allGrowthPlans,
+  deadline,
+  isLocked,
   isPreview,
   backHref,
   backLabel,
@@ -1706,6 +1767,8 @@ export function PathwayViewer({
   assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   allGrowthPlans: GrowthPlanItem[]
+  deadline?: string | null // "YYYY-MM-DD"
+  isLocked?: boolean
   isPreview?: boolean
   backHref?: string
   backLabel?: string
@@ -1761,6 +1824,17 @@ export function PathwayViewer({
             Exit Preview <ArrowLeft size={11} className="rotate-180" />
           </a>
         </div>
+      )}
+
+      {/* Deadline banner */}
+      {!isPreview && !isPathwayComplete && isLocked && (
+        <div className="flex shrink-0 items-center justify-center gap-2 bg-red-600 px-4 py-2 text-center text-sm font-semibold text-white">
+          <AlertTriangle size={14} className="shrink-0" />
+          {LOCKED_NOTICE}
+        </div>
+      )}
+      {!isPreview && !isPathwayComplete && !isLocked && deadline && (
+        <DeadlineBanner deadline={deadline} />
       )}
 
       {/* Completion banner */}
@@ -1849,6 +1923,7 @@ export function PathwayViewer({
               assignmentStatusByCourseId={assignmentStatusByCourseId}
               feedbackByCourseId={feedbackByCourseId}
               isPreview={isPreview}
+              isLocked={isLocked}
             />
           )}
         </main>

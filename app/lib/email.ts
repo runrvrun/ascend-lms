@@ -158,7 +158,8 @@ export async function sendPathwayAssigned(
   userName: string,
   pathwayName: string,
   pathwayId: string,
-  cohortName?: string
+  cohortName?: string,
+  deadline?: Date | null
 ) {
   const link = `${BASE_URL}/pathways/${pathwayId}`
   await send(
@@ -172,10 +173,43 @@ export async function sendPathwayAssigned(
           : `You have been assigned to a new pathway:`
       }</p>
       <p style="font-size:16px;font-weight:600;margin:12px 0 20px;">${pathwayName}</p>
+      ${deadline ? `<p>Please complete it by <strong>${formatDeadline(deadline)}</strong>.</p>` : ""}
       <p>
         <a href="${link}"
            style="background:#194693;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;">
           View Pathway
+        </a>
+      </p>
+    `)
+  )
+}
+
+// Deadlines are calendar dates stored as UTC midnight — format in UTC so the day never shifts.
+function formatDeadline(deadline: Date) {
+  return deadline.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+}
+
+export async function sendDeadlineReminder(
+  to: string,
+  userName: string,
+  pathwayName: string,
+  deadline: Date,
+  dueToday: boolean,
+  graceDays: number,
+  continueUrl: string
+) {
+  const when = dueToday ? "today" : "tomorrow"
+  await send(
+    to,
+    `Reminder: "${pathwayName}" is due ${when}`,
+    layout(`
+      <p>Hi <strong>${userName}</strong>,</p>
+      <p>Your pathway <strong>${pathwayName}</strong> is due <strong>${when}, ${formatDeadline(deadline)}</strong>.</p>
+      <p>After ${graceDays} days past the deadline you will no longer be able to complete courses or submit assignments in this pathway.</p>
+      <p>
+        <a href="${continueUrl}"
+           style="background:#194693;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;">
+          Continue Learning
         </a>
       </p>
     `)

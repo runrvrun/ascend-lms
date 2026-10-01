@@ -25,6 +25,7 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
             id: true,
             type: true,
             status: true,
+            deadline: true,
             createdAt: true,
             user: { select: { id: true, name: true, email: true, division: true } },
             reminders: {
@@ -37,6 +38,7 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
         cohortPathways: {
           select: {
             id: true,
+            deadline: true,
             cohort: {
               select: {
                 id: true,

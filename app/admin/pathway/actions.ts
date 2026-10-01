@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "../../lib/prisma"
 import { sendPathwayAssigned } from "../../lib/email"
+import { parseDeadlineInput } from "../../lib/pathwayDeadline"
 import { PathwayVisibility } from "@prisma/client"
 
 export type PathwayFormData = {
@@ -145,14 +146,16 @@ export async function swapPathwayCourseOrder(
 
 // ── Pathway Enrollments ───────────────────────────────────────────────────────
 
-export async function adminEnrollUsers(pathwayId: string, userIds: string[]) {
+export async function adminEnrollUsers(pathwayId: string, userIds: string[], deadlineInput: string | null = null) {
   if (userIds.length === 0) return
+  const deadline = parseDeadlineInput(deadlineInput)
   await prisma.pathwayEnrollment.createMany({
     data: userIds.map((userId) => ({
       userId,
       pathwayId,
       type: "ASSIGNED" as const,
       status: "APPROVED" as const,
+      deadline,
     })),
     skipDuplicates: true,
   })
@@ -175,7 +178,7 @@ export async function adminEnrollUsers(pathwayId: string, userIds: string[]) {
 
     await Promise.all(
       users.map((u) =>
-        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId) : Promise.resolve()
+        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId, undefined, deadline) : Promise.resolve()
       )
     )
   }
@@ -188,8 +191,9 @@ export async function adminRemoveEnrollment(enrollmentId: string, pathwayId: str
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
 }
 
-export async function adminAssignCohortToPathway(pathwayId: string, cohortId: string) {
-  await prisma.cohortPathway.create({ data: { pathwayId, cohortId } })
+export async function adminAssignCohortToPathway(pathwayId: string, cohortId: string, deadlineInput: string | null = null) {
+  const deadline = parseDeadlineInput(deadlineInput)
+  await prisma.cohortPathway.create({ data: { pathwayId, cohortId, deadline } })
 
   const [pathway, cohort] = await Promise.all([
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
@@ -207,6 +211,7 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
         cohortId,
         type: "ASSIGNED" as const,
         status: "APPROVED" as const,
+        deadline,
       })),
       skipDuplicates: true,
     })
@@ -223,13 +228,38 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
 
     await Promise.all(
       cohort.users.map(({ user }) =>
-        user.email ? sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name) : Promise.resolve()
+        user.email ? sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name, deadline) : Promise.resolve()
       )
     )
   }
 
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
   revalidatePath(`/admin/pathway`)
+}
+
+export async function adminUpdateEnrollmentDeadline(enrollmentId: string, pathwayId: string, deadlineInput: string | null) {
+  await prisma.pathwayEnrollment.update({
+    where: { id: enrollmentId },
+    data: { deadline: parseDeadlineInput(deadlineInput) },
+  })
+  revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
+  revalidatePath(`/pathways/${pathwayId}`)
+}
+
+// Updates the cohort's deadline and every enrollment that came in through this cohort.
+export async function adminUpdateCohortDeadline(cohortPathwayId: string, pathwayId: string, deadlineInput: string | null) {
+  const deadline = parseDeadlineInput(deadlineInput)
+  const cohortPathway = await prisma.cohortPathway.update({
+    where: { id: cohortPathwayId },
+    data: { deadline },
+    select: { cohortId: true },
+  })
+  await prisma.pathwayEnrollment.updateMany({
+    where: { pathwayId, cohortId: cohortPathway.cohortId },
+    data: { deadline },
+  })
+  revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
+  revalidatePath(`/pathways/${pathwayId}`)
 }
 
 export async function adminRemoveCohortFromPathway(cohortPathwayId: string, pathwayId: string) {

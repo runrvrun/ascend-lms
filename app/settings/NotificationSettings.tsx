@@ -18,7 +18,7 @@ export function NotificationSettings({ initialOptIn }: { initialOptIn: boolean }
       <div>
         <p className="text-sm font-medium text-slate-800">Learning reminder emails</p>
         <p className="text-sm text-slate-500">
-          Get a reminder email on Mondays and Wednesdays if you have pathways left to finish.
+          Get a weekly reminder email (Wednesdays) if you have pathways left to finish.
         </p>
       </div>
       <button

@@ -8,11 +8,23 @@ import { NotificationType } from "@prisma/client"
 import { sendNewEnrollmentRequest } from "../lib/email"
 import { evaluateCourseCompletion } from "../lib/courseCompletion"
 import { validateAssignmentFile, saveAssignmentFile, deleteAssignmentFile } from "../lib/assignmentFiles"
+import { isDeadlineLocked, DEADLINE_GRACE_DAYS } from "../lib/pathwayDeadline"
 
 async function getSession() {
   const session = await getServerSession(authOptions)
   if (!session?.user) throw new Error("Not authenticated")
   return session
+}
+
+const LOCKED_MESSAGE = `This pathway closed ${DEADLINE_GRACE_DAYS} days after its deadline. You can still view the content, but progress can no longer be recorded.`
+
+// Null if the learner can still make progress in this pathway, otherwise the reason.
+async function pathwayLockedReason(userId: string, pathwayId: string) {
+  const enrollment = await prisma.pathwayEnrollment.findUnique({
+    where: { userId_pathwayId: { userId, pathwayId } },
+    select: { deadline: true },
+  })
+  return isDeadlineLocked(enrollment?.deadline ?? null) ? LOCKED_MESSAGE : null
 }
 
 export async function enrollPathway(pathwayId: string) {
@@ -34,6 +46,8 @@ export async function enrollPathway(pathwayId: string) {
 export async function toggleContentComplete(contentId: string, pathwayId: string, completed: boolean) {
   const session = await getSession()
   const userId = (session.user as any).id as string
+  const locked = await pathwayLockedReason(userId, pathwayId)
+  if (locked) throw new Error(locked)
 
   if (completed) {
     await prisma.contentProgress.upsert({
@@ -76,6 +90,8 @@ export async function submitTest(
 ) {
   const session = await getSession()
   const userId = (session.user as any).id as string
+  const locked = await pathwayLockedReason(userId, pathwayId)
+  if (locked) throw new Error(locked)
 
   const test = await prisma.test.findUnique({
     where: { id: testId },
@@ -258,6 +274,9 @@ export async function submitAssignment(formData: FormData): Promise<{ error?: st
   const pathwayId = String(formData.get("pathwayId") ?? "")
   const url = String(formData.get("url") ?? "").trim()
   const file = formData.get("file")
+
+  const locked = await pathwayLockedReason(userId, pathwayId)
+  if (locked) return { error: locked }
 
   const assignment = await prisma.assignment.findFirst({
     where: { id: assignmentId, deletedAt: null },

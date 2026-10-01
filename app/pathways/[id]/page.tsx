@@ -5,6 +5,7 @@ import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { SidebarWithStats } from "../../components/SidebarWithStats"
 import { PathwayViewer } from "./PathwayViewer"
+import { isDeadlineLocked, toDeadlineInput } from "../../lib/pathwayDeadline"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -84,7 +85,7 @@ export default async function PathwayDetailPage({
     }),
     isPreviewMode ? Promise.resolve(null) : prisma.pathwayEnrollment.findUnique({
       where: { userId_pathwayId: { userId, pathwayId: id } },
-      select: { status: true },
+      select: { status: true, deadline: true },
     }),
     isPreviewMode ? Promise.resolve([]) : prisma.contentProgress.findMany({
       where: { userId, pathwayId: id },
@@ -190,6 +191,8 @@ export default async function PathwayDetailPage({
           pathwayId: g.pathwayId,
           pathwayName: g.pathway?.name ?? null,
         }))}
+        deadline={enrollment?.deadline ? toDeadlineInput(enrollment.deadline) : null}
+        isLocked={!isPreviewMode && isDeadlineLocked(enrollment?.deadline ?? null)}
         isPreview={isPreviewMode}
         backHref={isPreviewMode ? "/admin/pathway" : "/pathways"}
         backLabel={isPreviewMode ? "Pathways (Admin)" : "Pathways"}

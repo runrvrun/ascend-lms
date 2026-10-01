@@ -35,7 +35,7 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
 
   const cohortPathways = await prisma.cohortPathway.findMany({
     where: { cohortId },
-    select: { pathwayId: true, pathway: { select: { name: true } } },
+    select: { pathwayId: true, deadline: true, pathway: { select: { name: true } } },
   })
   if (cohortPathways.length === 0) return
 
@@ -46,13 +46,14 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
   if (!cohort) return
 
   await prisma.pathwayEnrollment.createMany({
-    data: cohortPathways.flatMap(({ pathwayId }) =>
+    data: cohortPathways.flatMap(({ pathwayId, deadline }) =>
       userIds.map((userId) => ({
         userId,
         pathwayId,
         cohortId,
         type: "ASSIGNED" as const,
         status: "APPROVED" as const,
+        deadline,
       }))
     ),
     skipDuplicates: true,
@@ -71,9 +72,9 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
   })
 
   await Promise.all(
-    cohortPathways.flatMap(({ pathwayId, pathway }) =>
+    cohortPathways.flatMap(({ pathwayId, pathway, deadline }) =>
       users.map((u) =>
-        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId, cohort.name) : Promise.resolve()
+        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId, cohort.name, deadline) : Promise.resolve()
       )
     )
   )
