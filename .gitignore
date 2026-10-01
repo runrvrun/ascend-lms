@@ -48,3 +48,6 @@ next-env.d.ts
 
 # M365 sync script's delta-query cursor (per-host state, not shared)
 /scripts/.m365-sync-state.json
+
+# learner-uploaded assignment files (set UPLOAD_DIR in prod to keep them outside the checkout)
+/uploads/

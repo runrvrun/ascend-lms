@@ -196,7 +196,7 @@ type CourseExport = {
       options: { text: string; isCorrect?: boolean | null; matchKey?: string | null; order?: number | null }[]
     }[]
   }[]
-  assignment?: { description: string; submitUrl: string } | null
+  assignment?: { description: string; submitUrl: string | null } | null
 }
 
 export async function importCourse(formData: FormData): Promise<string> {
@@ -637,7 +637,7 @@ export type AssignmentFormData = {
 export async function createAssignment(courseId: string, data: AssignmentFormData) {
   await Promise.all([
     prisma.assignment.create({
-      data: { courseId, description: data.description, submitUrl: data.submitUrl },
+      data: { courseId, description: data.description, submitUrl: data.submitUrl.trim() || null },
     }),
     touchCourse(courseId),
   ])
@@ -648,7 +648,7 @@ export async function updateAssignment(assignmentId: string, courseId: string, d
   await Promise.all([
     prisma.assignment.update({
       where: { id: assignmentId },
-      data: { description: data.description, submitUrl: data.submitUrl },
+      data: { description: data.description, submitUrl: data.submitUrl.trim() || null },
     }),
     touchCourse(courseId),
   ])

@@ -7,6 +7,7 @@ import { prisma } from "../lib/prisma"
 import { NotificationType } from "@prisma/client"
 import { sendNewEnrollmentRequest } from "../lib/email"
 import { evaluateCourseCompletion } from "../lib/courseCompletion"
+import { validateAssignmentFile, saveAssignmentFile, deleteAssignmentFile } from "../lib/assignmentFiles"
 
 async function getSession() {
   const session = await getServerSession(authOptions)
@@ -247,25 +248,48 @@ export async function unenrollPathway(pathwayId: string) {
   revalidatePath("/dashboard")
 }
 
-export async function submitAssignment(assignmentId: string, pathwayId: string, submissionUrl: string) {
+// Submits either a link (`url`) or an uploaded file (`file`) from FormData.
+export async function submitAssignment(formData: FormData): Promise<{ error?: string }> {
   const session = await getSession()
   const userId = (session.user as any).id as string
   const userName = session.user?.name ?? "A user"
 
-  const assignment = await prisma.assignment.findUnique({
-    where: { id: assignmentId },
+  const assignmentId = String(formData.get("assignmentId") ?? "")
+  const pathwayId = String(formData.get("pathwayId") ?? "")
+  const url = String(formData.get("url") ?? "").trim()
+  const file = formData.get("file")
+
+  const assignment = await prisma.assignment.findFirst({
+    where: { id: assignmentId, deletedAt: null },
     include: {
       course: {
         select: { name: true, trainers: { select: { userId: true } } },
       },
     },
   })
+  if (!assignment) return { error: "Assignment not found." }
 
-  await prisma.assignmentSubmission.create({
-    data: { assignmentId, userId, pathwayId, submissionUrl, status: "SUBMITTED" },
-  })
+  if (file instanceof File && file.size > 0) {
+    const invalid = validateAssignmentFile(file)
+    if (invalid) return { error: invalid }
+    const fileKey = await saveAssignmentFile(file)
+    try {
+      await prisma.assignmentSubmission.create({
+        data: { assignmentId, userId, pathwayId, fileKey, fileName: file.name, fileSize: file.size, status: "SUBMITTED" },
+      })
+    } catch (err) {
+      await deleteAssignmentFile(fileKey)
+      throw err
+    }
+  } else if (/^https?:\/\//i.test(url)) {
+    await prisma.assignmentSubmission.create({
+      data: { assignmentId, userId, pathwayId, submissionUrl: url, status: "SUBMITTED" },
+    })
+  } else {
+    return { error: "Please choose a file or paste a valid link." }
+  }
 
-  if (assignment?.course.trainers.length) {
+  if (assignment.course.trainers.length) {
     await prisma.notification.createMany({
       data: assignment.course.trainers.map((t) => ({
         userId: t.userId,
@@ -277,6 +301,7 @@ export async function submitAssignment(assignmentId: string, pathwayId: string, 
   }
 
   revalidatePath(`/pathways/${pathwayId}`)
+  return {}
 }
 
 export async function submitCourseFeedback(courseId: string, pathwayId: string, rating: number, comment: string) {

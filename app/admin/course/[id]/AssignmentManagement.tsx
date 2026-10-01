@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, ExternalLink, ClipboardCheck, CheckCircle2, XCircle, Clock } from "lucide-react"
+import { Plus, Pencil, Trash2, X, ExternalLink, Download, ClipboardCheck, CheckCircle2, XCircle, Clock } from "lucide-react"
 import {
   createAssignment,
   updateAssignment,
@@ -12,7 +12,9 @@ import {
 
 type SubmissionRow = {
   id: string
-  submissionUrl: string
+  submissionUrl: string | null
+  fileName: string | null
+  fileDeletedAt: Date | null
   grade: number | null
   status: "SUBMITTED" | "PASSED" | "FAILED"
   adminNote: string | null
@@ -26,7 +28,7 @@ type SubmissionRow = {
 type AssignmentRow = {
   id: string
   description: string
-  submitUrl: string
+  submitUrl: string | null
   submissions: SubmissionRow[]
 } | null
 
@@ -36,6 +38,31 @@ const STATUS_STYLES = {
   FAILED: "bg-red-100 text-red-700",
 }
 const STATUS_LABELS = { SUBMITTED: "Pending", PASSED: "Passed", FAILED: "Failed" }
+
+// Uploaded file → authenticated download route; link → external URL.
+function SubmissionLink({ submission, label }: { submission: SubmissionRow; label: string }) {
+  if (submission.fileName) {
+    if (submission.fileDeletedAt) {
+      return <span className="text-xs text-slate-400" title="Removed after the 6-month retention period">File removed</span>
+    }
+    return (
+      <a
+        href={`/api/assignment-submissions/${submission.id}/file`}
+        title={submission.fileName}
+        className="inline-flex max-w-[16rem] items-center gap-1 text-xs text-blue-600 hover:underline"
+      >
+        <span className="truncate">{label === "View" ? "Download" : submission.fileName}</span>
+        <Download size={11} className="shrink-0" />
+      </a>
+    )
+  }
+  if (!submission.submissionUrl) return null
+  return (
+    <a href={submission.submissionUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+      {label} <ExternalLink size={11} />
+    </a>
+  )
+}
 
 // ─── Assignment Form Modal ────────────────────────────────────────────────────
 
@@ -94,10 +121,9 @@ function AssignmentFormModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
-              Submission link <span className="text-red-500">*</span>
+              Submission folder link <span className="text-slate-400">(optional — learners can also upload files directly)</span>
             </label>
             <input
-              required
               type="url"
               value={form.submitUrl}
               onChange={(e) => setForm((f) => ({ ...f, submitUrl: e.target.value }))}
@@ -158,14 +184,9 @@ function GradeModal({
           <p className="text-xs font-medium text-slate-500 mb-1">Submitted by</p>
           <p className="font-medium text-slate-800">{submission.user.name ?? submission.user.email}</p>
           <p className="text-xs text-slate-500 mt-1">Pathway: {submission.pathway.name}</p>
-          <a
-            href={submission.submissionUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-          >
-            View submission <ExternalLink size={11} />
-          </a>
+          <div className="mt-2">
+            <SubmissionLink submission={submission} label="View submission" />
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -287,14 +308,16 @@ export function AssignmentManagement({
                 <span className="text-sm font-semibold text-slate-800">Assignment</span>
               </div>
               <p className="text-sm text-slate-600 whitespace-pre-wrap">{assignment.description}</p>
-              <a
-                href={assignment.submitUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-              >
-                Submission folder <ExternalLink size={11} />
-              </a>
+              {assignment.submitUrl && (
+                <a
+                  href={assignment.submitUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                >
+                  Submission folder <ExternalLink size={11} />
+                </a>
+              )}
             </div>
             <div className="flex gap-1">
               <button onClick={() => setEditing(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
@@ -320,7 +343,7 @@ export function AssignmentManagement({
       {editing && assignment && (
         <AssignmentFormModal
           title="Edit Assignment"
-          initial={{ description: assignment.description, submitUrl: assignment.submitUrl }}
+          initial={{ description: assignment.description, submitUrl: assignment.submitUrl ?? "" }}
           courseId={courseId}
           onClose={() => setEditing(false)}
           onSubmit={(d) => updateAssignment(assignment.id, courseId, d)}
@@ -387,9 +410,7 @@ export function SubmissionsPanel({
                   <td className="px-4 py-3 font-medium text-slate-900">{s.user.name ?? s.user.email}</td>
                   <td className="px-4 py-3 text-xs text-slate-500">{s.pathway.name}</td>
                   <td className="px-4 py-3">
-                    <a href={s.submissionUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                      View <ExternalLink size={10} />
-                    </a>
+                    <SubmissionLink submission={s} label="View" />
                   </td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[s.status]}`}>

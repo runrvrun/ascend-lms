@@ -105,6 +105,8 @@ export default async function PathwayDetailPage({
         id: true,
         assignmentId: true,
         submissionUrl: true,
+        fileName: true,
+        fileDeletedAt: true,
         grade: true,
         status: true,
         adminNote: true,

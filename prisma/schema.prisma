@@ -453,7 +453,7 @@ model Assignment {
   id          String  @id @default(dbgenerated("gen_random_uuid()::text"))
   courseId    String  @unique
   description String
-  submitUrl   String  // SharePoint link where users upload their file
+  submitUrl   String? // optional external folder (e.g. SharePoint); learners can also upload directly
 
   course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
   submissions AssignmentSubmission[]
@@ -469,7 +469,15 @@ model AssignmentSubmission {
   userId       String
   pathwayId    String
 
-  submissionUrl String
+  // A submission is either a link (submissionUrl) or a file uploaded to the
+  // server's disk (fileKey + metadata). Uploaded files are purged after 6 months
+  // by scripts/purge-old-assignment-files.ts, which sets fileDeletedAt but keeps
+  // the row so the grade/status history survives.
+  submissionUrl String?
+  fileKey       String?   @unique // name of the file inside the upload dir, server-generated
+  fileName      String?   // original filename as uploaded
+  fileSize      Int?
+  fileDeletedAt DateTime?
   grade         Float?
   status        SubmissionStatus @default(SUBMITTED)
   adminNote     String?

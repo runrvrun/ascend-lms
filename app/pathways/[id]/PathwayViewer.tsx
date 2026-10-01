@@ -30,6 +30,7 @@ import {
   Eye,
   Users,
   AlertTriangle,
+  Upload,
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedback } from "../actions"
@@ -136,13 +137,15 @@ type TestItem = {
 type AssignmentItem = {
   id: string
   description: string
-  submitUrl: string
+  submitUrl: string | null
 } | null
 
 type SubmissionItem = {
   id: string
   assignmentId: string
-  submissionUrl: string
+  submissionUrl: string | null
+  fileName: string | null
+  fileDeletedAt: Date | null
   grade: number | null
   status: "SUBMITTED" | "PASSED" | "FAILED"
   adminNote: string | null
@@ -675,6 +678,10 @@ function TestViewer({
 
 // ─── Assignment viewer ────────────────────────────────────────────────────────
 
+// Keep in sync with app/lib/assignmentFiles.ts (which can't be imported client-side).
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+const ASSIGNMENT_ACCEPT = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.png,.jpg,.jpeg"
+
 function AssignmentViewer({
   assignment,
   courseId,
@@ -692,15 +699,33 @@ function AssignmentViewer({
   isAlreadyPassed: boolean
   isPreview?: boolean
 }) {
+  const [mode, setMode] = useState<"file" | "link">("file")
   const [url, setUrl] = useState("")
+  const [file, setFile] = useState<File | null>(null)
+  const [error, setError] = useState("")
   const [pending, startTransition] = useTransition()
   const [submitted, setSubmitted] = useState(false)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setError("")
+    if (mode === "file" && file && file.size > MAX_UPLOAD_BYTES) {
+      setError("The file is larger than 20 MB.")
+      return
+    }
+    const formData = new FormData()
+    formData.set("assignmentId", assignment.id)
+    formData.set("pathwayId", pathwayId)
+    if (mode === "file" && file) formData.set("file", file)
+    if (mode === "link") formData.set("url", url)
     startTransition(async () => {
-      await submitAssignment(assignment.id, pathwayId, url)
+      const res = await submitAssignment(formData)
+      if (res.error) {
+        setError(res.error)
+        return
+      }
       setUrl("")
+      setFile(null)
       setSubmitted(true)
     })
   }
@@ -718,18 +743,40 @@ function AssignmentViewer({
         <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{assignment.description}</div>
       </div>
 
-      {/* Submission link */}
-      <div className="mb-6">
-        <a
-          href={assignment.submitUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-        >
-          Open submission folder
-          <ExternalLink size={11} />
-        </a>
-      </div>
+      {/* Optional external submission folder */}
+      {assignment.submitUrl && (
+        <div className="mb-6">
+          <a
+            href={assignment.submitUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+          >
+            Open submission folder
+            <ExternalLink size={11} />
+          </a>
+        </div>
+      )}
+
+      {/* Latest submission */}
+      {submission && !submitted && (submission.fileName || submission.submissionUrl) && (
+        <div className="mb-6 text-xs text-slate-500">
+          Your latest submission:{" "}
+          {submission.fileName ? (
+            submission.fileDeletedAt ? (
+              <span>{submission.fileName} (removed after 6 months)</span>
+            ) : (
+              <a href={`/api/assignment-submissions/${submission.id}/file`} className="font-medium text-blue-600 hover:underline">
+                {submission.fileName}
+              </a>
+            )
+          ) : (
+            <a href={submission.submissionUrl!} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:underline">
+              link
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Status banner */}
       {isAlreadyPassed && (
@@ -783,18 +830,54 @@ function AssignmentViewer({
           <p className="mb-3 text-sm font-semibold text-slate-700">
             {status === "FAILED" ? "Resubmit your assignment" : "Submit your assignment"}
           </p>
-          <p className="mb-4 text-xs text-slate-500">
-            Upload your file to the submission folder above, then paste the link to your submitted file below.
-          </p>
+          <div className="mb-4 inline-flex rounded-lg border border-slate-200 p-0.5 text-xs font-medium">
+            {(["file", "link"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { setMode(m); setError("") }}
+                className={`rounded-md px-3 py-1.5 ${mode === m ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+              >
+                {m === "file" ? "Upload file" : "Paste link"}
+              </button>
+            ))}
+          </div>
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <input
-              required
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://ycphd.sharepoint.com/…"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            {mode === "file" ? (
+              <>
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-3 text-sm text-slate-600 hover:bg-slate-50">
+                  <Upload size={15} className="shrink-0 text-slate-400" />
+                  <span className="truncate">{file ? file.name : "Choose a file…"}</span>
+                  <input
+                    required
+                    type="file"
+                    accept={ASSIGNMENT_ACCEPT}
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    className="sr-only"
+                  />
+                </label>
+                <p className="text-xs text-slate-400">
+                  Max 20 MB. PDF, Word, Excel, PowerPoint, text, CSV, ZIP, or image. Uploaded files are kept for 6 months.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-slate-500">
+                  {assignment.submitUrl
+                    ? "Upload your file to the submission folder above, then paste the link to your submitted file below."
+                    : "Paste a link to your submitted file (e.g. a SharePoint or OneDrive share link)."}
+                </p>
+                <input
+                  required
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://ycphd.sharepoint.com/…"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </>
+            )}
+            {error && <p className="text-xs text-red-500">{error}</p>}
             <div>
               <button
                 type="submit"
