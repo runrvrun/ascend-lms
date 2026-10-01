@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import * as xlsx from "xlsx"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../../../../../auth/[...nextauth]/route"
 import { getCourseReportData } from "../../../../../../lib/courseReport"
 
 function fmtDate(d: Date | string | null) {
@@ -8,6 +10,12 @@ function fmtDate(d: Date | string | null) {
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  const roles = ((session?.user as any)?.roles as string[]) ?? []
+  if (!session?.user || !roles.includes("ADMIN")) {
+    return new NextResponse("Unauthorized", { status: 401 })
+  }
+
   const { id } = await params
 
   const data = await getCourseReportData(id)
