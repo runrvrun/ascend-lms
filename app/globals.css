@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Set on <html> by the sidebar's hamburger toggle (and restored before paint in app/layout.tsx). */
+@custom-variant sidebar-collapsed (&:is([data-sidebar="collapsed"] *));
+
 :root {
   color-scheme: light;
   --background: #ffffff;

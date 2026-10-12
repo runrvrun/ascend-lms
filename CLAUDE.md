@@ -14,9 +14,21 @@ npm run build            # prisma generate && next build
 npm run start             # production server
 npm run lint              # ESLint (flat config, eslint-config-next)
 npm run seed              # tsx --env-file=.env prisma/seed.ts (idempotent upserts)
-npx prisma db push        # push schema.prisma changes to the DB (no migrations dir workflow in use)
+npx prisma db push        # push schema.prisma changes to the DB (prisma/migrations/ exists but is stale — stopped in March 2026; don't use migrate)
 npx prisma studio         # inspect data
 ```
+
+Cron jobs (run on the production server via crontab from `~/ascend-lms`, each a `tsx --env-file=.env` script in `scripts/`; most accept `--dry-run`):
+
+```bash
+npm run sync-m365-users              # create User rows for new Entra ID directory members (never updates/removes)
+npm run send-pathway-reminders       # weekly (Wed) digest for incomplete pathways; skips past-deadline enrollments
+npm run send-custom-pathway-reminders # hourly; processes admin-scheduled PathwayReminder rows once (sets sentAt)
+npm run send-deadline-reminders      # must run exactly once/day — no sent-tracking, matches by date
+npm run purge-assignment-files       # monthly; deletes uploaded files >6 months old, keeps the submission row (fileDeletedAt)
+```
+
+Scripts build their own `PrismaClient` + `PrismaPg` adapter and can't import the `app/lib/prisma.ts` singleton, so lib modules they share (`app/lib/pathwayDeadline.ts`, `pathwayReminders.ts`, `assignmentFiles.ts`) must stay free of that import.
 
 There is no test runner configured in this repo. Don't invent test commands or assume Jest/Vitest exists.
 
@@ -27,14 +39,14 @@ Next.js 16 App Router + TypeScript, Tailwind v4, NextAuth v4 (Azure AD + a Crede
 
 ### Auth & role-based routing
 - `authOptions` lives in `app/api/auth/[...nextauth]/route.ts` (not a separate `lib/auth.ts` — import it from there). JWT session strategy; roles are embedded in the token and refreshed from the DB on every non-initial `jwt` callback call, so a role change takes effect on next session refresh, not instantly.
-- Azure AD sign-in is gated on the user already existing (and not soft-deleted) in the DB — there is no self-service signup via SSO. The Credentials provider is a secondary path (e.g. activation-flow users) with bcrypt-hashed passwords.
+- Azure AD sign-in is gated on the user already existing (and not soft-deleted) in the DB — there is no self-service signup via SSO. Users get created either by an admin or by the `sync-m365-users` cron script. The Credentials provider is a secondary path (e.g. activation-flow users) with bcrypt-hashed passwords.
 - Roles: `ADMIN`, `MANAGER`, `TRAINER`, `SME` (enum `Role`, many-to-many via `UserRole`). A user can hold multiple roles. There is no plain "learner" role — anyone authenticated can access learner-facing routes (`/dashboard`, `/pathways`, etc.); the role-gated areas are `/admin`, `/manager`, `/trainer`, `/sme`.
 - Each role area has its own `layout.tsx` (e.g. `app/admin/layout.tsx`) that calls `getServerSession(authOptions)`, redirects to `/` if unauthenticated, and redirects to `/dashboard` if the required role is missing. `TRAINER` and `SME` layouts also allow `ADMIN` through. Follow this exact pattern for any new role-gated section — there is no shared middleware doing this centrally.
 - `MANAGER` here means a people-manager role tied to direct reports via `UserManager` (many-to-many junction, not the `User.title = MANAGER` job title — those are unrelated concepts that happen to share a name). Do not confuse `Role.MANAGER` (permission) with `JobTitle.MANAGER` (an org title enum value).
 
 ### Data layer
 - `app/lib/prisma.ts` exports the singleton Prisma client (globalThis-cached in dev to survive HMR). Import `prisma` from there in server code; don't instantiate `PrismaClient` elsewhere except the standalone one inside the NextAuth route file (kept separate to avoid a circular import at auth-init time).
-- Soft deletes: many models use `deletedAt` instead of hard deletes (`User`, `Cohort`, `Pathway`, `Course`, `Content`, `Test`, `Question`, `Assignment`). Always filter `where: { deletedAt: null }` when querying these — Prisma will not do this for you.
+- Soft deletes: many models use `deletedAt` instead of hard deletes (`User`, `Cohort`, `Pathway`, `Course`, `Content`, `PopQuiz`, `Test`, `Question`, `Assignment`, `Comment`). Always filter `where: { deletedAt: null }` when querying these — Prisma will not do this for you.
 - Ordering matters and is enforced at the schema level: `PathwayCourse.order` (`@@unique([pathwayId, order])`), `Content.order` and `Test.order` (each `@@unique([courseId, order])` on its own table, but the two share one merged position sequence per course — a course's Content and Test rows are meant to render interleaved, sorted by `order` across both tables, never with duplicate values), `Question.order` (`@@unique([testId, order])`). When reordering or inserting, you generally need to shift/renumber siblings inside a transaction rather than just swapping one value — see `shiftCourseItemsUpFrom`/`shiftCourseItemsDownAfter`/`swapCourseItemOrder` in `app/admin/course/actions.ts`, and the merge helper `buildCourseOutline` in `app/admin/course/[id]/courseOutline.ts` (used to build the "insert after X" position picker in the admin UI).
 - A `Course` can have any number of `Test`s (each with its own `title`, `passThreshold`, and `Question`s) placed anywhere among its `Content` via that shared `order` sequence — there is no single "the course's test" anymore (`Course.tests: Test[]`, not `Course.test`). Per-user results live in `TestProgress` (one row per user+test+pathway), not on `CourseProgress`.
 - Progress/points are tracked at four granularities: `ContentProgress` (individual content item, drives the learning streak), `TestProgress` (individual test — score/status per user+test+pathway), `CourseProgress` (per user/course/pathway — holds only `completed`/`assignmentStatus`, no test data), and pathway completion which is *derived*, not stored — computed by checking all `PathwayCourse` entries have a matching completed `CourseProgress`. `UserPoint` is an append-only ledger, not a running total column. Course completion (all content done + every test passed + assignment passed if one exists) is evaluated by one shared `evaluateCourseCompletion()` helper in `app/lib/courseCompletion.ts` — always extend that helper rather than re-deriving completion logic at a new call site (it used to be duplicated 3x and that caused a real bug).
@@ -53,7 +65,13 @@ Almost all writes go through colocated `actions.ts` files (`"use server"`) next 
 - `app/admin/topic/`, `app/sme/`, `app/trainer/`, `app/growth-plan/` are newer areas not yet described in README.md — check these directly rather than trusting the README's project structure section for full coverage (it predates SME/Trainer/Topic/GrowthPlan/Assignment features visible in `prisma/schema.prisma`).
 
 ### Email
-`app/lib/email.ts` sends via Resend when `RESEND_API_KEY` is set (production), otherwise falls back to a Mailtrap sandbox for local dev. Don't add a third code path — extend the existing `send()` helper.
+`app/lib/email.ts` sends over SMTP (nodemailer) when `SMTP_HOST` is set (production; also needs `SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`). Otherwise it uses the Mailtrap sandbox API (`MAILTRAP_TOKEN`/`MAILTRAP_INBOX_ID`) for local dev, and if neither is configured it just logs and skips. Send failures are logged, not thrown. Don't add another code path — extend the existing `send()` helper.
+
+### Pathway deadlines
+`PathwayEnrollment.deadline` is a calendar date stored as UTC midnight, and every day boundary is a UTC day. All deadline rules live as pure functions in `app/lib/pathwayDeadline.ts`: reminder emails go out the day before and on the day, and `DEADLINE_GRACE_DAYS` (7) after the deadline the enrollment locks — content stays viewable, but nothing can be completed or submitted. Reuse those helpers for any deadline check; don't do your own date math.
+
+### Assignment file uploads
+Learner uploads are written to local disk under `UPLOAD_DIR` (default `./uploads/assignments`) by a server action. They're capped at 20 MB, which is why `next.config.ts` sets `serverActions.bodySizeLimit` to `21mb`. Downloads are served through `app/api/assignment-submissions/[id]/file/route.ts`, and the file extension whitelist is in `app/lib/assignmentFiles.ts`. Because files live on the deploy host's disk, they aren't in git and aren't in the DB backups.
 
 ### Points to double-check before assuming
 - The README's feature list and project-structure diagram are a good orientation but are stale relative to the schema (missing Assignment, GrowthPlan, Topic/SME, CourseFeedback, CourseTrainer). Trust `prisma/schema.prisma` and the actual `app/` tree over the README for anything schema-adjacent.

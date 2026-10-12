@@ -45,7 +45,7 @@ export default async function NotificationsPage() {
   const unreadCount = notifications.filter((n) => !n.read).length
 
   return (
-    <div className="min-h-screen bg-slate-50 md:pl-72">
+    <div className="min-h-screen bg-slate-50 md:pl-72 sidebar-collapsed:pt-14 md:sidebar-collapsed:pt-0 md:sidebar-collapsed:pl-14">
       <SidebarWithStats session={session} />
 
       <main className="mx-auto min-h-screen w-full max-w-2xl p-6 md:p-10">

@@ -171,7 +171,7 @@ export default async function PathwayDetailPage({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 md:pl-72">
+    <div className="min-h-screen bg-slate-50 md:pl-72 sidebar-collapsed:pt-14 md:sidebar-collapsed:pt-0 md:sidebar-collapsed:pl-14">
       <SidebarWithStats session={session} />
       <PathwayViewer
         pathway={normalizedPathway}

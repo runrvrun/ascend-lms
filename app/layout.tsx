@@ -18,7 +18,15 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the inline script below may add data-sidebar before React hydrates.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("sidebar-collapsed")==="1")document.documentElement.dataset.sidebar="collapsed"}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-slate-100 text-slate-900">
         <Providers>{children}</Providers>
       </body>

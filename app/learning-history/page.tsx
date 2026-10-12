@@ -89,7 +89,7 @@ export default async function LearningHistoryPage() {
   const groups = Object.values(byPathway)
 
   return (
-    <div className="min-h-screen bg-slate-50 md:pl-72">
+    <div className="min-h-screen bg-slate-50 md:pl-72 sidebar-collapsed:pt-14 md:sidebar-collapsed:pt-0 md:sidebar-collapsed:pl-14">
       <SidebarWithStats session={session} />
 
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">

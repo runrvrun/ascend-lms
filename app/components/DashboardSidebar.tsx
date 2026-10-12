@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { Session } from "next-auth"
-import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell, Settings, KeyRound, LogOut, PenLine, Target, Lightbulb, Tag, HelpCircle } from "lucide-react"
+import { Home, Map, ShieldCheck, Users, ChevronDown, UserCog, BookOpen, GraduationCap, UsersRound, ClipboardList, Building2, BarChart3, Flame, Star, Bell, Settings, KeyRound, LogOut, PenLine, Target, Lightbulb, Tag, HelpCircle, Menu } from "lucide-react"
 
 interface DashboardSidebarProps {
   session: Session | null
@@ -41,6 +41,17 @@ function UserAvatar({ name, image }: { name?: string | null; image?: string | nu
       {initials || "?"}
     </div>
   )
+}
+
+// Collapsed state lives on <html data-sidebar> (not React state) so the inline
+// script in app/layout.tsx can restore it before first paint, and page wrappers
+// can react to it via the `sidebar-collapsed:` variant.
+function toggleSidebar() {
+  const root = document.documentElement
+  const collapse = root.dataset.sidebar !== "collapsed"
+  if (collapse) root.dataset.sidebar = "collapsed"
+  else delete root.dataset.sidebar
+  try { localStorage.setItem("sidebar-collapsed", collapse ? "1" : "0") } catch {}
 }
 
 function SettingsMenu() {
@@ -99,7 +110,17 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
   const [smeOpen, setSmeOpen] = useState(false)
 
   return (
-    <aside className="relative overflow-hidden flex h-screen w-full md:w-72 flex-col border-r border-slate-100 md:fixed md:left-0 md:top-0 md:bottom-0 md:z-20" style={sidebarBackground}>
+    <>
+    <button
+      onClick={toggleSidebar}
+      title="Show menu"
+      aria-label="Show menu"
+      className="fixed left-3 top-3 z-30 hidden h-9 w-9 items-center justify-center rounded-lg text-white shadow-md hover:brightness-125 sidebar-collapsed:flex"
+      style={sidebarBackground}
+    >
+      <Menu size={18} />
+    </button>
+    <aside className="relative overflow-hidden flex h-screen w-full md:w-72 flex-col border-r border-slate-100 md:fixed md:left-0 md:top-0 md:bottom-0 md:z-20 sidebar-collapsed:hidden" style={sidebarBackground}>
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -114,6 +135,14 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
         <div className="flex items-center gap-2">
           <img src="/logo-ycp-white.svg" alt="YCP Logo" className="h-8 w-auto" />
           <div className="text-lg font-bold">Ascend</div>
+          <button
+            onClick={toggleSidebar}
+            title="Hide menu"
+            aria-label="Hide menu"
+            className="relative ml-auto rounded-lg p-1.5 text-white/70 hover:bg-white/15 hover:text-white"
+          >
+            <Menu size={18} />
+          </button>
         </div>
         <p className="text-xs text-blue-200">Training Platform{isTestServer ? " (Test Server)" : ""}</p>
       </div>
@@ -282,5 +311,6 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
         </div>
       </div>
     </aside>
+    </>
   )
 }
