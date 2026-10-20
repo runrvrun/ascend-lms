@@ -32,6 +32,7 @@ export async function GET() {
     ["OXD", "MANAGING_PARTNER"],
     ["OPD", ""],
     ["FIN", ""],
+    ["TCD", ""],
   ]
   const wsValid = xlsx.utils.aoa_to_sheet(validData)
   wsValid["!cols"] = [{ wch: 18 }, { wch: 20 }]

@@ -11,7 +11,7 @@
 // Intended to run on a schedule (cron) against the production DB. Safe to
 // re-run: already-synced and manually-created users are looked up by email
 // and skipped rather than recreated.
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, Division, JobTitle } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { readFileSync, writeFileSync, mkdirSync } from "fs"
 import path from "path"
@@ -22,7 +22,9 @@ const prisma = new PrismaClient({
 
 const STATE_FILE = path.join(__dirname, ".m365-sync-state.json")
 
-type SyncState = { deltaLink?: string; lastRunAt?: string }
+// `select` records which fields the saved deltaLink was built with — a deltaLink
+// keeps its original $select, so changing SELECT_FIELDS must restart the delta.
+type SyncState = { deltaLink?: string; select?: string; lastRunAt?: string }
 
 type GraphUser = {
   id: string
@@ -32,6 +34,8 @@ type GraphUser = {
   userType: string | null
   accountEnabled: boolean | null
   officeLocation: string | null
+  department: string | null
+  jobTitle: string | null
   "@removed"?: { reason: string }
 }
 
@@ -73,7 +77,44 @@ async function getGraphToken(): Promise<string> {
   return json.access_token
 }
 
-const SELECT_FIELDS = "id,displayName,mail,userPrincipalName,userType,accountEnabled,officeLocation"
+const SELECT_FIELDS = "id,displayName,mail,userPrincipalName,userType,accountEnabled,officeLocation,department,jobTitle"
+
+// M365 `department` values that don't match a Division name as-is.
+const DEPARTMENT_ALIASES: Record<string, Division> = {
+  "TCD/TALENT MANAGEMENT": Division.TCD,
+  "TCD/TM": Division.TCD,
+  FINANCE: Division.FIN,
+}
+
+const VALID_TITLES = new Set<string>(Object.values(JobTitle))
+
+function mapDivision(department: string | null): Division | undefined {
+  const key = department?.trim().toUpperCase()
+  if (!key) return Division.NA
+  if (DEPARTMENT_ALIASES[key]) return DEPARTMENT_ALIASES[key]
+  // Enum values aren't all uppercase (e.g. `Contractor`), so match case-insensitively.
+  return Object.values(Division).find((d) => d.toUpperCase() === key)
+}
+
+// M365 titles are either a plain title ("Team Lead") or a comma-separated list
+// like "Group Officer, Managing Partner, Japan Regional CEO" — take the first
+// part that names a JobTitle.
+function mapJobTitle(jobTitle: string | null): JobTitle | undefined {
+  if (!jobTitle?.trim()) return JobTitle.NA
+  for (const part of jobTitle.split(",")) {
+    const key = part.trim().toUpperCase().replace(/\s+/g, "_")
+    if (VALID_TITLES.has(key)) return key as JobTitle
+  }
+  return undefined
+}
+
+// Ascend office names carry a region prefix ("SEA - YCP Singapore") that M365's
+// officeLocation ("YCP Singapore") doesn't, so index each office under both.
+function officeKeys(name: string): string[] {
+  const full = name.trim().toLowerCase()
+  const unprefixed = full.replace(/^[a-z]+ - /, "")
+  return unprefixed === full ? [full] : [full, unprefixed]
+}
 
 async function fetchDeltaUsers(token: string, deltaLink?: string): Promise<{ users: GraphUser[]; deltaLink: string }> {
   let url = deltaLink ?? `https://graph.microsoft.com/v1.0/users/delta?$select=${SELECT_FIELDS}`
@@ -98,10 +139,11 @@ async function fetchDeltaUsers(token: string, deltaLink?: string): Promise<{ use
 async function main() {
   const state = readState()
   const token = await getGraphToken()
-  const { users, deltaLink } = await fetchDeltaUsers(token, state.deltaLink)
+  const resumable = state.select === SELECT_FIELDS ? state.deltaLink : undefined
+  const { users, deltaLink } = await fetchDeltaUsers(token, resumable)
 
   const allOffices = await prisma.office.findMany({ select: { id: true, name: true } })
-  const officeNameToId = new Map(allOffices.map((o) => [o.name.toLowerCase(), o.id]))
+  const officeNameToId = new Map(allOffices.flatMap((o) => officeKeys(o.name).map((k) => [k, o.id] as const)))
 
   let created = 0
   let skippedExisting = 0
@@ -128,7 +170,10 @@ async function main() {
       continue
     }
 
-    const officeId = graphUser.officeLocation ? officeNameToId.get(graphUser.officeLocation.toLowerCase()) ?? null : null
+    const officeId = graphUser.officeLocation ? officeNameToId.get(graphUser.officeLocation.trim().toLowerCase()) ?? null : null
+    // Blank in M365 → NA; set but unrecognised → schema defaults (MSD / ANALYST).
+    const division = mapDivision(graphUser.department)
+    const title = mapJobTitle(graphUser.jobTitle)
 
     try {
       await prisma.user.create({
@@ -136,6 +181,8 @@ async function main() {
           name: graphUser.displayName,
           email,
           officeId,
+          division,
+          title,
         },
       })
       created++
@@ -144,7 +191,7 @@ async function main() {
     }
   }
 
-  writeState({ deltaLink, lastRunAt: new Date().toISOString() })
+  writeState({ deltaLink, select: SELECT_FIELDS, lastRunAt: new Date().toISOString() })
 
   console.log(
     `M365 sync complete: ${users.length} seen, ${created} created, ${skippedExisting} already existed, ${skippedFiltered} filtered out.`

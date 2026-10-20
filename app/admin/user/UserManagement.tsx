@@ -136,7 +136,7 @@ function UserFormModal({
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {DIVISIONS.map((d) => (
-                  <option key={d} value={d}>{d}</option>
+                  <option key={d} value={d}>{d === Division.NA ? "N/A" : d}</option>
                 ))}
               </select>
             </div>
@@ -749,7 +749,7 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Divisions</option>
-          {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+          {DIVISIONS.map((d) => <option key={d} value={d}>{d === Division.NA ? "N/A" : d}</option>)}
         </select>
         <select
           value={titleFilter}

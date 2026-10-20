@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { Filter, X } from "lucide-react"
 
-const DIVISIONS = ["MSD", "DXD", "ISD", "SCD", "SSD", "OXD", "OPD", "FIN"]
+const DIVISIONS = ["MSD", "DXD", "ISD", "SCD", "SSD", "OXD", "OPD", "FIN", "TCD"]
 const TITLES = ["ANALYST", "ASSOCIATE", "MANAGER", "DIRECTOR", "PARTNER", "MANAGING_PARTNER"]
 
 function formatEnum(val: string) {

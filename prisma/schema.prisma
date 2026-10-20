@@ -72,7 +72,9 @@ enum Division {
   IA
   EO
   PID
+  TCD
   Contractor
+  NA
 }
 
 enum JobTitle {

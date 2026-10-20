@@ -78,6 +78,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     ["OXD", "MANAGING_PARTNER"],
     ["OPD", ""],
     ["FIN", ""],
+    ["TCD", ""],
   ]
   const wsValid = xlsx.utils.aoa_to_sheet(validData)
   wsValid["!cols"] = [{ wch: 18 }, { wch: 20 }]
