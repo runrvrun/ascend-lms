@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
-import { CheckCircle2, BookOpen, Map as MapIcon, Star } from "lucide-react"
+import { CheckCircle2, BookOpen, Map as MapIcon, Star, Award } from "lucide-react"
 
 function formatDate(date: Date | string) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -29,7 +29,7 @@ export default async function LearningHistoryPage() {
     }),
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true },
+      select: { pathwayId: true, courseId: true },
     }),
     prisma.userPoint.aggregate({
       where: { userId },
@@ -88,6 +88,41 @@ export default async function LearningHistoryPage() {
 
   const groups = Object.values(byPathway)
 
+  // Certificate link uses the same rules as /pathways/[id]/certificate (published
+  // pathway, approved enrollment, every published course done) so it never bounces.
+  const groupPathwayIds = groups.map((g) => g.pathwayId)
+  const [publishedPathways, approvedEnrollments] = groupPathwayIds.length
+    ? await Promise.all([
+        prisma.pathway.findMany({
+          where: { id: { in: groupPathwayIds }, deletedAt: null, status: "PUBLISHED" },
+          select: { id: true },
+        }),
+        prisma.pathwayEnrollment.findMany({
+          where: { userId, pathwayId: { in: groupPathwayIds }, status: "APPROVED" },
+          select: { pathwayId: true },
+        }),
+      ])
+    : [[], []]
+  const publishedIds = new Set(publishedPathways.map((p) => p.id))
+  const approvedIds = new Set(approvedEnrollments.map((e) => e.pathwayId))
+  const completedKeys = new Set(courseProgressRecords.map((cp) => `${cp.pathwayId}:${cp.courseId}`))
+  const requiredByPathway: Record<string, string[]> = {}
+  for (const pc of completedPathways) {
+    if (!requiredByPathway[pc.pathwayId]) requiredByPathway[pc.pathwayId] = []
+    requiredByPathway[pc.pathwayId].push(pc.courseId)
+  }
+  const certificatePathwayIds = new Set(
+    groupPathwayIds.filter((pid) => {
+      const required = requiredByPathway[pid] ?? []
+      return (
+        publishedIds.has(pid) &&
+        approvedIds.has(pid) &&
+        required.length > 0 &&
+        required.every((cid) => completedKeys.has(`${pid}:${cid}`))
+      )
+    })
+  )
+
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72 sidebar-collapsed:pt-14 md:sidebar-collapsed:pt-0 md:sidebar-collapsed:pl-14">
       <SidebarWithStats session={session} />
@@ -142,10 +177,21 @@ export default async function LearningHistoryPage() {
                       <span className="font-semibold text-slate-800">{group.pathwayName}</span>
                     </div>
                     {isPathwayComplete ? (
-                      <span className="flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
-                        <CheckCircle2 size={11} />
-                        Pathway Completed
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {certificatePathwayIds.has(group.pathwayId) && (
+                          <a
+                            href={`/pathways/${group.pathwayId}/certificate`}
+                            className="flex items-center gap-1 rounded-full border border-blue-200 bg-white px-2.5 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                          >
+                            <Award size={11} />
+                            View Certificate
+                          </a>
+                        )}
+                        <span className="flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                          <CheckCircle2 size={11} />
+                          Pathway Completed
+                        </span>
+                      </div>
                     ) : (
                       <span className="text-xs text-slate-400">{done}/{total} courses</span>
                     )}

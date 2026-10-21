@@ -79,7 +79,7 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
   const availableCohorts = allCohorts.filter((c) => !assignedCohortIdSet.has(c.id))
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
+    <main className="mx-auto min-h-screen w-full max-w-5xl p-6 md:p-10">
       <div className="mb-6 flex items-center gap-4">
         <a
           href={`/admin/pathway/${id}`}
