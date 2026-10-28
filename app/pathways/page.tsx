@@ -8,6 +8,7 @@ import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
 import { MAX_FEATURED_PATHWAYS } from "../lib/featuredPathways"
+import { buildRecommendations, type Recommendation } from "../lib/pathwayRecommendations"
 
 export default async function PathwaysPage() {
   const session = await getServerSession(authOptions)
@@ -15,7 +16,7 @@ export default async function PathwaysPage() {
 
   const userId = (session.user as any).id as string
 
-  const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts, currentUser, divisionEnrollments] = await Promise.all([
+  const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts, currentUser, allEnrollments, allCompletedCourses] = await Promise.all([
     prisma.pathway.findMany({
       where: { deletedAt: null, status: "PUBLISHED", visibility: { not: "HIDDEN" } },
       select: {
@@ -44,7 +45,7 @@ export default async function PathwaysPage() {
     }),
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true },
+      select: { pathwayId: true, course: { select: { topicId: true } } },
     }),
     prisma.user.findUnique({
       where: { id: userId },
@@ -52,7 +53,12 @@ export default async function PathwaysPage() {
     }),
     prisma.pathwayEnrollment.findMany({
       where: { status: "APPROVED" },
-      select: { pathwayId: true, user: { select: { division: true } } },
+      select: { userId: true, pathwayId: true, type: true, cohortId: true, createdAt: true, user: { select: { division: true } } },
+    }),
+    prisma.courseProgress.groupBy({
+      by: ["userId", "pathwayId"],
+      where: { completed: true, course: { status: "PUBLISHED", deletedAt: null } },
+      _count: { _all: true },
     }),
   ])
 
@@ -78,44 +84,63 @@ export default async function PathwaysPage() {
       isCompleted: total > 0 && completed >= total && isApproved,
       completedCourses: isApproved ? completed : 0,
       totalCourses: isApproved ? total : 0,
-      isRecommended: false,
-      isFeatured: false,
     }
   })
 
-  // Count approved enrollments per pathway scoped to the current user's division
-  const userDivision = currentUser?.division
-  const divisionEnrollmentCount: Record<string, number> = {}
-  for (const e of divisionEnrollments) {
-    if (e.user.division === userDivision) {
-      divisionEnrollmentCount[e.pathwayId] = (divisionEnrollmentCount[e.pathwayId] ?? 0) + 1
-    }
-  }
-
   // Admin-featured pathways take the recommendation slots first (shown to everyone,
-  // oldest-featured first); any remaining slots go to automated picks:
-  // unenrolled/uncompleted, ranked by same-division enrollment count.
+  // oldest-featured first); any remaining slots go to automated picks.
   const featuredIds = pathwayCards
     .filter((p) => p.featuredAt)
     .sort((a, b) => a.featuredAt!.getTime() - b.featuredAt!.getTime())
     .slice(0, MAX_FEATURED_PATHWAYS)
     .map((p) => p.id)
-  const automatedIds = pathwayCards
-    .filter((p) => {
-      const status = p.enrollment?.status
-      return !featuredIds.includes(p.id) && (!status || status === "REJECTED") && !p.isCompleted
-    })
-    .sort((a, b) => (divisionEnrollmentCount[b.id] ?? 0) - (divisionEnrollmentCount[a.id] ?? 0))
-    .slice(0, MAX_FEATURED_PATHWAYS - featuredIds.length)
-    .map((p) => p.id)
-  const recommendedOrder = [...featuredIds, ...automatedIds]
 
-  const pathwayCardsWithRec = pathwayCards
-    .map(({ featuredAt, ...p }) => ({
-      ...p,
-      isRecommended: recommendedOrder.includes(p.id),
-      isFeatured: !!featuredAt && featuredIds.includes(p.id),
-    }))
+  const pathwayFeatures: Record<string, Set<string>> = {}
+  for (const p of pathways) pathwayFeatures[p.id] = new Set(p.tags.map((t) => `tag:${t.trim().toLowerCase()}`))
+  for (const pc of pathwayCourseCounts) {
+    if (pc.course.topicId) pathwayFeatures[pc.pathwayId]?.add(`topic:${pc.course.topicId}`)
+  }
+
+  const completedPairs = new Set(
+    allCompletedCourses
+      .filter((c) => (totalByPathway[c.pathwayId] ?? 0) > 0 && c._count._all >= totalByPathway[c.pathwayId])
+      .map((c) => `${c.userId}:${c.pathwayId}`)
+  )
+
+  const automated = buildRecommendations({
+    userId,
+    userDivision: currentUser?.division ?? null,
+    slots: MAX_FEATURED_PATHWAYS - featuredIds.length,
+    eligibleIds: pathwayCards
+      .filter((p) => {
+        const status = p.enrollment?.status
+        return !featuredIds.includes(p.id) && (!status || status === "REJECTED") && !p.isCompleted
+      })
+      .map((p) => p.id),
+    pathwayNames: Object.fromEntries(pathways.map((p) => [p.id, p.name])),
+    pathwayFeatures,
+    myEnrolledIds: enrollments.filter((e) => e.status === "APPROVED").map((e) => e.pathwayId),
+    myCompletedIds: pathwayCards.filter((p) => p.isCompleted).map((p) => p.id),
+    completedPairs,
+    enrollments: allEnrollments.map((e) => ({
+      userId: e.userId,
+      pathwayId: e.pathwayId,
+      createdAt: e.createdAt,
+      // Assigned or cohort enrollments are often mandatory training, not a choice
+      voluntary: e.type !== "ASSIGNED" && !e.cohortId,
+      division: e.user.division,
+    })),
+  })
+
+  const recommendations: Record<string, Recommendation> = {}
+  for (const id of featuredIds) recommendations[id] = { kind: "featured", label: "Featured" }
+  for (const r of automated) recommendations[r.pathwayId] = r.recommendation
+  const recommendedOrder = [...featuredIds, ...automated.map((r) => r.pathwayId)]
+
+  const pathwayCardsWithRec = pathwayCards.map(({ featuredAt, ...p }) => ({
+    ...p,
+    recommendation: recommendations[p.id] ?? null,
+  }))
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72 sidebar-collapsed:pt-14 md:sidebar-collapsed:pt-0 md:sidebar-collapsed:pl-14">

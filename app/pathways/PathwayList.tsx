@@ -1,10 +1,18 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles, Eye, Share2, Star } from "lucide-react"
+import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles, Eye, Share2, Star, Users } from "lucide-react"
 import { EnrollmentStatus, PathwayVisibility } from "@prisma/client"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
 import { SharePathwayModal } from "./SharePathwayModal"
+import type { Recommendation, RecommendationKind } from "../lib/pathwayRecommendations"
+
+const RECOMMENDATION_ICON: Record<RecommendationKind, React.ReactNode> = {
+  featured: <Star size={13} fill="currentColor" className="shrink-0" />,
+  popular: <Users size={13} className="shrink-0" />,
+  next: <ArrowRight size={13} className="shrink-0" />,
+  similar: <Sparkles size={13} className="shrink-0" />,
+}
 
 type EnrollmentInfo = {
   status: EnrollmentStatus
@@ -21,8 +29,7 @@ type PathwayCard = {
   isCompleted: boolean
   completedCourses: number
   totalCourses: number
-  isRecommended: boolean
-  isFeatured: boolean
+  recommendation: Recommendation | null
   _count: { courses: number }
   enrollment: EnrollmentInfo | null
 }
@@ -153,17 +160,17 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
 
   return (
     <>
-      <div className={`flex flex-col rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow ${pathway.isRecommended ? "border-amber-200 bg-amber-50/30" : "border-slate-200 bg-white"}`}>
-        {pathway.isRecommended && (
+      <div className={`flex flex-col rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow ${pathway.recommendation ? "border-amber-200 bg-amber-50/30" : "border-slate-200 bg-white"}`}>
+        {pathway.recommendation && (
           <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-amber-600">
-            {pathway.isFeatured ? <Star size={13} fill="currentColor" /> : <Sparkles size={13} />}
-            {pathway.isFeatured ? "Featured" : "Recommended for you"}
+            {RECOMMENDATION_ICON[pathway.recommendation.kind]}
+            <span className="min-w-0 truncate" title={pathway.recommendation.label}>{pathway.recommendation.label}</span>
           </div>
         )}
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${pathway.isRecommended ? "bg-amber-100" : "bg-blue-50"}`}>
-              <BookOpen size={17} className={pathway.isRecommended ? "text-amber-600" : "text-blue-600"} />
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${pathway.recommendation ? "bg-amber-100" : "bg-blue-50"}`}>
+              <BookOpen size={17} className={pathway.recommendation ? "text-amber-600" : "text-blue-600"} />
             </div>
             <h3 className="font-semibold text-slate-900 leading-snug">{pathway.name}</h3>
           </div>
