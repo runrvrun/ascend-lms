@@ -87,10 +87,16 @@ export default async function PathwaysPage() {
     }
   })
 
-  // Admin-featured pathways take the recommendation slots first (shown to everyone,
-  // oldest-featured first); any remaining slots go to automated picks.
+  // Only recommend pathways the user isn't enrolled in (or waiting on) and hasn't completed.
+  const isOpenToUser = (p: (typeof pathwayCards)[number]) => {
+    const status = p.enrollment?.status
+    return (!status || status === "REJECTED") && !p.isCompleted
+  }
+
+  // Admin-featured pathways take the recommendation slots first (shown to everyone not
+  // already enrolled, oldest-featured first); any remaining slots go to automated picks.
   const featuredIds = pathwayCards
-    .filter((p) => p.featuredAt)
+    .filter((p) => p.featuredAt && isOpenToUser(p))
     .sort((a, b) => a.featuredAt!.getTime() - b.featuredAt!.getTime())
     .slice(0, MAX_FEATURED_PATHWAYS)
     .map((p) => p.id)
@@ -114,10 +120,7 @@ export default async function PathwaysPage() {
     userDivision: currentUser?.division ?? null,
     slots: MAX_RECOMMENDATIONS - featuredIds.length,
     eligibleIds: pathwayCards
-      .filter((p) => {
-        const status = p.enrollment?.status
-        return !featuredIds.includes(p.id) && !excludedIds.has(p.id) && (!status || status === "REJECTED") && !p.isCompleted
-      })
+      .filter((p) => !featuredIds.includes(p.id) && !excludedIds.has(p.id) && isOpenToUser(p))
       .map((p) => p.id),
     pathwayNames: Object.fromEntries(pathways.map((p) => [p.id, p.name])),
     pathwayFeatures,
