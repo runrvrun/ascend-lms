@@ -14,13 +14,19 @@
 // MAX_FEATURED_PATHWAYS) take the first ones, automated picks fill the rest.
 export const MAX_RECOMMENDATIONS = 4
 
-// Pathways with any of these tags (case-insensitive) are never automated picks, nor the
-// "after X" / "similar to X" reference: they are mostly mandatory, so they say little
-// about what someone would choose. Admins can still feature them.
+// Pathways with any of these tags, or whose name contains any of these phrases (both
+// case-insensitive), are never automated picks, nor the "after X" / "similar to X"
+// reference: they are mostly mandatory, so they say little about what someone would
+// choose. Admins can still feature them.
 export const EXCLUDED_RECOMMENDATION_TAGS = ["onboarding"]
+export const EXCLUDED_RECOMMENDATION_NAME_PHRASES = ["new joiner training", "intensive training", "basic training"]
 
-export function isExcludedFromRecommendations(tags: string[]) {
-  return tags.some((t) => EXCLUDED_RECOMMENDATION_TAGS.includes(t.trim().toLowerCase()))
+export function isExcludedFromRecommendations({ name, tags }: { name: string; tags: string[] }) {
+  const lowerName = name.toLowerCase()
+  return (
+    tags.some((t) => EXCLUDED_RECOMMENDATION_TAGS.includes(t.trim().toLowerCase())) ||
+    EXCLUDED_RECOMMENDATION_NAME_PHRASES.some((phrase) => lowerName.includes(phrase))
+  )
 }
 
 export type RecommendationKind = "featured" | "popular" | "next" | "similar"

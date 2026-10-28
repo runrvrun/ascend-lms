@@ -107,7 +107,7 @@ export default async function PathwaysPage() {
       .map((c) => `${c.userId}:${c.pathwayId}`)
   )
 
-  const excludedIds = new Set(pathways.filter((p) => isExcludedFromRecommendations(p.tags)).map((p) => p.id))
+  const excludedIds = new Set(pathways.filter((p) => isExcludedFromRecommendations(p)).map((p) => p.id))
 
   const automated = buildRecommendations({
     userId,
