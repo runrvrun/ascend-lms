@@ -3,6 +3,7 @@
 // Development: leave those unset → emails captured by Mailtrap sandbox.
 
 import nodemailer from "nodemailer"
+import { after } from "next/server"
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://ycp-ascend-lms.vercel.app"
 
@@ -14,12 +15,27 @@ function getTransporter() {
       port: Number(process.env.SMTP_PORT),
       secure: true,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      // Nodemailer's defaults wait up to 2 minutes on an unreachable server.
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 30_000,
     })
   }
   return transporter
 }
 
+// Inside a request (server actions), defer delivery until after the response is
+// sent so a slow or unreachable mail server never blocks the UI. Cron scripts have
+// no request scope — `after` throws there — so they deliver inline.
 async function send(to: string, subject: string, html: string) {
+  try {
+    after(() => deliver(to, subject, html))
+  } catch {
+    await deliver(to, subject, html)
+  }
+}
+
+async function deliver(to: string, subject: string, html: string) {
   if (process.env.SMTP_HOST) {
     try {
       await getTransporter().sendMail({
