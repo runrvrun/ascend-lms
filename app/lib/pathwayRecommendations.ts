@@ -14,6 +14,15 @@
 // MAX_FEATURED_PATHWAYS) take the first ones, automated picks fill the rest.
 export const MAX_RECOMMENDATIONS = 4
 
+// Pathways with any of these tags (case-insensitive) are never automated picks, nor the
+// "after X" / "similar to X" reference: they are mostly mandatory, so they say little
+// about what someone would choose. Admins can still feature them.
+export const EXCLUDED_RECOMMENDATION_TAGS = ["onboarding"]
+
+export function isExcludedFromRecommendations(tags: string[]) {
+  return tags.some((t) => EXCLUDED_RECOMMENDATION_TAGS.includes(t.trim().toLowerCase()))
+}
+
 export type RecommendationKind = "featured" | "popular" | "next" | "similar"
 export type Recommendation = { kind: RecommendationKind; label: string }
 

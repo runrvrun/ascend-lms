@@ -8,7 +8,7 @@ import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
 import { MAX_FEATURED_PATHWAYS } from "../lib/featuredPathways"
-import { buildRecommendations, MAX_RECOMMENDATIONS, type Recommendation } from "../lib/pathwayRecommendations"
+import { buildRecommendations, isExcludedFromRecommendations, MAX_RECOMMENDATIONS, type Recommendation } from "../lib/pathwayRecommendations"
 
 export default async function PathwaysPage() {
   const session = await getServerSession(authOptions)
@@ -107,6 +107,8 @@ export default async function PathwaysPage() {
       .map((c) => `${c.userId}:${c.pathwayId}`)
   )
 
+  const excludedIds = new Set(pathways.filter((p) => isExcludedFromRecommendations(p.tags)).map((p) => p.id))
+
   const automated = buildRecommendations({
     userId,
     userDivision: currentUser?.division ?? null,
@@ -114,13 +116,13 @@ export default async function PathwaysPage() {
     eligibleIds: pathwayCards
       .filter((p) => {
         const status = p.enrollment?.status
-        return !featuredIds.includes(p.id) && (!status || status === "REJECTED") && !p.isCompleted
+        return !featuredIds.includes(p.id) && !excludedIds.has(p.id) && (!status || status === "REJECTED") && !p.isCompleted
       })
       .map((p) => p.id),
     pathwayNames: Object.fromEntries(pathways.map((p) => [p.id, p.name])),
     pathwayFeatures,
-    myEnrolledIds: enrollments.filter((e) => e.status === "APPROVED").map((e) => e.pathwayId),
-    myCompletedIds: pathwayCards.filter((p) => p.isCompleted).map((p) => p.id),
+    myEnrolledIds: enrollments.filter((e) => e.status === "APPROVED" && !excludedIds.has(e.pathwayId)).map((e) => e.pathwayId),
+    myCompletedIds: pathwayCards.filter((p) => p.isCompleted && !excludedIds.has(p.id)).map((p) => p.id),
     completedPairs,
     enrollments: allEnrollments.map((e) => ({
       userId: e.userId,
