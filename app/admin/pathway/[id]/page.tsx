@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Users, Eye } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
+import { getSessionUser } from "../../../lib/permissions"
 import { PathwayCourseManagement } from "./PathwayCourseManagement"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -12,6 +13,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function PathwayDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  // Access (admin or owner) is checked in ./layout.tsx
+  const user = await getSessionUser()
   const [pathway, allCourses] = await Promise.all([
     prisma.pathway.findFirst({
       where: { id, deletedAt: null },
@@ -74,6 +77,7 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         pathwayId={pathway.id}
         entries={pathway.courses}
         allCourses={allCourses}
+        canEditCourses={!!user?.roles.includes("ADMIN")}
       />
     </main>
   )

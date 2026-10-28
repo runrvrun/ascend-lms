@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import bcrypt from "bcryptjs"
+import { loadUserRoles } from "../../../lib/userRoles"
 
 export const runtime = "nodejs"
 
@@ -50,7 +51,6 @@ export const authOptions: AuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email.toLowerCase() },
-          include: { roles: true },
         })
 
         if (!user || !user.password) return null
@@ -63,7 +63,6 @@ export const authOptions: AuthOptions = {
           id: user.id,
           name: user.name,
           email: user.email,
-          roles: user.roles.map((r) => r.role),
         }
       },
     }),
@@ -90,22 +89,20 @@ export const authOptions: AuthOptions = {
       if (user) {
         // First sign-in: populate token from the user object
         token.id = (user as any).id ?? user.id
-        token.roles = (user as any).roles ?? []
+        const loaded = await loadUserRoles(prisma, token.id as string)
+        token.roles = loaded?.roles ?? []
         const now = new Date()
         await prisma.user
           .update({ where: { id: token.id as string }, data: { lastLoginAt: now, lastActiveAt: now } })
           .catch((err) => console.error("[auth] failed to record sign-in", err))
       } else if (token.id) {
-        // Subsequent requests: refresh roles from DB
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          include: { roles: true },
-        })
-        // Deleted users lose role-gated access immediately; sign-in is already blocked
-        token.roles = dbUser && !dbUser.deletedAt ? dbUser.roles.map((r) => r.role) : []
-        if (dbUser && !dbUser.deletedAt && (!dbUser.lastActiveAt || Date.now() - dbUser.lastActiveAt.getTime() > ACTIVITY_THROTTLE_MS)) {
+        // Subsequent requests: refresh roles from DB. Deleted users lose role-gated
+        // access immediately; sign-in is already blocked.
+        const loaded = await loadUserRoles(prisma, token.id as string)
+        token.roles = loaded?.roles ?? []
+        if (loaded && (!loaded.lastActiveAt || Date.now() - loaded.lastActiveAt.getTime() > ACTIVITY_THROTTLE_MS)) {
           await prisma.user
-            .update({ where: { id: dbUser.id }, data: { lastActiveAt: new Date() } })
+            .update({ where: { id: token.id as string }, data: { lastActiveAt: new Date() } })
             .catch((err) => console.error("[auth] failed to record activity", err))
         }
       }

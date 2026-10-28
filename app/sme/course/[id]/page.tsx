@@ -71,7 +71,7 @@ export default async function SmeCourseDetailPage({ params }: { params: Promise<
       include: { user: { select: { id: true, name: true, email: true } } },
     }),
     prisma.user.findMany({
-      where: { deletedAt: null, roles: { some: { role: "TRAINER" } } },
+      where: { deletedAt: null },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),

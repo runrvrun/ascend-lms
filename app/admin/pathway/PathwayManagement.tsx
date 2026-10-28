@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Users, Copy, 
 import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, setPathwayFeatured, PathwayFormData } from "./actions"
 import { MAX_FEATURED_PATHWAYS } from "../../lib/featuredPathways"
 import { ActionsMenu } from "../../components/ActionsMenu"
+import { SearchableMultiSelect } from "../../components/SearchableSelect"
 import type { PathwayVisibility } from "@prisma/client"
 
 type PathwayRow = {
@@ -18,8 +19,11 @@ type PathwayRow = {
   _count: { courses: number }
   pathwayEnrollments: { id: string }[]
   cohortPathways: { cohort: { _count: { users: number } } }[]
+  owners: { user: { id: string; name: string | null } }[]
   createdAt: Date
 }
+
+type OwnerOption = { id: string; name: string | null; email: string | null }
 
 const VISIBILITY_OPTIONS: { value: PathwayVisibility; label: string; description: string }[] = [
   { value: "PUBLIC_FREE", label: "Public — free enroll", description: "Visible to everyone. Users can enroll immediately, no approval needed." },
@@ -147,11 +151,14 @@ function FeaturedToggle({ pathway, featuredCount }: { pathway: PathwayRow; featu
 function PathwayFormModal({
   title,
   initial,
+  ownerOptions,
   onClose,
   onSubmit,
 }: {
   title: string
   initial: PathwayFormData
+  // Only passed for admins; owners can't change who owns a pathway
+  ownerOptions?: OwnerOption[]
   onClose: () => void
   onSubmit: (data: PathwayFormData) => Promise<void>
 }) {
@@ -233,6 +240,19 @@ function PathwayFormModal({
 
           <TagInput tags={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
 
+          {ownerOptions && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Owners</label>
+              <SearchableMultiSelect
+                value={form.ownerIds ?? []}
+                onChange={(ownerIds) => setForm((f) => ({ ...f, ownerIds }))}
+                options={ownerOptions.map((u) => ({ value: u.id, label: u.name ? `${u.name} (${u.email ?? "no email"})` : u.email ?? u.id }))}
+                placeholder="— No owners —"
+              />
+              <p className="mt-1 text-xs text-slate-400">Owners can manage this pathway&apos;s courses, enrollments and settings under Admin &gt; Pathways.</p>
+            </div>
+          )}
+
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
@@ -274,7 +294,15 @@ function DeleteConfirm({ name, onCancel, onConfirm }: { name: string; onCancel: 
   )
 }
 
-export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
+export function PathwayManagement({
+  pathways,
+  isAdmin,
+  ownerOptions,
+}: {
+  pathways: PathwayRow[]
+  isAdmin: boolean
+  ownerOptions: OwnerOption[]
+}) {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<PathwayRow | null>(null)
   const [deleting, setDeleting] = useState<PathwayRow | null>(null)
@@ -301,16 +329,20 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Pathways</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {filtered.length} of {pathways.length} pathways · {featuredCount}/{MAX_FEATURED_PATHWAYS} featured
+            {isAdmin
+              ? <>{filtered.length} of {pathways.length} pathways · {featuredCount}/{MAX_FEATURED_PATHWAYS} featured</>
+              : <>{filtered.length} of {pathways.length} pathways you own</>}
           </p>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus size={16} />
-          Add Pathway
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            <Plus size={16} />
+            Add Pathway
+          </button>
+        )}
       </div>
 
       <div className="mb-4 relative">
@@ -330,7 +362,8 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
               <th className="px-5 py-3">Name</th>
               <th className="px-5 py-3">Description</th>
               <th className="px-5 py-3">Tags</th>
-              <th className="px-5 py-3 text-center">Featured</th>
+              <th className="px-5 py-3">Owners</th>
+              {isAdmin && <th className="px-5 py-3 text-center">Featured</th>}
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Visibility</th>
               <th className="px-5 py-3 text-center">Courses</th>
@@ -341,8 +374,10 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-5 py-10 text-center text-slate-400">
-                  {pathways.length === 0 ? "No pathways yet. Add one above." : "No pathways match your search."}
+                <td colSpan={isAdmin ? 10 : 9} className="px-5 py-10 text-center text-slate-400">
+                  {pathways.length === 0
+                    ? isAdmin ? "No pathways yet. Add one above." : "You don't own any pathways."
+                    : "No pathways match your search."}
                 </td>
               </tr>
             )}
@@ -368,9 +403,16 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                     <span className="italic text-slate-300 text-xs">No tags</span>
                   )}
                 </td>
-                <td className="px-5 py-3 text-center">
-                  <FeaturedToggle pathway={p} featuredCount={featuredCount} />
+                <td className="px-5 py-3 text-xs text-slate-600">
+                  {p.owners.length > 0
+                    ? p.owners.map((o) => o.user.name ?? "—").join(", ")
+                    : <span className="italic text-slate-300">No owners</span>}
                 </td>
+                {isAdmin && (
+                  <td className="px-5 py-3 text-center">
+                    <FeaturedToggle pathway={p} featuredCount={featuredCount} />
+                  </td>
+                )}
                 <td className="px-5 py-3 text-center">
                   <StatusToggle id={p.id} status={p.status} />
                 </td>
@@ -416,6 +458,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
           title="Add Pathway"
           initial={empty}
           onClose={() => setCreating(false)}
+          ownerOptions={ownerOptions}
           onSubmit={(data) => createPathway(data)}
         />
       )}
@@ -423,7 +466,14 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
       {editing && (
         <PathwayFormModal
           title="Edit Pathway"
-          initial={{ name: editing.name, description: editing.description ?? "", visibility: editing.visibility, tags: editing.tags }}
+          initial={{
+            name: editing.name,
+            description: editing.description ?? "",
+            visibility: editing.visibility,
+            tags: editing.tags,
+            ownerIds: editing.owners.map((o) => o.user.id),
+          }}
+          ownerOptions={isAdmin ? ownerOptions : undefined}
           onClose={() => setEditing(null)}
           onSubmit={(data) => updatePathway(editing.id, data)}
         />

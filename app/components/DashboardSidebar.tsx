@@ -106,6 +106,8 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
   const isManager = roles.includes("MANAGER")
   const isTrainer = roles.includes("TRAINER")
   const isSME = roles.includes("SME")
+  // Non-admin pathway owners get an Admin menu with only Pathways
+  const isPathwayOwner = roles.includes("PATHWAY_OWNER")
   const [adminOpen, setAdminOpen] = useState(false)
   const [managerOpen, setManagerOpen] = useState(false)
   const [trainerOpen, setTrainerOpen] = useState(false)
@@ -122,7 +124,9 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
     >
       <Menu size={18} />
     </button>
-    <aside className="relative overflow-hidden flex h-screen w-full md:w-72 flex-col border-r border-slate-100 md:fixed md:left-0 md:top-0 md:bottom-0 md:z-20 sidebar-collapsed:hidden" style={sidebarBackground}>
+    {/* Phones: a full-screen overlay above the page, so it opens where you are rather
+        than at the top of a scrolled page. Desktop: fixed left column. Both scroll inside. */}
+    <aside className="fixed inset-0 z-40 flex h-dvh w-full flex-col overflow-hidden border-r border-slate-100 md:inset-auto md:left-0 md:top-0 md:bottom-0 md:z-20 md:h-screen md:w-72 sidebar-collapsed:hidden" style={sidebarBackground}>
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -133,182 +137,192 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
           opacity: 0.25,
         }}
       />
-      <div className="flex flex-col gap-2 p-5 text-white">
-        <div className="flex items-center gap-2">
-          <img src="/logo-ycp-white.svg" alt="YCP Logo" className="h-8 w-auto" />
-          <div className="text-lg font-bold">Ascend</div>
-          <button
-            onClick={toggleSidebar}
-            title="Hide menu"
-            aria-label="Hide menu"
-            className="relative ml-auto rounded-lg p-1.5 text-white/70 hover:bg-white/15 hover:text-white"
-          >
-            <Menu size={18} />
-          </button>
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        <div className="flex flex-col gap-2 p-5 text-white">
+          <div className="flex items-center gap-2">
+            <img src="/logo-ycp-white.svg" alt="YCP Logo" className="h-8 w-auto" />
+            <div className="text-lg font-bold">Ascend</div>
+            <button
+              onClick={toggleSidebar}
+              title="Hide menu"
+              aria-label="Hide menu"
+              className="relative ml-auto rounded-lg p-1.5 text-white/70 hover:bg-white/15 hover:text-white"
+            >
+              <Menu size={18} />
+            </button>
+          </div>
+          <p className="text-xs text-blue-200">Training Platform{isTestServer ? " (Test Server)" : ""}</p>
         </div>
-        <p className="text-xs text-blue-200">Training Platform{isTestServer ? " (Test Server)" : ""}</p>
-      </div>
 
-      <nav className="mb-auto flex flex-col gap-1 px-4 pt-4">
-        <a href="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
-          <Home size={16} />
-          Home
-        </a>
-        <a href="/pathways" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
-          <Map size={16} />
-          Pathways
-        </a>
-        <a href="/growth-plan" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
-          <Target size={16} />
-          My Growth Plan
-        </a>
-        <a href="/help" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
-          <HelpCircle size={16} />
-          Help
-        </a>
-      </nav>
+        <nav className="mb-auto flex flex-col gap-1 px-4 pt-4">
+          <a href="/dashboard" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
+            <Home size={16} />
+            Home
+          </a>
+          <a href="/pathways" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
+            <Map size={16} />
+            Pathways
+          </a>
+          <a href="/growth-plan" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
+            <Target size={16} />
+            My Growth Plan
+          </a>
+          <a href="/help" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
+            <HelpCircle size={16} />
+            Help
+          </a>
+        </nav>
 
-      <div className="flex flex-col gap-1 px-4 pb-2">
-        {isAdmin && (
-          <div>
-            <button
-              onClick={() => setAdminOpen((o) => !o)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              <ShieldCheck size={16} />
-              Admin
-              <ChevronDown size={14} className={`ml-auto transition-transform ${adminOpen ? "rotate-180" : ""}`} />
-            </button>
-            {adminOpen && (
-              <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
-                <a href="/admin/user" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <UserCog size={14} />
-                  Users
-                </a>
-                <a href="/admin/cohort" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <UsersRound size={14} />
-                  Cohorts
-                </a>
-                <a href="/admin/pathway" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <BookOpen size={14} />
-                  Pathways
-                </a>
-                <a href="/admin/topic" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <Tag size={14} />
-                  Topics
-                </a>
-                <a href="/admin/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <GraduationCap size={14} />
-                  Courses
-                </a>
-                <a href="/admin/office" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <Building2 size={14} />
-                  Offices
-                </a>
-                <a href="/admin/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <BarChart3 size={14} />
-                  Analytics
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-        {isManager && (
-          <div>
-            <button
-              onClick={() => setManagerOpen((o) => !o)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              <Users size={16} />
-              Manager
-              <ChevronDown size={14} className={`ml-auto transition-transform ${managerOpen ? "rotate-180" : ""}`} />
-            </button>
-            {managerOpen && (
-              <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
-                <a href="/manager/professionals" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <UsersRound size={14} />
-                  Professionals
-                </a>
-                <a href="/manager/pathway-request" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <ClipboardList size={14} />
-                  Pathway Requests
-                </a>
-                <a href="/manager/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <BarChart3 size={14} />
-                  Analytics
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-        {isTrainer && (
-          <div>
-            <button
-              onClick={() => setTrainerOpen((o) => !o)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              <PenLine size={16} />
-              Trainer
-              <ChevronDown size={14} className={`ml-auto transition-transform ${trainerOpen ? "rotate-180" : ""}`} />
-            </button>
-            {trainerOpen && (
-              <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
-                <a href="/trainer/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <GraduationCap size={14} />
-                  My Courses
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-        {isSME && (
-          <div>
-            <button
-              onClick={() => setSmeOpen((o) => !o)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
-            >
-              <Lightbulb size={16} />
-              Subject Matter Expert
-              <ChevronDown size={14} className={`ml-auto transition-transform ${smeOpen ? "rotate-180" : ""}`} />
-            </button>
-            {smeOpen && (
-              <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
-                <a href="/sme/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                  <GraduationCap size={14} />
-                  My Topics
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="px-4 pb-6 pt-2">
-        <div className="rounded-xl bg-white/10 p-3">
-          <div className="flex items-center gap-3">
-            <UserAvatar name={session?.user?.name} image={session?.user?.image} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{session?.user?.name ?? "Unknown"}</p>
-            </div>
-            <a href="/notifications" className="relative shrink-0 rounded-lg p-1.5 text-white/70 hover:bg-white/15 hover:text-white">
-              <Bell size={16} />
-              {unreadNotifications > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                </span>
+        <div className="flex flex-col gap-1 px-4 pb-2">
+          {(isAdmin || isPathwayOwner) && (
+            <div>
+              <button
+                onClick={() => setAdminOpen((o) => !o)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                <ShieldCheck size={16} />
+                Admin
+                <ChevronDown size={14} className={`ml-auto transition-transform ${adminOpen ? "rotate-180" : ""}`} />
+              </button>
+              {adminOpen && (
+                <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
+                  {isAdmin && (
+                    <a href="/admin/user" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                      <UserCog size={14} />
+                      Users
+                    </a>
+                  )}
+                  {isAdmin && (
+                    <a href="/admin/cohort" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                      <UsersRound size={14} />
+                      Cohorts
+                    </a>
+                  )}
+                  <a href="/admin/pathway" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <BookOpen size={14} />
+                    Pathways
+                  </a>
+                  {isAdmin && (
+                    <>
+                      <a href="/admin/topic" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                        <Tag size={14} />
+                        Topics
+                      </a>
+                      <a href="/admin/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                        <GraduationCap size={14} />
+                        Courses
+                      </a>
+                      <a href="/admin/office" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                        <Building2 size={14} />
+                        Offices
+                      </a>
+                      <a href="/admin/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                        <BarChart3 size={14} />
+                        Analytics
+                      </a>
+                    </>
+                  )}
+                </div>
               )}
-            </a>
-          </div>
-          <div className="mt-2.5 flex items-center gap-2">
-            <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${streak > 0 ? "bg-orange-500/30 text-orange-200" : "bg-white/10 text-white/40"}`}>
-              <Flame size={11} className={streak > 0 ? "text-orange-300" : ""} />
-              {streak > 0 ? `${streak}-day streak` : "No streak"}
             </div>
-            <div className="flex items-center gap-1 rounded-full bg-yellow-500/20 px-2.5 py-1 text-xs font-semibold text-yellow-200">
-              <Star size={11} className="text-yellow-300" />
-              {totalPoints.toLocaleString()} pts
+          )}
+          {isManager && (
+            <div>
+              <button
+                onClick={() => setManagerOpen((o) => !o)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                <Users size={16} />
+                Manager
+                <ChevronDown size={14} className={`ml-auto transition-transform ${managerOpen ? "rotate-180" : ""}`} />
+              </button>
+              {managerOpen && (
+                <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
+                  <a href="/manager/professionals" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <UsersRound size={14} />
+                    Professionals
+                  </a>
+                  <a href="/manager/pathway-request" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <ClipboardList size={14} />
+                    Pathway Requests
+                  </a>
+                  <a href="/manager/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <BarChart3 size={14} />
+                    Analytics
+                  </a>
+                </div>
+              )}
             </div>
-            <SettingsMenu />
+          )}
+          {isTrainer && (
+            <div>
+              <button
+                onClick={() => setTrainerOpen((o) => !o)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                <PenLine size={16} />
+                Trainer
+                <ChevronDown size={14} className={`ml-auto transition-transform ${trainerOpen ? "rotate-180" : ""}`} />
+              </button>
+              {trainerOpen && (
+                <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
+                  <a href="/trainer/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <GraduationCap size={14} />
+                    My Courses
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+          {isSME && (
+            <div>
+              <button
+                onClick={() => setSmeOpen((o) => !o)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                <Lightbulb size={16} />
+                Subject Matter Expert
+                <ChevronDown size={14} className={`ml-auto transition-transform ${smeOpen ? "rotate-180" : ""}`} />
+              </button>
+              {smeOpen && (
+                <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
+                  <a href="/sme/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <GraduationCap size={14} />
+                    My Topics
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="px-4 pb-6 pt-2">
+          <div className="rounded-xl bg-white/10 p-3">
+            <div className="flex items-center gap-3">
+              <UserAvatar name={session?.user?.name} image={session?.user?.image} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white">{session?.user?.name ?? "Unknown"}</p>
+              </div>
+              <a href="/notifications" className="relative shrink-0 rounded-lg p-1.5 text-white/70 hover:bg-white/15 hover:text-white">
+                <Bell size={16} />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                    {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                  </span>
+                )}
+              </a>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2">
+              <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${streak > 0 ? "bg-orange-500/30 text-orange-200" : "bg-white/10 text-white/40"}`}>
+                <Flame size={11} className={streak > 0 ? "text-orange-300" : ""} />
+                {streak > 0 ? `${streak}-day streak` : "No streak"}
+              </div>
+              <div className="flex items-center gap-1 rounded-full bg-yellow-500/20 px-2.5 py-1 text-xs font-semibold text-yellow-200">
+                <Star size={11} className="text-yellow-300" />
+                {totalPoints.toLocaleString()} pts
+              </div>
+              <SettingsMenu />
+            </div>
           </div>
         </div>
       </div>

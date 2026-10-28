@@ -41,7 +41,7 @@ export default async function SmeCoursesPage() {
   const topics = smeTopics.map((st) => st.topic)
 
   const trainerUsers = await prisma.user.findMany({
-    where: { deletedAt: null, roles: { some: { role: "TRAINER" } } },
+    where: { deletedAt: null },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   })

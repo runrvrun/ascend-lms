@@ -18,8 +18,8 @@ export default async function CoursePreviewPage({ params }: { params: Promise<{ 
   if (!session?.user) redirect("/")
   const userId = (session.user as any).id as string
 
-  const roles = await prisma.userRole.findMany({ where: { userId }, select: { role: true } })
-  const isPrivileged = roles.some((r) => ["ADMIN", "TRAINER", "SME"].includes(r.role))
+  const roles = ((session.user as any).roles as string[]) ?? []
+  const isPrivileged = ["ADMIN", "TRAINER", "SME"].some((r) => roles.includes(r))
   if (!isPrivileged) redirect("/")
 
   const course = await prisma.course.findFirst({

@@ -14,7 +14,7 @@ export default async function AdminTopicPage() {
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({
-      where: { deletedAt: null, roles: { some: { role: "SME" } } },
+      where: { deletedAt: null },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
+import type { AppRole } from "../../lib/userRoles"
 import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, Mail, KeyRound, BarChart2 } from "lucide-react"
 import { SearchableSelect } from "../../components/SearchableSelect"
 import { ActionsMenu } from "../../components/ActionsMenu"
@@ -21,12 +22,14 @@ type UserRow = {
   office: OfficeOption | null
   managers: { managerId: string; manager: ManagerOption }[]
   roles: { role: Role }[]
+  // Stored ADMIN plus roles derived from assignments (see app/lib/userRoles.ts)
+  derivedRoles: AppRole[]
   cohorts: { cohortId: string }[]
 }
 
 const DIVISIONS = Object.values(Division)
 const TITLES = Object.values(JobTitle)
-const ALL_ROLES: Role[] = ["ADMIN", "MANAGER", "TRAINER", "SME"]
+const ALL_ROLES: AppRole[] = ["ADMIN", "MANAGER", "TRAINER", "SME", "PATHWAY_OWNER"]
 
 function formatEnum(val: string) {
   if (val === "NA") return "N/A"
@@ -41,18 +44,20 @@ const empty: UserFormData = {
   officeId: "",
 }
 
-function RoleBadge({ role }: { role: Role }) {
-  const styles: Record<Role, string> = {
+function RoleBadge({ role }: { role: AppRole }) {
+  const styles: Record<AppRole, string> = {
     ADMIN: "bg-red-100 text-red-700",
     MANAGER: "bg-purple-100 text-purple-700",
     TRAINER: "bg-green-100 text-green-700",
     SME: "bg-violet-100 text-violet-700",
+    PATHWAY_OWNER: "bg-blue-100 text-blue-700",
   }
-  const labels: Record<Role, string> = {
+  const labels: Record<AppRole, string> = {
     ADMIN: "Admin",
     MANAGER: "Manager",
     TRAINER: "Trainer",
     SME: "SME",
+    PATHWAY_OWNER: "Pathway Owner",
   }
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[role]}`}>
@@ -192,22 +197,12 @@ function RoleModal({
   user: UserRow
   onClose: () => void
 }) {
-  const [selected, setSelected] = useState<Set<Role>>(
-    new Set(user.roles.map((r) => r.role))
-  )
+  const [isAdmin, setIsAdmin] = useState(user.roles.some((r) => r.role === "ADMIN"))
   const [pending, startTransition] = useTransition()
-
-  function toggle(role: Role) {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      next.has(role) ? next.delete(role) : next.add(role)
-      return next
-    })
-  }
 
   function handleSave() {
     startTransition(async () => {
-      await setUserRoles(user.id, Array.from(selected))
+      await setUserRoles(user.id, isAdmin ? ["ADMIN"] : [])
       onClose()
     })
   }
@@ -225,21 +220,30 @@ function RoleModal({
           </button>
         </div>
 
-        <div className="flex flex-col gap-2">
-          {ALL_ROLES.map((role) => (
-            <label key={role} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={selected.has(role)}
-                onChange={() => toggle(role)}
-                className="h-4 w-4 rounded accent-blue-600"
-              />
-              <div>
-                <p className="text-sm font-medium text-slate-800">{formatEnum(role)}</p>
-              </div>
-              <RoleBadge role={role} />
-            </label>
-          ))}
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50">
+          <input
+            type="checkbox"
+            checked={isAdmin}
+            onChange={(e) => setIsAdmin(e.target.checked)}
+            className="h-4 w-4 rounded accent-blue-600"
+          />
+          <p className="text-sm font-medium text-slate-800">Admin</p>
+          <RoleBadge role="ADMIN" />
+        </label>
+
+        <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          <p className="mb-1.5 font-medium text-slate-700">Other roles come from assignments</p>
+          <ul className="flex flex-col gap-1">
+            <li><span className="font-medium">Manager</span>: has direct reports (Assign Managers on their reports)</li>
+            <li><span className="font-medium">Trainer</span>: assigned as a trainer on a course</li>
+            <li><span className="font-medium">SME</span>: assigned as an SME on a topic</li>
+            <li><span className="font-medium">Pathway Owner</span>: set as an owner on a pathway</li>
+          </ul>
+          {user.derivedRoles.some((r) => r !== "ADMIN") && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {user.derivedRoles.filter((r) => r !== "ADMIN").map((r) => <RoleBadge key={r} role={r} />)}
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
@@ -691,13 +695,13 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
   const [search, setSearch] = useState("")
   const [divisionFilter, setDivisionFilter] = useState<Division | "">("")
   const [titleFilter, setTitleFilter] = useState<JobTitle | "">("")
-  const [roleFilter, setRoleFilter] = useState<Role | "">("")
+  const [roleFilter, setRoleFilter] = useState<AppRole | "">("")
 
   const filtered = users.filter((u) => {
     if (search && !u.name?.toLowerCase().includes(search.toLowerCase())) return false
     if (divisionFilter && u.division !== divisionFilter) return false
     if (titleFilter && u.title !== titleFilter) return false
-    if (roleFilter && !u.roles.some((r) => r.role === roleFilter)) return false
+    if (roleFilter && !u.derivedRoles.includes(roleFilter)) return false
     return true
   })
 
@@ -762,7 +766,7 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
         </select>
         <select
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as Role | "")}
+          onChange={(e) => setRoleFilter(e.target.value as AppRole | "")}
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Roles</option>
@@ -796,7 +800,7 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-medium text-slate-900">{u.name ?? "—"}</span>
-                    {u.roles.map((r) => <RoleBadge key={r.role} role={r.role} />)}
+                    {u.derivedRoles.map((r) => <RoleBadge key={r} role={r} />)}
                   </div>
                 </td>
                 <td className="px-5 py-3 text-slate-500">{u.email ?? "—"}</td>

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
+import { isPathwayOwner } from "../../lib/permissions"
 import { SidebarWithStats } from "../../components/SidebarWithStats"
 import { PathwayViewer } from "./PathwayViewer"
 import { isDeadlineLocked, toDeadlineInput } from "../../lib/pathwayDeadline"
@@ -29,10 +30,12 @@ export default async function PathwayDetailPage({
 
   const userId = (session.user as any).id as string
 
-  // In preview mode, verify the user has a privileged role
+  // In preview mode (drafts and unpublished courses visible), verify the user is
+  // privileged: admin, trainer, SME, or an owner of this pathway
   if (isPreviewMode) {
-    const roles = await prisma.userRole.findMany({ where: { userId }, select: { role: true } })
-    const isPrivileged = roles.some((r) => ["ADMIN", "TRAINER", "SME"].includes(r.role))
+    const roles = ((session.user as any).roles as string[]) ?? []
+    const isPrivileged =
+      ["ADMIN", "TRAINER", "SME"].some((r) => roles.includes(r)) || (await isPathwayOwner(userId, id))
     if (!isPrivileged) redirect("/pathways")
   }
 

@@ -1,6 +1,7 @@
 import { prisma } from "./prisma"
 import { getUserLearningProgress, type EnrollmentWithCourses } from "./userLearningProgress"
 import { isDeadlinePassed, startOfUtcDay } from "./pathwayDeadline"
+import { ASSIGNMENT_COUNTS, deriveRoles } from "./userRoles"
 
 // One user's whole learning journey, for the admin User Progress Report page and
 // its Excel export (app/api/admin/users/[id]/report/route.ts). Dates are ISO strings.
@@ -155,6 +156,7 @@ export async function getUserReport(userId: string): Promise<UserReport | null> 
       lastActiveAt: true,
       office: { select: { name: true } },
       roles: { select: { role: true } },
+      _count: { select: ASSIGNMENT_COUNTS },
       managers: { select: { manager: { select: { name: true, email: true } } } },
     },
   })
@@ -355,7 +357,7 @@ export async function getUserReport(userId: string): Promise<UserReport | null> 
       division: user.division,
       title: user.title,
       office: user.office?.name ?? null,
-      roles: user.roles.map((r) => r.role),
+      roles: deriveRoles(user.roles, user._count),
       managers: user.managers.map((m) => m.manager.name ?? m.manager.email ?? "").filter(Boolean),
       accountCreatedAt: user.createdAt.toISOString(),
       deactivatedAt: user.deletedAt?.toISOString() ?? null,

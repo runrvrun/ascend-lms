@@ -313,10 +313,13 @@ export function PathwayCourseManagement({
   pathwayId,
   entries,
   allCourses,
+  canEditCourses,
 }: {
   pathwayId: string
   entries: PathwayCourseRow[]
   allCourses: CourseOption[]
+  // Course editing is admin-only; pathway owners just see the name
+  canEditCourses: boolean
 }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<PathwayCourseRow | null>(null)
@@ -411,13 +414,17 @@ export function PathwayCourseManagement({
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <GraduationCap size={14} className="shrink-0 text-blue-400" />
-                        <a
-                          href={`/admin/course/${e.course.id}`}
-                          className="font-medium text-slate-900 hover:text-blue-600 hover:underline"
-                          title="Edit course"
-                        >
-                          {e.course.name}
-                        </a>
+                        {canEditCourses ? (
+                          <a
+                            href={`/admin/course/${e.course.id}`}
+                            className="font-medium text-slate-900 hover:text-blue-600 hover:underline"
+                            title="Edit course"
+                          >
+                            {e.course.name}
+                          </a>
+                        ) : (
+                          <span className="font-medium text-slate-900">{e.course.name}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">

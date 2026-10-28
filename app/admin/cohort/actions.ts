@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import * as xlsx from "xlsx"
 import { prisma } from "../../lib/prisma"
+import { requireAdmin } from "../../lib/permissions"
 import { sendPathwayAssigned } from "../../lib/email"
 
 export type BulkAddMembersResult = {
@@ -13,17 +14,20 @@ export type BulkAddMembersResult = {
 }
 
 export async function createCohort(name: string) {
+  await requireAdmin()
   await prisma.cohort.create({ data: { name } })
   revalidatePath("/admin/cohort")
 }
 
 export async function updateCohort(id: string, name: string) {
+  await requireAdmin()
   await prisma.cohort.update({ where: { id }, data: { name } })
   revalidatePath("/admin/cohort")
   revalidatePath(`/admin/cohort/${id}`)
 }
 
 export async function deleteCohort(id: string) {
+  await requireAdmin()
   await prisma.cohort.update({ where: { id }, data: { deletedAt: new Date() } })
   revalidatePath("/admin/cohort")
 }
@@ -81,12 +85,14 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
 }
 
 export async function addUserToCohort(cohortId: string, userId: string) {
+  await requireAdmin()
   await prisma.cohortUser.create({ data: { cohortId, userId } })
   await enrollUsersInCohortPathways(cohortId, [userId])
   revalidatePath(`/admin/cohort/${cohortId}`)
 }
 
 export async function addUsersToCohort(cohortId: string, userIds: string[]) {
+  await requireAdmin()
   if (userIds.length === 0) return
   await prisma.cohortUser.createMany({
     data: userIds.map((userId) => ({ cohortId, userId })),
@@ -97,6 +103,7 @@ export async function addUsersToCohort(cohortId: string, userIds: string[]) {
 }
 
 export async function removeUserFromCohort(id: string, cohortId: string) {
+  await requireAdmin()
   const cohortUser = await prisma.cohortUser.findUnique({
     where: { id },
     select: { userId: true },
@@ -128,6 +135,7 @@ export async function bulkAddMembersToCohort(
   cohortId: string,
   formData: FormData
 ): Promise<BulkAddMembersResult> {
+  await requireAdmin()
   const file = formData.get("file") as File | null
   if (!file) throw new Error("No file provided")
 
@@ -192,6 +200,7 @@ export async function bulkAddMembersToCohort(
 // ── Cohort Pathways ───────────────────────────────────────────────────────────
 
 export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
+  await requireAdmin()
   await prisma.cohortPathway.create({ data: { cohortId, pathwayId } })
 
   const [cohort, pathway] = await Promise.all([
@@ -236,6 +245,7 @@ export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
 }
 
 export async function removePathwayFromCohort(id: string, cohortId: string) {
+  await requireAdmin()
   await prisma.cohortPathway.delete({ where: { id } })
   revalidatePath(`/admin/cohort/${cohortId}`)
 }

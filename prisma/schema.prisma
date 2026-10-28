@@ -41,6 +41,7 @@ model User {
   gradedSubmissions     AssignmentSubmission[] @relation("AssignmentGrader")
   trainerCourses        CourseTrainer[]
   smeTopics             TopicSME[]
+  ownedPathways         PathwayOwner[]
   courseFeedbacks       CourseFeedback[]
   growthPlans           GrowthPlan[]
   confirmedGrowthPlans  GrowthPlan[]     @relation("GrowthPlanConfirmer")
@@ -147,11 +148,10 @@ model UserRole {
   @@unique([userId, role]) // prevent duplicate roles
 }
 
+// Only ADMIN is a stored role. Manager, Trainer, SME and pathway owner are derived from
+// assignments (UserManager, CourseTrainer, TopicSME, PathwayOwner) — see app/lib/userRoles.ts.
 enum Role {
   ADMIN
-  MANAGER
-  TRAINER
-  SME
 }
 
 model UserManager {
@@ -231,10 +231,26 @@ model Pathway {
   courseFeedbacks       CourseFeedback[]
   growthPlans           GrowthPlan[]
   reminders             PathwayReminder[]
+  owners                PathwayOwner[]
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   deletedAt DateTime?
+}
+
+// Non-admin owners can manage their pathways (courses, enrollments, settings) under
+// Admin > Pathways. Only admins set owners.
+model PathwayOwner {
+  pathwayId String
+  userId    String
+
+  pathway Pathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([pathwayId, userId])
+  @@index([userId])
 }
 
 enum PublishStatus {

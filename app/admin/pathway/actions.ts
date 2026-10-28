@@ -6,15 +6,19 @@ import { sendPathwayAssigned } from "../../lib/email"
 import { parseDeadlineInput } from "../../lib/pathwayDeadline"
 import { PathwayVisibility } from "@prisma/client"
 import { MAX_FEATURED_PATHWAYS } from "../../lib/featuredPathways"
+import { requireAdmin, requirePathwayManager } from "../../lib/permissions"
 
 export type PathwayFormData = {
   name: string
   description: string
   visibility: PathwayVisibility
   tags: string[]
+  // Only applied when an admin saves; owners can't change who owns a pathway.
+  ownerIds?: string[]
 }
 
 export async function createPathway(data: PathwayFormData) {
+  await requireAdmin()
   await prisma.pathway.create({
     data: {
       name: data.name,
@@ -22,12 +26,23 @@ export async function createPathway(data: PathwayFormData) {
       visibility: data.visibility,
       tags: data.tags,
       status: "DRAFT",
+      owners: { create: (data.ownerIds ?? []).map((userId) => ({ userId })) },
     },
   })
   revalidatePath("/admin/pathway")
 }
 
 export async function updatePathway(id: string, data: PathwayFormData) {
+  const user = await requirePathwayManager(id)
+  if (user.roles.includes("ADMIN") && data.ownerIds) {
+    await prisma.$transaction([
+      prisma.pathwayOwner.deleteMany({ where: { pathwayId: id, userId: { notIn: data.ownerIds } } }),
+      prisma.pathwayOwner.createMany({
+        data: data.ownerIds.map((userId) => ({ pathwayId: id, userId })),
+        skipDuplicates: true,
+      }),
+    ])
+  }
   await prisma.pathway.update({
     where: { id },
     data: {
@@ -44,6 +59,7 @@ export async function updatePathway(id: string, data: PathwayFormData) {
 }
 
 export async function togglePathwayStatus(id: string, status: "DRAFT" | "PUBLISHED") {
+  await requirePathwayManager(id)
   await prisma.pathway.update({
     where: { id },
     data: { status, ...(status === "DRAFT" ? { featuredAt: null } : {}) },
@@ -53,6 +69,7 @@ export async function togglePathwayStatus(id: string, status: "DRAFT" | "PUBLISH
 }
 
 export async function deletePathway(id: string) {
+  await requirePathwayManager(id)
   await prisma.pathway.update({
     where: { id },
     data: { deletedAt: new Date(), featuredAt: null },
@@ -62,7 +79,9 @@ export async function deletePathway(id: string) {
 }
 
 // Errors are returned rather than thrown: thrown messages are redacted in production.
+// Featuring is site-wide (it changes everyone's recommendations), so it stays admin-only.
 export async function setPathwayFeatured(id: string, featured: boolean): Promise<{ error?: string }> {
+  await requireAdmin()
   if (!featured) {
     await prisma.pathway.update({ where: { id }, data: { featuredAt: null } })
   } else {
@@ -88,9 +107,10 @@ export async function setPathwayFeatured(id: string, featured: boolean): Promise
 }
 
 export async function duplicatePathway(id: string): Promise<string> {
+  await requirePathwayManager(id)
   const source = await prisma.pathway.findUnique({
     where: { id },
-    include: { courses: { orderBy: { order: "asc" } } },
+    include: { courses: { orderBy: { order: "asc" } }, owners: { select: { userId: true } } },
   })
   if (!source) throw new Error("Pathway not found")
 
@@ -108,6 +128,8 @@ export async function duplicatePathway(id: string): Promise<string> {
       status: "DRAFT",
       visibility: source.visibility,
       tags: source.tags,
+      // Keep the same owners so an owner who duplicates can still manage the copy
+      owners: { create: source.owners.map((o) => ({ userId: o.userId })) },
     },
   })
 
@@ -133,6 +155,7 @@ const touchPathway = (pathwayId: string) =>
   prisma.pathway.update({ where: { id: pathwayId }, data: { updatedAt: new Date() } })
 
 export async function addCourseToPathway(pathwayId: string, courseId: string, order: number, points: number) {
+  await requirePathwayManager(pathwayId)
   await Promise.all([
     prisma.pathwayCourse.create({ data: { pathwayId, courseId, order, points } }),
     touchPathway(pathwayId),
@@ -141,24 +164,27 @@ export async function addCourseToPathway(pathwayId: string, courseId: string, or
 }
 
 export async function updatePathwayCourse(id: string, pathwayId: string, order: number, points: number) {
+  await requirePathwayManager(pathwayId)
   await Promise.all([
-    prisma.pathwayCourse.update({ where: { id }, data: { order, points } }),
+    prisma.pathwayCourse.update({ where: { id, pathwayId }, data: { order, points } }),
     touchPathway(pathwayId),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 
 export async function updateSectionTitle(id: string, pathwayId: string, sectionTitle: string | null) {
+  await requirePathwayManager(pathwayId)
   await Promise.all([
-    prisma.pathwayCourse.update({ where: { id }, data: { sectionTitle } }),
+    prisma.pathwayCourse.update({ where: { id, pathwayId }, data: { sectionTitle } }),
     touchPathway(pathwayId),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
 }
 
 export async function removeCourseFromPathway(id: string, pathwayId: string) {
+  await requirePathwayManager(pathwayId)
   await Promise.all([
-    prisma.pathwayCourse.delete({ where: { id } }),
+    prisma.pathwayCourse.delete({ where: { id, pathwayId } }),
     touchPathway(pathwayId),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
@@ -169,10 +195,11 @@ export async function swapPathwayCourseOrder(
   id2: string, order2: number,
   pathwayId: string,
 ) {
+  await requirePathwayManager(pathwayId)
   await prisma.$transaction([
-    prisma.pathwayCourse.update({ where: { id: id1 }, data: { order: -1 } }),
-    prisma.pathwayCourse.update({ where: { id: id2 }, data: { order: order1 } }),
-    prisma.pathwayCourse.update({ where: { id: id1 }, data: { order: order2 } }),
+    prisma.pathwayCourse.update({ where: { id: id1, pathwayId }, data: { order: -1 } }),
+    prisma.pathwayCourse.update({ where: { id: id2, pathwayId }, data: { order: order1 } }),
+    prisma.pathwayCourse.update({ where: { id: id1, pathwayId }, data: { order: order2 } }),
     prisma.pathway.update({ where: { id: pathwayId }, data: { updatedAt: new Date() } }),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
@@ -181,6 +208,7 @@ export async function swapPathwayCourseOrder(
 // ── Pathway Enrollments ───────────────────────────────────────────────────────
 
 export async function adminEnrollUsers(pathwayId: string, userIds: string[], deadlineInput: string | null = null) {
+  await requirePathwayManager(pathwayId)
   if (userIds.length === 0) return
   const deadline = parseDeadlineInput(deadlineInput)
   await prisma.pathwayEnrollment.createMany({
@@ -221,11 +249,13 @@ export async function adminEnrollUsers(pathwayId: string, userIds: string[], dea
 }
 
 export async function adminRemoveEnrollment(enrollmentId: string, pathwayId: string) {
-  await prisma.pathwayEnrollment.delete({ where: { id: enrollmentId } })
+  await requirePathwayManager(pathwayId)
+  await prisma.pathwayEnrollment.delete({ where: { id: enrollmentId, pathwayId } })
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
 }
 
 export async function adminAssignCohortToPathway(pathwayId: string, cohortId: string, deadlineInput: string | null = null) {
+  await requirePathwayManager(pathwayId)
   const deadline = parseDeadlineInput(deadlineInput)
   await prisma.cohortPathway.create({ data: { pathwayId, cohortId, deadline } })
 
@@ -272,8 +302,9 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
 }
 
 export async function adminUpdateEnrollmentDeadline(enrollmentId: string, pathwayId: string, deadlineInput: string | null) {
+  await requirePathwayManager(pathwayId)
   await prisma.pathwayEnrollment.update({
-    where: { id: enrollmentId },
+    where: { id: enrollmentId, pathwayId },
     data: { deadline: parseDeadlineInput(deadlineInput) },
   })
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
@@ -282,9 +313,10 @@ export async function adminUpdateEnrollmentDeadline(enrollmentId: string, pathwa
 
 // Updates the cohort's deadline and every enrollment that came in through this cohort.
 export async function adminUpdateCohortDeadline(cohortPathwayId: string, pathwayId: string, deadlineInput: string | null) {
+  await requirePathwayManager(pathwayId)
   const deadline = parseDeadlineInput(deadlineInput)
   const cohortPathway = await prisma.cohortPathway.update({
-    where: { id: cohortPathwayId },
+    where: { id: cohortPathwayId, pathwayId },
     data: { deadline },
     select: { cohortId: true },
   })
@@ -297,7 +329,8 @@ export async function adminUpdateCohortDeadline(cohortPathwayId: string, pathway
 }
 
 export async function adminRemoveCohortFromPathway(cohortPathwayId: string, pathwayId: string) {
-  await prisma.cohortPathway.delete({ where: { id: cohortPathwayId } })
+  await requirePathwayManager(pathwayId)
+  await prisma.cohortPathway.delete({ where: { id: cohortPathwayId, pathwayId } })
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
   revalidatePath(`/admin/pathway`)
 }
@@ -322,7 +355,9 @@ export async function adminAddEnrollmentReminder(
   scheduledAt: Date,
   message?: string
 ) {
+  await requirePathwayManager(pathwayId)
   assertOnTheHour(scheduledAt)
+  await prisma.pathwayEnrollment.findUniqueOrThrow({ where: { id: enrollmentId, pathwayId }, select: { id: true } })
   await prisma.pathwayReminder.create({
     data: { enrollmentId, pathwayId, scheduledAt, message: message || null },
   })
@@ -335,7 +370,9 @@ export async function adminAddCohortReminder(
   scheduledAt: Date,
   message?: string
 ) {
+  await requirePathwayManager(pathwayId)
   assertOnTheHour(scheduledAt)
+  await prisma.cohortPathway.findUniqueOrThrow({ where: { id: cohortPathwayId, pathwayId }, select: { id: true } })
   await prisma.pathwayReminder.create({
     data: { cohortPathwayId, pathwayId, scheduledAt, message: message || null },
   })
@@ -343,6 +380,7 @@ export async function adminAddCohortReminder(
 }
 
 export async function adminDeleteReminder(reminderId: string, pathwayId: string) {
-  await prisma.pathwayReminder.delete({ where: { id: reminderId } })
+  await requirePathwayManager(pathwayId)
+  await prisma.pathwayReminder.delete({ where: { id: reminderId, pathwayId } })
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
 }

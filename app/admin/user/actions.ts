@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "../../lib/prisma"
+import { requireAdmin } from "../../lib/permissions"
 import { Division, JobTitle, Prisma, Role } from "@prisma/client"
 import * as xlsx from "xlsx"
 import crypto from "crypto"
@@ -33,6 +34,7 @@ function isDuplicateEmailError(error: unknown) {
 // Errors thrown from server actions are redacted in production builds, so these
 // return the message instead of throwing it.
 export async function createUser(data: UserFormData): Promise<{ error?: string }> {
+  await requireAdmin()
   const email = data.email.trim()
   const fields = {
     name: data.name.trim(),
@@ -64,6 +66,7 @@ export async function createUser(data: UserFormData): Promise<{ error?: string }
 }
 
 export async function updateUser(id: string, data: UserFormData): Promise<{ error?: string }> {
+  await requireAdmin()
   try {
     await prisma.user.update({
       where: { id },
@@ -84,11 +87,13 @@ export async function updateUser(id: string, data: UserFormData): Promise<{ erro
 }
 
 export async function addUserManager(userId: string, managerId: string) {
+  await requireAdmin()
   await prisma.userManager.create({ data: { userId, managerId } })
   revalidatePath("/admin/user")
 }
 
 export async function removeUserManager(userId: string, managerId: string) {
+  await requireAdmin()
   await prisma.userManager.deleteMany({ where: { userId, managerId } })
   revalidatePath("/admin/user")
 }
@@ -96,6 +101,7 @@ export async function removeUserManager(userId: string, managerId: string) {
 // Soft delete: progress, points, enrollments and submissions are kept for reports.
 // Sign-in is blocked for users with deletedAt set (see authOptions).
 export async function deleteUser(id: string) {
+  await requireAdmin()
   await prisma.user.update({ where: { id }, data: { deletedAt: new Date() } })
   revalidatePath("/admin/user")
 }
@@ -108,6 +114,7 @@ export type BulkImportResult = {
 }
 
 export async function bulkCreateUsers(formData: FormData): Promise<BulkImportResult> {
+  await requireAdmin()
   const file = formData.get("file") as File | null
   if (!file) throw new Error("No file provided")
 
@@ -135,7 +142,6 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
   const skipped: string[] = []
   const errors: { row: number; message: string }[] = []
   // Collect manager IDs that need the MANAGER role granted
-  const managerIdsToGrant = new Set<string>()
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
@@ -172,7 +178,6 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
         await prisma.userManager.deleteMany({ where: { userId: existingId } })
         if (dmId) {
           await prisma.userManager.create({ data: { userId: existingId, managerId: dmId } })
-          managerIdsToGrant.add(dmId)
         }
         updated.push(email)
       } else {
@@ -193,7 +198,6 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
 
     if (dmId) {
       await prisma.userManager.create({ data: { userId: newUser.id, managerId: dmId } })
-      managerIdsToGrant.add(dmId)
     }
 
     // Assign cohort if provided
@@ -209,19 +213,12 @@ export async function bulkCreateUsers(formData: FormData): Promise<BulkImportRes
     created.push(email)
   }
 
-  // Grant MANAGER role to all referenced managers (skip if already has it)
-  if (managerIdsToGrant.size > 0) {
-    await prisma.userRole.createMany({
-      data: [...managerIdsToGrant].map((userId) => ({ userId, role: "MANAGER" as Role })),
-      skipDuplicates: true,
-    })
-  }
-
   revalidatePath("/admin/user")
   return { created: created.length, updated: updated.length, skipped, errors }
 }
 
 export async function setUserRoles(userId: string, roles: Role[]) {
+  await requireAdmin()
   await prisma.userRole.deleteMany({ where: { userId } })
   if (roles.length > 0) {
     await prisma.userRole.createMany({
@@ -232,6 +229,7 @@ export async function setUserRoles(userId: string, roles: Role[]) {
 }
 
 export async function sendActivationEmail(userId: string) {
+  await requireAdmin()
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } })
   if (!user?.email) throw new Error("User has no email")
 
@@ -247,6 +245,7 @@ export async function sendActivationEmail(userId: string) {
 }
 
 export async function adminSetPassword(userId: string, newPassword: string) {
+  await requireAdmin()
   if (newPassword.length < 8) throw new Error("Password must be at least 8 characters")
   const hashed = await bcrypt.hash(newPassword, 12)
   await prisma.user.update({ where: { id: userId }, data: { password: hashed } })
@@ -254,6 +253,7 @@ export async function adminSetPassword(userId: string, newPassword: string) {
 }
 
 export async function setUserCohorts(userId: string, cohortIds: string[]) {
+  await requireAdmin()
   await prisma.cohortUser.deleteMany({ where: { userId } })
   if (cohortIds.length > 0) {
     await prisma.cohortUser.createMany({
