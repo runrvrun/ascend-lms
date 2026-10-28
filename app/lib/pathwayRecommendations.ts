@@ -10,6 +10,10 @@
 // Each slot picks one of the strategies that still has candidates at random, so the
 // mix of reasons varies between visits.
 
+// Total "Recommended for you" carousel slots; featured pathways (at most
+// MAX_FEATURED_PATHWAYS) take the first ones, automated picks fill the rest.
+export const MAX_RECOMMENDATIONS = 4
+
 export type RecommendationKind = "featured" | "popular" | "next" | "similar"
 export type Recommendation = { kind: RecommendationKind; label: string }
 

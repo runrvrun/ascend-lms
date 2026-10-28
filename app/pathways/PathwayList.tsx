@@ -5,6 +5,7 @@ import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, 
 import { EnrollmentStatus, PathwayVisibility } from "@prisma/client"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
 import { SharePathwayModal } from "./SharePathwayModal"
+import { RecommendationCarousel } from "./RecommendationCarousel"
 import type { Recommendation, RecommendationKind } from "../lib/pathwayRecommendations"
 
 const RECOMMENDATION_ICON: Record<RecommendationKind, React.ReactNode> = {
@@ -314,11 +315,11 @@ export function PathwayList({ pathways, recommendedOrder }: { pathways: PathwayC
             <Sparkles size={16} className="text-amber-500" />
             <h2 className="text-sm font-semibold text-slate-700">Recommended for You</h2>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <RecommendationCarousel>
             {recommendations.map((p) => (
               <PathwayCardItem key={p.id} pathway={p} />
             ))}
-          </div>
+          </RecommendationCarousel>
           <div className="mt-6 border-t border-slate-200" />
         </section>
       )}

@@ -8,7 +8,7 @@ import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
 import { MAX_FEATURED_PATHWAYS } from "../lib/featuredPathways"
-import { buildRecommendations, type Recommendation } from "../lib/pathwayRecommendations"
+import { buildRecommendations, MAX_RECOMMENDATIONS, type Recommendation } from "../lib/pathwayRecommendations"
 
 export default async function PathwaysPage() {
   const session = await getServerSession(authOptions)
@@ -110,7 +110,7 @@ export default async function PathwaysPage() {
   const automated = buildRecommendations({
     userId,
     userDivision: currentUser?.division ?? null,
-    slots: MAX_FEATURED_PATHWAYS - featuredIds.length,
+    slots: MAX_RECOMMENDATIONS - featuredIds.length,
     eligibleIds: pathwayCards
       .filter((p) => {
         const status = p.enrollment?.status
