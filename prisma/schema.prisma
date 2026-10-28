@@ -210,6 +210,9 @@ model Pathway {
   visibility        PathwayVisibility @default(PUBLIC_FREE)
   tags              String[]      @default([])
   status            PublishStatus @default(PUBLISHED)
+  // Set when an admin features the pathway (max MAX_FEATURED_PATHWAYS at once);
+  // featured pathways take the "Recommended for you" slots on /pathways.
+  featuredAt        DateTime?
 
   courses            PathwayCourse[]
   cohortPathways     CohortPathway[]
@@ -695,6 +698,7 @@ enum NotificationType {
   ASSIGNMENT_SUBMITTED
   GROWTH_PLAN_COMPLETED
   GROWTH_PLAN_CONFIRMED
+  PATHWAY_SHARED
 }
 
 model Notification {

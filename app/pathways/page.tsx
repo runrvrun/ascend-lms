@@ -7,6 +7,7 @@ import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
+import { MAX_FEATURED_PATHWAYS } from "../lib/featuredPathways"
 
 export default async function PathwaysPage() {
   const session = await getServerSession(authOptions)
@@ -23,6 +24,7 @@ export default async function PathwaysPage() {
         description: true,
         visibility: true,
         tags: true,
+        featuredAt: true,
         _count: { select: { courses: true, pathwayEnrollments: true } },
       },
       orderBy: { name: "asc" },
@@ -77,6 +79,7 @@ export default async function PathwaysPage() {
       completedCourses: isApproved ? completed : 0,
       totalCourses: isApproved ? total : 0,
       isRecommended: false,
+      isFeatured: false,
     }
   })
 
@@ -89,22 +92,30 @@ export default async function PathwaysPage() {
     }
   }
 
-  // Top 2 recommendations: unenrolled/uncompleted, ranked by same-division enrollment count
-  const recommendedIds = new Set(
-    pathwayCards
-      .filter((p) => {
-        const status = p.enrollment?.status
-        return (!status || status === "REJECTED") && !p.isCompleted
-      })
-      .sort((a, b) => (divisionEnrollmentCount[b.id] ?? 0) - (divisionEnrollmentCount[a.id] ?? 0))
-      .slice(0, 2)
-      .map((p) => p.id)
-  )
+  // Admin-featured pathways take the recommendation slots first (shown to everyone,
+  // oldest-featured first); any remaining slots go to automated picks:
+  // unenrolled/uncompleted, ranked by same-division enrollment count.
+  const featuredIds = pathwayCards
+    .filter((p) => p.featuredAt)
+    .sort((a, b) => a.featuredAt!.getTime() - b.featuredAt!.getTime())
+    .slice(0, MAX_FEATURED_PATHWAYS)
+    .map((p) => p.id)
+  const automatedIds = pathwayCards
+    .filter((p) => {
+      const status = p.enrollment?.status
+      return !featuredIds.includes(p.id) && (!status || status === "REJECTED") && !p.isCompleted
+    })
+    .sort((a, b) => (divisionEnrollmentCount[b.id] ?? 0) - (divisionEnrollmentCount[a.id] ?? 0))
+    .slice(0, MAX_FEATURED_PATHWAYS - featuredIds.length)
+    .map((p) => p.id)
+  const recommendedOrder = [...featuredIds, ...automatedIds]
 
-  const pathwayCardsWithRec = pathwayCards.map((p) => ({
-    ...p,
-    isRecommended: recommendedIds.has(p.id),
-  }))
+  const pathwayCardsWithRec = pathwayCards
+    .map(({ featuredAt, ...p }) => ({
+      ...p,
+      isRecommended: recommendedOrder.includes(p.id),
+      isFeatured: !!featuredAt && featuredIds.includes(p.id),
+    }))
 
   return (
     <div className="min-h-screen bg-slate-50 md:pl-72 sidebar-collapsed:pt-14 md:sidebar-collapsed:pt-0 md:sidebar-collapsed:pl-14">
@@ -116,7 +127,7 @@ export default async function PathwaysPage() {
           <p className="mt-1 text-sm text-slate-500">Browse and enroll in learning pathways</p>
         </div>
 
-        <PathwayList pathways={pathwayCardsWithRec} />
+        <PathwayList pathways={pathwayCardsWithRec} recommendedOrder={recommendedOrder} />
       </main>
     </div>
   )

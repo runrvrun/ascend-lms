@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma"
 import { sendPathwayAssigned } from "../../lib/email"
 import { parseDeadlineInput } from "../../lib/pathwayDeadline"
 import { PathwayVisibility } from "@prisma/client"
+import { MAX_FEATURED_PATHWAYS } from "../../lib/featuredPathways"
 
 export type PathwayFormData = {
   name: string
@@ -34,13 +35,19 @@ export async function updatePathway(id: string, data: PathwayFormData) {
       description: data.description || null,
       visibility: data.visibility,
       tags: data.tags,
+      // Hidden pathways aren't listed on /pathways, so they can't stay featured.
+      ...(data.visibility === "HIDDEN" ? { featuredAt: null } : {}),
     },
   })
   revalidatePath("/admin/pathway")
+  revalidatePath("/pathways")
 }
 
 export async function togglePathwayStatus(id: string, status: "DRAFT" | "PUBLISHED") {
-  await prisma.pathway.update({ where: { id }, data: { status } })
+  await prisma.pathway.update({
+    where: { id },
+    data: { status, ...(status === "DRAFT" ? { featuredAt: null } : {}) },
+  })
   revalidatePath("/admin/pathway")
   revalidatePath("/pathways")
 }
@@ -48,9 +55,36 @@ export async function togglePathwayStatus(id: string, status: "DRAFT" | "PUBLISH
 export async function deletePathway(id: string) {
   await prisma.pathway.update({
     where: { id },
-    data: { deletedAt: new Date() },
+    data: { deletedAt: new Date(), featuredAt: null },
   })
   revalidatePath("/admin/pathway")
+  revalidatePath("/pathways")
+}
+
+// Errors are returned rather than thrown: thrown messages are redacted in production.
+export async function setPathwayFeatured(id: string, featured: boolean): Promise<{ error?: string }> {
+  if (!featured) {
+    await prisma.pathway.update({ where: { id }, data: { featuredAt: null } })
+  } else {
+    const pathway = await prisma.pathway.findFirst({
+      where: { id, deletedAt: null },
+      select: { status: true, visibility: true },
+    })
+    if (!pathway) return { error: "Pathway not found." }
+    if (pathway.status !== "PUBLISHED" || pathway.visibility === "HIDDEN") {
+      return { error: "Only published, non-hidden pathways can be featured." }
+    }
+    const featuredCount = await prisma.pathway.count({
+      where: { featuredAt: { not: null }, deletedAt: null, id: { not: id } },
+    })
+    if (featuredCount >= MAX_FEATURED_PATHWAYS) {
+      return { error: `At most ${MAX_FEATURED_PATHWAYS} pathways can be featured. Unfeature one first.` }
+    }
+    await prisma.pathway.update({ where: { id }, data: { featuredAt: new Date() } })
+  }
+  revalidatePath("/admin/pathway")
+  revalidatePath("/pathways")
+  return {}
 }
 
 export async function duplicatePathway(id: string): Promise<string> {

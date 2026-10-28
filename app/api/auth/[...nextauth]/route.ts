@@ -93,7 +93,8 @@ export const authOptions: AuthOptions = {
           where: { id: token.id as string },
           include: { roles: true },
         })
-        token.roles = dbUser?.roles.map((r) => r.role) ?? []
+        // Deleted users lose role-gated access immediately; sign-in is already blocked
+        token.roles = dbUser && !dbUser.deletedAt ? dbUser.roles.map((r) => r.role) : []
       }
       return token
     },

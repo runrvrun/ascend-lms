@@ -6,7 +6,7 @@ import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
-import { ArrowLeft, Bell, MessageCircle, CheckCircle2, XCircle, BookOpen, Users, Target, BadgeCheck, ClipboardList } from "lucide-react"
+import { ArrowLeft, Bell, MessageCircle, CheckCircle2, XCircle, BookOpen, Users, Target, BadgeCheck, ClipboardList, Share2, Eye } from "lucide-react"
 import { markAllNotificationsRead } from "../discussions/actions"
 import { NotificationLink } from "./NotificationLink"
 
@@ -96,6 +96,7 @@ export default async function NotificationsPage() {
                   ASSIGNMENT_GRADED:       { icon: <CheckCircle2   size={14} />, bg: "bg-green-100",  color: "text-green-600"  },
                   GROWTH_PLAN_COMPLETED:   { icon: <Target         size={14} />, bg: "bg-orange-100", color: "text-orange-600" },
                   GROWTH_PLAN_CONFIRMED:   { icon: <BadgeCheck     size={14} />, bg: "bg-green-100",  color: "text-green-600"  },
+                  PATHWAY_SHARED:          { icon: <Share2         size={14} />, bg: "bg-sky-100",    color: "text-sky-600"    },
                 }
                 const { icon, bg, color } = iconMap[n.type] ?? iconMap.COMMENT_REPLY
                 const pathway = n.pathway
@@ -145,7 +146,17 @@ export default async function NotificationsPage() {
                             Review request
                           </NotificationLink>
                         )}
-                        {pathway && n.type !== "ENROLLMENT_REQUESTED" && n.type !== "GROWTH_PLAN_COMPLETED" && n.type !== "GROWTH_PLAN_CONFIRMED" && (
+                        {pathway && n.type === "PATHWAY_SHARED" && (
+                          <NotificationLink
+                            notificationId={n.id}
+                            href={`/pathways/${pathway.id}/preview`}
+                            className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800"
+                          >
+                            <Eye size={11} />
+                            Preview pathway
+                          </NotificationLink>
+                        )}
+                        {pathway && n.type !== "ENROLLMENT_REQUESTED" && n.type !== "GROWTH_PLAN_COMPLETED" && n.type !== "GROWTH_PLAN_CONFIRMED" && n.type !== "PATHWAY_SHARED" && (
                           <NotificationLink
                             notificationId={n.id}
                             href={`/pathways/${pathway.id}`}

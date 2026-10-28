@@ -31,6 +31,8 @@ import {
   Users,
   AlertTriangle,
   Upload,
+  ChevronLeft,
+  ListOrdered,
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { DEADLINE_GRACE_DAYS } from "../../lib/pathwayDeadline"
@@ -45,6 +47,7 @@ function isSharePointUrl(url: string) {
 
 function sharePointSignInLines(noun: string) {
   return [
+    `First, check that you can open this ${noun} directly in SharePoint. If you can't access it there, contact the course trainer to request access.`,
     `This ${noun} is hosted on SharePoint. If it doesn't load, make sure you're signed in to your Microsoft account in this browser, then refresh the page.`,
     `Some browsers block SharePoint's sign-in cookie by default:`,
     `On Edge: turn off "Block third-party cookies" (Settings → Cookies and site permissions → Cookies and site data).`,
@@ -173,7 +176,7 @@ type PathwayData = {
   courses: CourseEntry[]
 }
 
-type Selection =
+export type Selection =
   | { kind: "content"; content: ContentItem; courseId: string }
   | { kind: "test"; test: TestItem; courseId: string; courseName: string }
   | { kind: "assignment"; assignment: NonNullable<AssignmentItem>; courseId: string; courseName: string }
@@ -1062,7 +1065,86 @@ function FeedbackViewer({
   )
 }
 
-function ContentViewer({
+function WithFooter({ footer, children }: { footer?: React.ReactNode; children: React.ReactNode }) {
+  if (!footer) return <>{children}</>
+  return (
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">{children}</div>
+      <div className="shrink-0 border-t border-slate-100 px-6 py-3">{footer}</div>
+    </div>
+  )
+}
+
+type NavItem = { key: string; title: string; selection: Selection }
+
+function selectionKey(sel: Selection | null) {
+  if (!sel) return null
+  if (sel.kind === "content") return sel.content.id
+  if (sel.kind === "test") return `test-${sel.test.id}`
+  if (sel.kind === "assignment") return `assignment-${sel.assignment.id}`
+  if (sel.kind === "feedback") return `feedback-${sel.courseId}`
+  return "growth-plan"
+}
+
+// Every selectable item in sidebar order: per course, content and tests interleaved
+// by their shared `order`, then the assignment, then feedback.
+function buildNavItems(courses: CourseEntry[]): NavItem[] {
+  return courses.flatMap(({ course }) => {
+    const items: Selection[] = [
+      ...course.contents.map((c) => ({ order: c.order ?? 0, sel: { kind: "content", content: c, courseId: course.id } as Selection })),
+      ...course.tests.map((t) => ({ order: t.order, sel: { kind: "test", test: t, courseId: course.id, courseName: course.name } as Selection })),
+    ]
+      .sort((a, b) => a.order - b.order)
+      .map((i) => i.sel)
+    if (course.assignment) items.push({ kind: "assignment", assignment: course.assignment, courseId: course.id, courseName: course.name })
+    if (course.feedbackEnabled) items.push({ kind: "feedback", courseId: course.id, courseName: course.name })
+    return items.map((sel) => ({
+      key: selectionKey(sel)!,
+      selection: sel,
+      title:
+        sel.kind === "content" ? sel.content.title
+        : sel.kind === "test" ? sel.test.title
+        : sel.kind === "assignment" ? `${course.name} — Assignment`
+        : `${course.name} — Feedback`,
+    }))
+  })
+}
+
+function LessonNav({ prev, next, onSelect }: { prev: NavItem | null; next: NavItem | null; onSelect: (sel: Selection) => void }) {
+  if (!prev && !next) return null
+  return (
+    <div className="mt-4 flex w-full items-stretch justify-between gap-2">
+      {prev ? (
+        <button
+          onClick={() => onSelect(prev.selection)}
+          className="flex min-w-0 max-w-[48%] items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          <ChevronLeft size={15} className="shrink-0" />
+          <span className="min-w-0">
+            <span className="block">Previous Lesson</span>
+            <span className="block truncate text-xs font-normal text-slate-400">{prev.title}</span>
+          </span>
+        </button>
+      ) : <span />}
+      {next && (
+        <button
+          onClick={() => onSelect(next.selection)}
+          className="flex min-w-0 max-w-[48%] items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-right text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          <span className="min-w-0">
+            <span className="block">Next Lesson</span>
+            <span className="block truncate text-xs font-normal text-blue-100">{next.title}</span>
+          </span>
+          <ChevronRight size={15} className="shrink-0" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// `sample` renders a content item read-only (no completion, no discussion) for the
+// public pathway preview page.
+export function ContentViewer({
   selection,
   pathwayId,
   completedContentIds,
@@ -1074,6 +1156,8 @@ function ContentViewer({
   feedbackByCourseId,
   isPreview,
   isLocked,
+  sample,
+  footer,
 }: {
   selection: Selection | null
   pathwayId: string
@@ -1086,6 +1170,9 @@ function ContentViewer({
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   isPreview?: boolean
   isLocked?: boolean
+  sample?: boolean
+  // Rendered under "Mark as Completed" (or below tests/assignments/feedback), e.g. lesson navigation.
+  footer?: React.ReactNode
 }) {
   const [pending, startTransition] = useTransition()
   const [videoProgress, setVideoProgress] = useState(0)
@@ -1101,6 +1188,7 @@ function ContentViewer({
   function CompleteButton({ contentId, videoGated = false, videoDuration }: { contentId: string; videoGated?: boolean; videoDuration?: number }) {
     const done = completedContentIds.has(contentId)
     const notReady = videoGated && !!videoDuration && videoDuration > 0 && !done && videoProgress < 0.75
+    if (sample) return null
     if (isPreview) {
       return (
         <button disabled className="flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400 opacity-60">
@@ -1160,42 +1248,48 @@ function ContentViewer({
 
   if (selection.kind === "test") {
     return (
-      <TestViewer
-        test={selection.test}
-        courseId={selection.courseId}
-        pathwayId={pathwayId}
-        courseName={selection.courseName}
-        isAlreadyPassed={testStatusByTestId[selection.test.id] === "PASSED"}
-        isPreview={isPreview}
-        isLocked={isLocked}
-      />
+      <WithFooter footer={footer}>
+        <TestViewer
+          test={selection.test}
+          courseId={selection.courseId}
+          pathwayId={pathwayId}
+          courseName={selection.courseName}
+          isAlreadyPassed={testStatusByTestId[selection.test.id] === "PASSED"}
+          isPreview={isPreview}
+          isLocked={isLocked}
+        />
+      </WithFooter>
     )
   }
 
   if (selection.kind === "assignment") {
     return (
-      <AssignmentViewer
-        assignment={selection.assignment}
-        courseId={selection.courseId}
-        pathwayId={pathwayId}
-        courseName={selection.courseName}
-        submission={latestSubmissionByAssignmentId[selection.assignment.id] ?? null}
-        isAlreadyPassed={assignmentStatusByCourseId[selection.courseId] === "PASSED"}
-        isPreview={isPreview}
-        isLocked={isLocked}
-      />
+      <WithFooter footer={footer}>
+        <AssignmentViewer
+          assignment={selection.assignment}
+          courseId={selection.courseId}
+          pathwayId={pathwayId}
+          courseName={selection.courseName}
+          submission={latestSubmissionByAssignmentId[selection.assignment.id] ?? null}
+          isAlreadyPassed={assignmentStatusByCourseId[selection.courseId] === "PASSED"}
+          isPreview={isPreview}
+          isLocked={isLocked}
+        />
+      </WithFooter>
     )
   }
 
   if (selection.kind === "feedback") {
     return (
-      <FeedbackViewer
-        courseId={selection.courseId}
-        pathwayId={pathwayId}
-        courseName={selection.courseName}
-        courseCompleted={completedCourseIds.has(selection.courseId)}
-        existing={feedbackByCourseId[selection.courseId] ?? null}
-      />
+      <WithFooter footer={footer}>
+        <FeedbackViewer
+          courseId={selection.courseId}
+          pathwayId={pathwayId}
+          courseName={selection.courseName}
+          courseCompleted={completedCourseIds.has(selection.courseId)}
+          existing={feedbackByCourseId[selection.courseId] ?? null}
+        />
+      </WithFooter>
     )
   }
 
@@ -1212,8 +1306,9 @@ function ContentViewer({
         </div>
         <div className="mt-8">
           <CompleteButton contentId={content.id} />
+          {footer}
         </div>
-        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
+        {!sample && <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />}
       </div>
     )
   }
@@ -1247,8 +1342,9 @@ function ContentViewer({
         )}
         <div className="mt-6">
           <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
+          {footer}
         </div>
-        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
+        {!sample && <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />}
       </div>
     )
   }
@@ -1280,8 +1376,9 @@ function ContentViewer({
         )}
         <div className="mt-6">
           <CompleteButton contentId={content.id} />
+          {footer}
         </div>
-        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
+        {!sample && <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />}
       </div>
     )
   }
@@ -1304,7 +1401,8 @@ function ContentViewer({
           </div>
         )}
         <CompleteButton contentId={content.id} />
-        <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
+        {footer}
+        {!sample && <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />}
       </div>
     )
   }
@@ -1329,8 +1427,9 @@ function ContentViewer({
           <ExternalLink size={14} />
         </a>
         <CompleteButton contentId={content.id} />
+        {footer}
       </div>
-      <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />
+      {!sample && <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />}
     </div>
   )
 }
@@ -1784,18 +1883,69 @@ export function PathwayViewer({
       : null
   )
 
-  const selectedId =
-    selected?.kind === "content"
-      ? selected.content.id
-      : selected?.kind === "test"
-      ? `test-${selected.test.id}`
-      : selected?.kind === "assignment"
-      ? `assignment-${selected.assignment.id}`
-      : selected?.kind === "feedback"
-      ? `feedback-${selected.courseId}`
-      : selected?.kind === "growth-plan"
-      ? "growth-plan"
-      : null
+  const [contentsOpen, setContentsOpen] = useState(false)
+  const selectedId = selectionKey(selected)
+
+  const navItems = buildNavItems(pathway.courses)
+  const navIndex = navItems.findIndex((i) => i.key === selectedId)
+  const prevItem = navIndex > 0 ? navItems[navIndex - 1] : null
+  const nextItem = navIndex >= 0 && navIndex < navItems.length - 1 ? navItems[navIndex + 1] : null
+
+  function select(sel: Selection) {
+    setSelected(sel)
+    setContentsOpen(false)
+  }
+
+  const contentsList = (
+    <>
+    <div className="border-b border-slate-100 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contents</p>
+    </div>
+    <div className="divide-y divide-slate-100">
+      {pathway.courses.map((entry) => (
+        <div key={entry.course.id}>
+          {entry.sectionTitle && (
+            <div className="flex items-center gap-2 px-3 pb-1 pt-3">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{entry.sectionTitle}</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+          )}
+          <CourseSection
+            entry={entry}
+            selectedId={selectedId}
+            completedContentIds={completedContentIds}
+            completedCourseIds={completedCourseIds}
+            testStatusByTestId={testStatusByTestId}
+            assignmentStatusByCourseId={assignmentStatusByCourseId}
+            feedbackByCourseId={feedbackByCourseId}
+            onSelect={select}
+          />
+        </div>
+      ))}
+    </div>
+    {isPathwayComplete && (
+      <div className="border-t border-slate-100">
+        <button
+          onClick={() => select({ kind: "growth-plan" })}
+          className={`flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium transition-colors ${
+            selectedId === "growth-plan"
+              ? "bg-blue-50 text-blue-700"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <Target size={15} className={selectedId === "growth-plan" ? "text-blue-500" : "text-slate-400"} />
+          Growth Plan
+          {allGrowthPlans.filter((g) => !g.completedAt).length > 0 && (
+            <span className="ml-auto text-xs text-slate-400">
+              {allGrowthPlans.filter((g) => !g.completedAt).length} pending
+            </span>
+          )}
+        </button>
+      </div>
+    )}
+    </>
+  )
 
   return (
     <div className="flex h-screen flex-col">
@@ -1807,8 +1957,15 @@ export function PathwayViewer({
         </a>
         <span className="text-slate-300">/</span>
         <span className="text-sm font-semibold text-slate-800 truncate">{pathway.name}</span>
+        <button
+          onClick={() => setContentsOpen(true)}
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 md:hidden"
+        >
+          <ListOrdered size={14} />
+          Contents
+        </button>
         {isPathwayComplete && !isPreview && (
-          <span className="ml-auto flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+          <span className="flex shrink-0 md:ml-auto items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
             <Trophy size={12} />
             Completed
           </span>
@@ -1855,53 +2012,25 @@ export function PathwayViewer({
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar */}
         <aside className="hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white md:flex">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contents</p>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {pathway.courses.map((entry) => (
-              <div key={entry.course.id}>
-                {entry.sectionTitle && (
-                  <div className="flex items-center gap-2 px-3 pb-1 pt-3">
-                    <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{entry.sectionTitle}</span>
-                    <div className="h-px flex-1 bg-slate-200" />
-                  </div>
-                )}
-                <CourseSection
-                  entry={entry}
-                  selectedId={selectedId}
-                  completedContentIds={completedContentIds}
-                  completedCourseIds={completedCourseIds}
-                  testStatusByTestId={testStatusByTestId}
-                  assignmentStatusByCourseId={assignmentStatusByCourseId}
-                  feedbackByCourseId={feedbackByCourseId}
-                  onSelect={setSelected}
-                />
-              </div>
-            ))}
-          </div>
-          {isPathwayComplete && (
-            <div className="border-t border-slate-100">
-              <button
-                onClick={() => setSelected({ kind: "growth-plan" })}
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium transition-colors ${
-                  selectedId === "growth-plan"
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <Target size={15} className={selectedId === "growth-plan" ? "text-blue-500" : "text-slate-400"} />
-                Growth Plan
-                {allGrowthPlans.filter((g) => !g.completedAt).length > 0 && (
-                  <span className="ml-auto text-xs text-slate-400">
-                    {allGrowthPlans.filter((g) => !g.completedAt).length} pending
-                  </span>
-                )}
-              </button>
-            </div>
-          )}
+          {contentsList}
         </aside>
+
+        {/* Mobile contents drawer */}
+        {contentsOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setContentsOpen(false)} />
+            <aside className="absolute inset-y-0 left-0 flex w-80 max-w-[85vw] flex-col overflow-y-auto bg-white shadow-xl">
+              <button
+                onClick={() => setContentsOpen(false)}
+                aria-label="Close contents"
+                className="absolute right-2 top-2 rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+              >
+                <X size={16} />
+              </button>
+              {contentsList}
+            </aside>
+          </div>
+        )}
 
         {/* Right content area */}
         <main className="flex-1 overflow-hidden bg-white">
@@ -1913,6 +2042,7 @@ export function PathwayViewer({
             />
           ) : (
             <ContentViewer
+              key={selectedId ?? "none"}
               selection={selected}
               pathwayId={pathway.id}
               completedContentIds={completedContentIds}
@@ -1924,6 +2054,7 @@ export function PathwayViewer({
               feedbackByCourseId={feedbackByCourseId}
               isPreview={isPreview}
               isLocked={isLocked}
+              footer={<LessonNav prev={prevItem} next={nextItem} onSelect={select} />}
             />
           )}
         </main>

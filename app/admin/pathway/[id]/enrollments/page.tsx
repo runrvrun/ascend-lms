@@ -56,6 +56,7 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
       },
     }),
     prisma.user.findMany({
+      where: { deletedAt: null },
       select: { id: true, name: true, email: true, division: true },
       orderBy: { name: "asc" },
     }),

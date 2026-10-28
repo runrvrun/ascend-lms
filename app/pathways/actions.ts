@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { NotificationType } from "@prisma/client"
-import { sendNewEnrollmentRequest } from "../lib/email"
+import { sendNewEnrollmentRequest, sendPathwayShared } from "../lib/email"
 import { evaluateCourseCompletion } from "../lib/courseCompletion"
 import { validateAssignmentFile, saveAssignmentFile, deleteAssignmentFile } from "../lib/assignmentFiles"
 import { isDeadlineLocked, DEADLINE_GRACE_DAYS } from "../lib/pathwayDeadline"
@@ -334,4 +334,71 @@ export async function submitCourseFeedback(courseId: string, pathwayId: string, 
   })
 
   revalidatePath(`/pathways/${pathwayId}`)
+}
+
+// Active users other than the current one, for the share picker. Loaded when the
+// share dialog opens rather than with every pathways page render.
+export async function getShareRecipients(): Promise<{ value: string; label: string }[]> {
+  const session = await getSession()
+  const userId = (session.user as any).id as string
+  const users = await prisma.user.findMany({
+    where: { deletedAt: null, id: { not: userId } },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: "asc" },
+  })
+  return users.map((u) => ({
+    value: u.id,
+    label: u.name && u.email ? `${u.name} (${u.email})` : (u.name ?? u.email ?? u.id),
+  }))
+}
+
+const SHARE_COOLDOWN_MS = 24 * 60 * 60 * 1000
+
+// Sends an in-app notification + email linking to the pathway preview.
+// Sharing never enrolls the recipient.
+export async function sharePathway(pathwayId: string, recipientId: string): Promise<{ error?: string }> {
+  const session = await getSession()
+  const userId = (session.user as any).id as string
+  if (recipientId === userId) return { error: "You can't share a pathway with yourself." }
+
+  const [pathway, sharer, recipient] = await Promise.all([
+    prisma.pathway.findFirst({
+      where: { id: pathwayId, deletedAt: null, status: "PUBLISHED", visibility: { not: "HIDDEN" } },
+      select: { id: true, name: true },
+    }),
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+    prisma.user.findFirst({
+      where: { id: recipientId, deletedAt: null },
+      select: { id: true, name: true, email: true },
+    }),
+  ])
+  if (!pathway) return { error: "This pathway can't be shared." }
+  if (!recipient) return { error: "That user is not available." }
+
+  const recentShare = await prisma.notification.findFirst({
+    where: {
+      userId: recipient.id,
+      type: NotificationType.PATHWAY_SHARED,
+      pathwayId,
+      relatedUserId: userId,
+      createdAt: { gte: new Date(Date.now() - SHARE_COOLDOWN_MS) },
+    },
+    select: { id: true },
+  })
+  if (recentShare) return { error: `You already shared this pathway with ${recipient.name ?? "this user"} today.` }
+
+  const sharerName = sharer?.name ?? sharer?.email ?? "A colleague"
+  await prisma.notification.create({
+    data: {
+      userId: recipient.id,
+      type: NotificationType.PATHWAY_SHARED,
+      message: `${sharerName} shared the pathway "${pathway.name}" with you.`,
+      pathwayId,
+      relatedUserId: userId,
+    },
+  })
+  if (recipient.email) {
+    await sendPathwayShared(recipient.email, recipient.name ?? recipient.email, sharerName, pathway.name, pathwayId)
+  }
+  return {}
 }

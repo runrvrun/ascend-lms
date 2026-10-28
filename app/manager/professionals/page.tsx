@@ -15,7 +15,7 @@ export default async function ProfessionalsPage() {
 
   const [professionals, pathways, pathwayCourseCounts] = await Promise.all([
     prisma.user.findMany({
-      where: { managers: { some: { managerId } } },
+      where: { deletedAt: null, managers: { some: { managerId } } },
       select: {
         id: true,
         name: true,

@@ -50,7 +50,7 @@ export function MyPointsCard({
   recent: PointItem[]
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-4">
         <Star size={18} className="text-yellow-500" />
         <h2 className="font-semibold text-slate-900">My Points</h2>

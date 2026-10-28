@@ -19,49 +19,68 @@ export type UserFormData = {
   officeId: string
 }
 
+// With the pg driver adapter, P2002 puts the columns under
+// meta.driverAdapterError.cause.constraint.fields instead of meta.target.
 function isDuplicateEmailError(error: unknown) {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002" &&
-    (error.meta?.target as string[] | undefined)?.includes("email")
-  )
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false
+  const meta = error.meta as
+    | { target?: string[]; driverAdapterError?: { cause?: { constraint?: { fields?: string[] } } } }
+    | undefined
+  const fields = meta?.target ?? meta?.driverAdapterError?.cause?.constraint?.fields
+  return fields?.includes("email") ?? false
 }
 
-export async function createUser(data: UserFormData) {
+// Errors thrown from server actions are redacted in production builds, so these
+// return the message instead of throwing it.
+export async function createUser(data: UserFormData): Promise<{ error?: string }> {
+  const email = data.email.trim()
+  const fields = {
+    name: data.name.trim(),
+    email,
+    division: data.division,
+    title: data.title,
+    officeId: data.officeId || null,
+  }
+
+  const existing = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    select: { id: true, deletedAt: true },
+  })
+  if (existing && !existing.deletedAt) return { error: "A user with this email already exists." }
+
   try {
-    await prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        division: data.division,
-        title: data.title,
-        officeId: data.officeId || null,
-      },
-    })
+    if (existing) {
+      // Re-adding a deleted user restores their account along with their history.
+      await prisma.user.update({ where: { id: existing.id }, data: { ...fields, deletedAt: null } })
+    } else {
+      await prisma.user.create({ data: fields })
+    }
   } catch (error) {
-    if (isDuplicateEmailError(error)) throw new Error("A user with this email already exists.")
+    if (isDuplicateEmailError(error)) return { error: "A user with this email already exists." }
     throw error
   }
   revalidatePath("/admin/user")
+  return {}
 }
 
-export async function updateUser(id: string, data: UserFormData) {
+export async function updateUser(id: string, data: UserFormData): Promise<{ error?: string }> {
   try {
     await prisma.user.update({
       where: { id },
       data: {
-        name: data.name,
-        email: data.email,
+        name: data.name.trim(),
+        email: data.email.trim(),
         division: data.division,
         title: data.title,
         officeId: data.officeId || null,
       },
     })
   } catch (error) {
-    if (isDuplicateEmailError(error)) throw new Error("A user with this email already exists.")
+    if (isDuplicateEmailError(error)) return { error: "A user with this email already exists." }
     throw error
   }
   revalidatePath("/admin/user")
+  return {}
 }
 
 export async function addUserManager(userId: string, managerId: string) {
@@ -74,8 +93,10 @@ export async function removeUserManager(userId: string, managerId: string) {
   revalidatePath("/admin/user")
 }
 
+// Soft delete: progress, points, enrollments and submissions are kept for reports.
+// Sign-in is blocked for users with deletedAt set (see authOptions).
 export async function deleteUser(id: string) {
-  await prisma.user.delete({ where: { id } })
+  await prisma.user.update({ where: { id }, data: { deletedAt: new Date() } })
   revalidatePath("/admin/user")
 }
 

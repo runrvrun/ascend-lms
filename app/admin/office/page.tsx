@@ -8,8 +8,9 @@ export default async function AdminOfficePage() {
   const [offices, allUsers] = await Promise.all([
     prisma.office.findMany({
       include: {
-        _count: { select: { users: true } },
+        _count: { select: { users: { where: { deletedAt: null } } } },
         users: {
+          where: { deletedAt: null },
           select: {
             id: true,
             name: true,
@@ -23,6 +24,7 @@ export default async function AdminOfficePage() {
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({
+      where: { deletedAt: null },
       select: {
         id: true,
         name: true,

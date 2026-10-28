@@ -73,8 +73,8 @@ export default async function AdminAnalyticsPage({
 
   const hasFilter = !!(division || title || officeId)
 
+  // Deactivated (soft-deleted) users stay in analytics — their history still counts.
   const userWhere: Prisma.UserWhereInput = {
-    deletedAt: null,
     status: "ACTIVE",
     ...(division ? { division: division as any } : {}),
     ...(title ? { title: title as any } : {}),

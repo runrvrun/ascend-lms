@@ -72,7 +72,7 @@ function UserFormModal({
   initial: UserFormData
   offices: OfficeOption[]
   onClose: () => void
-  onSubmit: (data: UserFormData) => Promise<void>
+  onSubmit: (data: UserFormData) => Promise<{ error?: string }>
 }) {
   const [form, setForm] = useState<UserFormData>(initial)
   const [pending, startTransition] = useTransition()
@@ -87,10 +87,11 @@ function UserFormModal({
     setError("")
     startTransition(async () => {
       try {
-        await onSubmit(form)
+        const result = await onSubmit(form)
+        if (result.error) { setError(result.error); return }
         onClose()
-      } catch (err: any) {
-        setError(err.message ?? "Failed to save user.")
+      } catch {
+        setError("Failed to save user.")
       }
     })
   }
@@ -439,7 +440,7 @@ function DeleteConfirm({ name, onCancel, onConfirm }: { name: string | null; onC
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="text-lg font-semibold text-slate-900">Delete user?</h2>
         <p className="mt-2 text-sm text-slate-500">
-          <span className="font-medium text-slate-700">{name ?? "This user"}</span> will be permanently deleted.
+          <span className="font-medium text-slate-700">{name ?? "This user"}</span> will be deactivated and can no longer sign in. Their learning history is kept for reports.
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">

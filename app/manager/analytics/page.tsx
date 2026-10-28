@@ -98,7 +98,6 @@ export default async function ManagerAnalyticsPage({
   // Base filter = team members of this manager
   const userWhere: Prisma.UserWhereInput = {
     managers: { some: { managerId } },
-    deletedAt: null,
     ...(division ? { division: division as any } : {}),
     ...(title ? { title: title as any } : {}),
     ...(officeId ? { officeId } : {}),

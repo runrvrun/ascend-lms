@@ -51,6 +51,8 @@ function toggleSidebar() {
   const collapse = root.dataset.sidebar !== "collapsed"
   if (collapse) root.dataset.sidebar = "collapsed"
   else delete root.dataset.sidebar
+  // Mobile always starts collapsed, so only remember the desktop choice.
+  if (window.matchMedia("(max-width: 767px)").matches) return
   try { localStorage.setItem("sidebar-collapsed", collapse ? "1" : "0") } catch {}
 }
 

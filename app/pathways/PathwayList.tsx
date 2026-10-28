@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles } from "lucide-react"
+import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles, Eye, Share2, Star } from "lucide-react"
 import { EnrollmentStatus, PathwayVisibility } from "@prisma/client"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
+import { SharePathwayModal } from "./SharePathwayModal"
 
 type EnrollmentInfo = {
   status: EnrollmentStatus
@@ -21,15 +22,16 @@ type PathwayCard = {
   completedCourses: number
   totalCourses: number
   isRecommended: boolean
+  isFeatured: boolean
   _count: { courses: number }
   enrollment: EnrollmentInfo | null
 }
 
-function RequestModal({
+export function RequestModal({
   pathway,
   onClose,
 }: {
-  pathway: PathwayCard
+  pathway: { id: string; name: string }
   onClose: () => void
 }) {
   const [note, setNote] = useState("")
@@ -84,6 +86,7 @@ function RequestModal({
 
 function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
   const [requesting, setRequesting] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [unenrollConfirming, setUnenrollConfirming] = useState(false)
   const [pending, startTransition] = useTransition()
   const [unenrollPending, startUnenrollTransition] = useTransition()
@@ -153,8 +156,8 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
       <div className={`flex flex-col rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow ${pathway.isRecommended ? "border-amber-200 bg-amber-50/30" : "border-slate-200 bg-white"}`}>
         {pathway.isRecommended && (
           <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-amber-600">
-            <Sparkles size={13} />
-            Recommended for you
+            {pathway.isFeatured ? <Star size={13} fill="currentColor" /> : <Sparkles size={13} />}
+            {pathway.isFeatured ? "Featured" : "Recommended for you"}
           </div>
         )}
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -218,6 +221,23 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
           </div>
         )}
 
+        <div className="mb-3 flex items-center gap-2">
+          <a
+            href={`/pathways/${pathway.id}/preview`}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Eye size={12} />
+            Preview
+          </a>
+          <button
+            onClick={() => setSharing(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Share2 size={12} />
+            Share
+          </button>
+        </div>
+
         <div className="mt-auto flex items-center justify-between gap-2">
           <ActionButton />
 
@@ -255,11 +275,14 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
       {requesting && (
         <RequestModal pathway={pathway} onClose={() => setRequesting(false)} />
       )}
+      {sharing && (
+        <SharePathwayModal pathway={pathway} onClose={() => setSharing(false)} />
+      )}
     </>
   )
 }
 
-export function PathwayList({ pathways }: { pathways: PathwayCard[] }) {
+export function PathwayList({ pathways, recommendedOrder }: { pathways: PathwayCard[]; recommendedOrder: string[] }) {
   const [search, setSearch] = useState("")
 
   const q = search.toLowerCase()
@@ -271,7 +294,10 @@ export function PathwayList({ pathways }: { pathways: PathwayCard[] }) {
       )
     : pathways
 
-  const recommendations = pathways.filter((p) => p.isRecommended)
+  // Featured first, then automated picks.
+  const recommendations = recommendedOrder
+    .map((id) => pathways.find((p) => p.id === id))
+    .filter((p): p is PathwayCard => !!p)
 
   return (
     <>

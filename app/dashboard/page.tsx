@@ -187,7 +187,7 @@ export default async function DashboardPage() {
       <main className="mx-auto min-h-screen w-full max-w-5xl p-6 md:p-10">
         <h1 className="mb-6 text-2xl font-bold text-slate-900">Dashboard</h1>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <MyPathwaysCard enrollments={ongoingEnrollments} />
           <MyPointsCard total={totalAgg._sum.points ?? 0} recent={pointItems} />
         </div>

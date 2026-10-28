@@ -184,6 +184,32 @@ export async function sendPathwayAssigned(
   )
 }
 
+export async function sendPathwayShared(
+  to: string,
+  userName: string,
+  sharerName: string,
+  pathwayName: string,
+  pathwayId: string
+) {
+  const link = `${BASE_URL}/pathways/${pathwayId}/preview`
+  await send(
+    to,
+    `${sharerName} shared "${pathwayName}" with you`,
+    layout(`
+      <p>Hi <strong>${userName}</strong>,</p>
+      <p><strong>${sharerName}</strong> thought you might be interested in this pathway:</p>
+      <p style="font-size:16px;font-weight:600;margin:12px 0 20px;">${pathwayName}</p>
+      <p>
+        <a href="${link}"
+           style="background:#194693;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;">
+          Preview Pathway
+        </a>
+      </p>
+      <p style="margin-top:20px;font-size:12px;color:#64748b;">You have not been enrolled. Preview the pathway and enroll if it interests you.</p>
+    `)
+  )
+}
+
 // Deadlines are calendar dates stored as UTC midnight — format in UTC so the day never shifts.
 function formatDeadline(deadline: Date) {
   return deadline.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })

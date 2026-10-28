@@ -21,7 +21,7 @@ npx prisma studio         # inspect data
 Cron jobs (run on the production server via crontab from `~/ascend-lms`, each a `tsx --env-file=.env` script in `scripts/`; most accept `--dry-run`):
 
 ```bash
-npm run sync-m365-users              # create User rows for new Entra ID directory members (never updates/removes)
+npm run sync-m365-users              # create Users for new licensed Entra ID members; soft-delete @ycp.com users with no E3/E5/Business license (--dry-run, --force past the 10% cap)
 npm run send-pathway-reminders       # weekly (Wed) digest for incomplete pathways; skips past-deadline enrollments
 npm run send-custom-pathway-reminders # hourly; processes admin-scheduled PathwayReminder rows once (sets sentAt)
 npm run send-deadline-reminders      # must run exactly once/day — no sent-tracking, matches by date

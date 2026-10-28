@@ -23,7 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem("sidebar-collapsed")==="1")document.documentElement.dataset.sidebar="collapsed"}catch(e){}`,
+            // Mobile (below Tailwind's md breakpoint) always starts collapsed; desktop restores the saved choice.
+            __html: `try{if(window.matchMedia("(max-width: 767px)").matches||localStorage.getItem("sidebar-collapsed")==="1")document.documentElement.dataset.sidebar="collapsed"}catch(e){}`,
           }}
         />
       </head>

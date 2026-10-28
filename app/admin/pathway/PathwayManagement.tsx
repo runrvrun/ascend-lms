@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useTransition, useRef } from "react"
-import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Users, Copy, Eye } from "lucide-react"
-import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, PathwayFormData } from "./actions"
+import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Users, Copy, Eye, Star } from "lucide-react"
+import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, setPathwayFeatured, PathwayFormData } from "./actions"
+import { MAX_FEATURED_PATHWAYS } from "../../lib/featuredPathways"
 import { ActionsMenu } from "../../components/ActionsMenu"
 import type { PathwayVisibility } from "@prisma/client"
 
@@ -13,6 +14,7 @@ type PathwayRow = {
   visibility: PathwayVisibility
   tags: string[]
   status: "DRAFT" | "PUBLISHED"
+  featuredAt: Date | null
   _count: { courses: number }
   pathwayEnrollments: { id: string }[]
   cohortPathways: { cohort: { _count: { users: number } } }[]
@@ -101,6 +103,44 @@ function StatusToggle({ id, status }: { id: string; status: "DRAFT" | "PUBLISHED
         {pending ? "…" : isOn ? "Published" : "Draft"}
       </span>
     </button>
+  )
+}
+
+function FeaturedToggle({ pathway, featuredCount }: { pathway: PathwayRow; featuredCount: number }) {
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState("")
+  const isOn = !!pathway.featuredAt
+  const eligible = pathway.status === "PUBLISHED" && pathway.visibility !== "HIDDEN"
+  const full = !isOn && featuredCount >= MAX_FEATURED_PATHWAYS
+  const disabled = pending || (!isOn && (!eligible || full))
+  const title = isOn
+    ? "Featured — click to unfeature"
+    : !eligible
+    ? "Only published, non-hidden pathways can be featured"
+    : full
+    ? `Already ${MAX_FEATURED_PATHWAYS} featured pathways — unfeature one first`
+    : "Feature this pathway on the Pathways page"
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <button
+        disabled={disabled}
+        title={title}
+        onClick={() => {
+          setError("")
+          startTransition(async () => {
+            const result = await setPathwayFeatured(pathway.id, !isOn)
+            if (result.error) setError(result.error)
+          })
+        }}
+        className={`rounded-lg p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+          isOn ? "text-amber-500 hover:bg-amber-50" : "text-slate-300 hover:bg-slate-100 hover:text-amber-400"
+        }`}
+      >
+        <Star size={16} fill={isOn ? "currentColor" : "none"} />
+      </button>
+      {error && <p className="max-w-[10rem] text-[11px] leading-tight text-red-500">{error}</p>}
+    </div>
   )
 }
 
@@ -253,13 +293,16 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
   const filtered = search
     ? pathways.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
     : pathways
+  const featuredCount = pathways.filter((p) => p.featuredAt).length
 
   return (
     <>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Pathways</h1>
-          <p className="mt-1 text-sm text-slate-500">{filtered.length} of {pathways.length} pathways</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {filtered.length} of {pathways.length} pathways · {featuredCount}/{MAX_FEATURED_PATHWAYS} featured
+          </p>
         </div>
         <button
           onClick={() => setCreating(true)}
@@ -281,12 +324,13 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[800px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-5 py-3">Name</th>
               <th className="px-5 py-3">Description</th>
               <th className="px-5 py-3">Tags</th>
+              <th className="px-5 py-3 text-center">Featured</th>
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Visibility</th>
               <th className="px-5 py-3 text-center">Courses</th>
@@ -297,7 +341,7 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={9} className="px-5 py-10 text-center text-slate-400">
                   {pathways.length === 0 ? "No pathways yet. Add one above." : "No pathways match your search."}
                 </td>
               </tr>
@@ -323,6 +367,9 @@ export function PathwayManagement({ pathways }: { pathways: PathwayRow[] }) {
                   ) : (
                     <span className="italic text-slate-300 text-xs">No tags</span>
                   )}
+                </td>
+                <td className="px-5 py-3 text-center">
+                  <FeaturedToggle pathway={p} featuredCount={featuredCount} />
                 </td>
                 <td className="px-5 py-3 text-center">
                   <StatusToggle id={p.id} status={p.status} />

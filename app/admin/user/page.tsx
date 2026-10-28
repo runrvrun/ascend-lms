@@ -7,6 +7,7 @@ import { UserManagement } from "./UserManagement"
 export default async function AdminUserPage() {
   const [users, allManagers, cohorts, offices] = await Promise.all([
     prisma.user.findMany({
+      where: { deletedAt: null },
       include: {
         managers: { select: { managerId: true, manager: { select: { id: true, name: true } } } },
         roles: { select: { role: true } },
@@ -16,7 +17,7 @@ export default async function AdminUserPage() {
       orderBy: { createdAt: "asc" },
     }),
     prisma.user.findMany({
-      where: { roles: { some: { role: "MANAGER" } } },
+      where: { deletedAt: null, roles: { some: { role: "MANAGER" } } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
