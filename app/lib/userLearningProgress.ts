@@ -13,6 +13,7 @@ export type TestDetail = {
   title: string
   status: "PASSED" | "FAILED" | null
   score: number | null
+  completedAt?: string | null
 }
 
 export type CourseDetail = {
@@ -35,6 +36,7 @@ export type EnrollmentWithCourses = {
   type: string
   status: string
   deadline: string | null
+  enrolledAt: string
   pathway: { name: string }
   cohortName: string | null
   completedCourses: number
@@ -52,6 +54,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       type: true,
       status: true,
       deadline: true,
+      createdAt: true,
       pathway: { select: { name: true } },
       cohort: { select: { name: true } },
     },
@@ -94,7 +97,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
     }),
     prisma.testProgress.findMany({
       where: { userId, pathwayId: { in: pathwayIds } },
-      select: { pathwayId: true, testId: true, status: true, score: true },
+      select: { pathwayId: true, testId: true, status: true, score: true, completedAt: true },
     }),
     prisma.contentProgress.findMany({
       where: { userId, pathwayId: { in: pathwayIds } },
@@ -145,7 +148,13 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
 
     const tests: TestDetail[] = pc.course.tests.map((t) => {
       const tp = testProgressMap.get(`${pc.pathwayId}:${t.id}`)
-      return { id: t.id, title: t.title, status: tp?.status ?? null, score: tp?.score ?? null }
+      return {
+        id: t.id,
+        title: t.title,
+        status: tp?.status ?? null,
+        score: tp?.score ?? null,
+        completedAt: tp ? tp.completedAt.toISOString() : null,
+      }
     })
 
     const detail: CourseDetail = {
@@ -179,6 +188,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       type: e.type,
       status: e.status,
       deadline: e.deadline ? e.deadline.toISOString() : null,
+      enrolledAt: e.createdAt.toISOString(),
       pathway: e.pathway,
       cohortName: e.cohort?.name ?? null,
       completedCourses,

@@ -2,13 +2,14 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { prisma } from "../../../../lib/prisma"
-import { getUserLearningProgress } from "../../../../lib/userLearningProgress"
+import { getUserReport } from "../../../../lib/userReport"
 import { ProfessionalDetail } from "../../../../manager/professionals/[id]/ProfessionalDetail"
+import { UserReportOverview } from "./UserReportOverview"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const user = await prisma.user.findUnique({ where: { id }, select: { name: true } })
-  return { title: user?.name ? `${user.name} — Progress` : "User Progress" }
+  return { title: user?.name ? `${user.name} — Progress Report` : "User Progress Report" }
 }
 
 export default async function AdminUserProgressPage({
@@ -18,22 +19,8 @@ export default async function AdminUserProgressPage({
 }) {
   const { id } = await params
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      division: true,
-      title: true,
-      office: { select: { name: true } },
-    },
-  })
-
-  if (!user) notFound()
-
-  const [enrollments, growthPlanRecords] = await Promise.all([
-    getUserLearningProgress(id),
+  const [report, growthPlanRecords] = await Promise.all([
+    getUserReport(id),
     prisma.growthPlan.findMany({
       where: { userId: id },
       orderBy: { createdAt: "asc" },
@@ -47,6 +34,8 @@ export default async function AdminUserProgressPage({
     }),
   ])
 
+  if (!report) notFound()
+
   const growthPlans = growthPlanRecords.map((g) => ({
     id: g.id,
     title: g.title,
@@ -56,21 +45,21 @@ export default async function AdminUserProgressPage({
   }))
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
+    <main className="mx-auto min-h-screen w-full max-w-6xl p-6 md:p-10">
+      <UserReportOverview report={report} />
       <Suspense>
         <ProfessionalDetail
           professional={{
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            division: user.division,
-            title: user.title,
-            office: user.office?.name ?? null,
+            id: report.user.id,
+            name: report.user.name,
+            email: report.user.email,
+            division: report.user.division,
+            title: report.user.title,
+            office: report.user.office,
           }}
-          enrollments={enrollments}
+          enrollments={report.enrollments}
           growthPlans={growthPlans}
-          backHref="/admin/user"
-          backLabel="Back to Users"
+          hideHeader
         />
       </Suspense>
     </main>

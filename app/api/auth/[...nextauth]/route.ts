@@ -20,6 +20,10 @@ const prisma =
   })
 if (process.env.NODE_ENV !== "production") globalThis.prisma = prisma
 
+// How often a signed-in user's lastActiveAt is refreshed (it's written from the
+// session check that runs on page loads, so this caps it to one write per window).
+const ACTIVITY_THROTTLE_MS = 15 * 60 * 1000
+
 export const authOptions: AuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -87,6 +91,10 @@ export const authOptions: AuthOptions = {
         // First sign-in: populate token from the user object
         token.id = (user as any).id ?? user.id
         token.roles = (user as any).roles ?? []
+        const now = new Date()
+        await prisma.user
+          .update({ where: { id: token.id as string }, data: { lastLoginAt: now, lastActiveAt: now } })
+          .catch((err) => console.error("[auth] failed to record sign-in", err))
       } else if (token.id) {
         // Subsequent requests: refresh roles from DB
         const dbUser = await prisma.user.findUnique({
@@ -95,6 +103,11 @@ export const authOptions: AuthOptions = {
         })
         // Deleted users lose role-gated access immediately; sign-in is already blocked
         token.roles = dbUser && !dbUser.deletedAt ? dbUser.roles.map((r) => r.role) : []
+        if (dbUser && !dbUser.deletedAt && (!dbUser.lastActiveAt || Date.now() - dbUser.lastActiveAt.getTime() > ACTIVITY_THROTTLE_MS)) {
+          await prisma.user
+            .update({ where: { id: dbUser.id }, data: { lastActiveAt: new Date() } })
+            .catch((err) => console.error("[auth] failed to record activity", err))
+        }
       }
       return token
     },

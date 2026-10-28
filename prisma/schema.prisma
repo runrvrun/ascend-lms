@@ -49,6 +49,11 @@ model User {
   activationToken       String?
   activationTokenExpiry DateTime?
 
+  // Recorded by the NextAuth jwt callback (app/api/auth/[...nextauth]/route.ts):
+  // lastLoginAt on each sign-in, lastActiveAt at most every ACTIVITY_THROTTLE_MS.
+  lastLoginAt  DateTime?
+  lastActiveAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
