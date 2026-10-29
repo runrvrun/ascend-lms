@@ -33,6 +33,7 @@ import {
   Upload,
   ChevronLeft,
   ListOrdered,
+  Image as ImageIcon,
 } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { DEADLINE_GRACE_DAYS } from "../../lib/pathwayDeadline"
@@ -40,6 +41,7 @@ import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedba
 import { createGrowthPlan, updateGrowthPlan, deleteGrowthPlan, toggleGrowthPlanComplete } from "../../growth-plan/actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
 import { VideoPlayer } from "./VideoPlayer"
+import { contentImageUrl } from "../../lib/contentImageUrl"
 
 function isSharePointUrl(url: string) {
   return url.includes("sharepoint.com") || url.includes("microsoftstream.com")
@@ -111,6 +113,7 @@ type ContentItem = {
   value: string
   order: number | null
   duration: number | null
+  imageKey: string | null
   popQuizzes?: PopQuizItem[]
 }
 
@@ -948,6 +951,7 @@ const TYPE_ICON: Record<ContentType, React.ReactNode> = {
   PDF: <FileText size={13} />,
   PPT: <FileText size={13} />,
   IN_PERSON: <Users size={13} />,
+  IMAGE: <ImageIcon size={13} />,
 }
 
 function FeedbackViewer({
@@ -1407,13 +1411,50 @@ export function ContentViewer({
     )
   }
 
+  if (content.type === "IMAGE") {
+    return (
+      <div className="h-full overflow-y-auto p-6 md:p-8">
+        <h2 className="mb-4 text-xl font-bold text-slate-900">{content.title}</h2>
+        {content.imageKey && (
+          <figure>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={contentImageUrl(content.imageKey)}
+              alt={content.value || content.title}
+              className="mx-auto block h-auto max-w-full rounded-xl border border-slate-100"
+            />
+            {content.value && <figcaption className="mt-2 text-center text-sm text-slate-500">{content.value}</figcaption>}
+          </figure>
+        )}
+        <div className="mt-8">
+          <CompleteButton contentId={content.id} />
+          {footer}
+        </div>
+        {!sample && <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />}
+      </div>
+    )
+  }
+
   // LINK
   return (
     <div className="h-full overflow-y-auto p-8">
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
-          <Link2 size={26} className="text-slate-500" />
-        </div>
+        {content.imageKey ? (
+          <a
+            href={content.value}
+            target="_blank"
+            rel="noreferrer"
+            title="Open link"
+            className="block max-w-full overflow-hidden rounded-xl border border-slate-100 transition hover:opacity-90 hover:shadow-md"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={contentImageUrl(content.imageKey)} alt={content.title} className="block h-auto max-w-full" />
+          </a>
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
+            <Link2 size={26} className="text-slate-500" />
+          </div>
+        )}
         <div>
           <h2 className="text-xl font-bold text-slate-900">{content.title}</h2>
         </div>

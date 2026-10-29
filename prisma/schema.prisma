@@ -358,8 +358,11 @@ model Content {
   courseId String
   title    String
   type     ContentType
-  value    String // text OR URL (SharePoint link, video, etc.)
+  value    String // text OR URL (SharePoint link, video, etc.); caption for IMAGE
   duration Int?   // video length in seconds (used for SharePoint progress tracking)
+  // Uploaded image file key (app/lib/contentImages.ts): required for IMAGE, optional
+  // for LINK (shown as a clickable image that opens the link). Null for other types.
+  imageKey String?
 
   order Int?
 
@@ -383,6 +386,7 @@ enum ContentType {
   PDF
   PPT
   IN_PERSON
+  IMAGE
 }
 
 // ── Pop Quiz ─────────────────────────────────────────────────────────────────

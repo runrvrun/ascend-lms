@@ -14,7 +14,7 @@ export function SampleContent({
   pathwayId: string
   courseId: string
   currentUserId: string
-  content: { id: string; title: string; type: ContentType; value: string; order: number | null; duration: number | null }
+  content: { id: string; title: string; type: ContentType; value: string; order: number | null; duration: number | null; imageKey: string | null }
 }) {
   return (
     <ContentViewer

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { readContentImage } from "../../../../../lib/contentImages"
 import { authOptions } from "../../../../auth/[...nextauth]/route"
 import { prisma } from "../../../../../lib/prisma"
 
@@ -45,6 +46,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return new NextResponse("Course not found", { status: 404 })
   }
 
+  // Embed uploaded images: they live on this server's disk, not in the database.
+  const imagesByKey = new Map<string, { data: string }>()
+  for (const c of course.contents) {
+    if (!c.imageKey) continue
+    try {
+      const image = await readContentImage(c.imageKey)
+      imagesByKey.set(c.imageKey, { data: image.data.toString("base64") })
+    } catch {
+      // File missing on disk: export the content without its image
+    }
+  }
+
   // Deliberately excludes anything user/environment-specific: no ids, no
   // CourseTrainer (user accounts won't line up across environments), no
   // pathway links, no progress/submission/feedback data.
@@ -64,6 +77,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       value: c.value,
       duration: c.duration,
       order: c.order,
+      image: imagesByKey.get(c.imageKey ?? "") ?? null,
       popQuizzes: c.popQuizzes.map((pq) => ({
         time: pq.time,
         question: pq.question,

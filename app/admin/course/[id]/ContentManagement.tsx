@@ -6,6 +6,8 @@ import { ContentType } from "@prisma/client"
 import { createContent, updateContent, deleteContent, swapCourseItemOrder, ContentFormData, ContentEditData } from "../actions"
 import { PositionSelect } from "./PositionSelect"
 import type { OutlineItem } from "./courseOutline"
+import { ContentImageUpload } from "./ContentImageUpload"
+import { contentImageUrl } from "../../../lib/contentImageUrl"
 
 type ContentRow = {
   id: string
@@ -14,6 +16,7 @@ type ContentRow = {
   value: string
   order: number
   duration: number | null
+  imageKey: string | null
 }
 
 function extractEmbedUrl(raw: string): string {
@@ -45,7 +48,7 @@ function extractEmbedUrl(raw: string): string {
   return url
 }
 
-const TYPE_ORDER: ContentType[] = ["YOUTUBE_VIDEO", "VIDEO", "TEXT", "PDF", "PPT", "IN_PERSON", "LINK"]
+const TYPE_ORDER: ContentType[] = ["YOUTUBE_VIDEO", "VIDEO", "TEXT", "PDF", "PPT", "IN_PERSON", "LINK", "IMAGE"]
 
 const TYPE_LABELS: Record<ContentType, string> = {
   YOUTUBE_VIDEO: "YouTube Video",
@@ -55,6 +58,7 @@ const TYPE_LABELS: Record<ContentType, string> = {
   PPT: "PPT",
   IN_PERSON: "In Person",
   LINK: "External Link",
+  IMAGE: "Image",
 }
 
 const TYPE_STYLES: Record<ContentType, string> = {
@@ -65,11 +69,13 @@ const TYPE_STYLES: Record<ContentType, string> = {
   PPT: "bg-orange-100 text-orange-700",
   IN_PERSON: "bg-green-100 text-green-700",
   LINK: "bg-blue-100 text-blue-700",
+  IMAGE: "bg-teal-100 text-teal-700",
 }
 
-type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null }
+type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null; imageKey: string | null }
 
 function ContentFormModal({
+  courseId,
   title,
   initial,
   outline,
@@ -77,6 +83,7 @@ function ContentFormModal({
   onClose,
   onSubmit,
 }: {
+  courseId: string
   title: string
   initial: ContentDraft
   outline: OutlineItem[] | null // null = editing, no position picker
@@ -88,10 +95,15 @@ function ContentFormModal({
   const [insertAfterOrder, setInsertAfterOrder] = useState(initialInsertAfterOrder ?? 0)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
+  const [uploading, setUploading] = useState(false)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
+    if (form.type === "IMAGE" && !form.imageKey) {
+      setError("Upload an image first.")
+      return
+    }
     startTransition(async () => {
       try {
         await onSubmit(form, insertAfterOrder)
@@ -139,127 +151,166 @@ function ContentFormModal({
             </select>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">
-              {form.type === "TEXT" ? "Content" : form.type === "IN_PERSON" ? "Description" : "URL"}
-              {form.type === "IN_PERSON"
-                ? <span className="ml-1 font-normal text-slate-400">(optional)</span>
-                : <span className="text-red-500"> *</span>}
-            </label>
-            {form.type === "TEXT" ? (
-              <textarea
-                required
-                rows={5}
-                value={form.value}
-                onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                placeholder="Write the text content here…"
-                className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : form.type === "IN_PERSON" ? (
-              <textarea
-                rows={4}
-                value={form.value}
-                onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                placeholder="Add notes or instructions about this session (optional)…"
-                className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ) : (
-              <>
+          {form.type === "IMAGE" ? (
+            <>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Image <span className="text-red-500">*</span></label>
+                <ContentImageUpload
+                  courseId={courseId}
+                  imageKey={form.imageKey}
+                  onChange={(imageKey) => setForm((f) => ({ ...f, imageKey }))}
+                  onBusyChange={setUploading}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  Caption <span className="font-normal text-slate-400">(optional)</span>
+                </label>
                 <input
-                  required
-                  type="url"
                   value={form.value}
-                  onChange={(e) => setForm((f) => ({ ...f, value: extractEmbedUrl(e.target.value) }))}
-                  placeholder={
-                    form.type === "VIDEO" || form.type === "PDF" || form.type === "PPT"
-                      ? "Paste the embed URL or the full <iframe> snippet from SharePoint"
-                      : form.type === "YOUTUBE_VIDEO"
-                      ? "Paste the YouTube video URL (e.g. https://youtu.be/… or https://www.youtube.com/watch?v=…)"
-                      : "https://…"
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+                  placeholder="Shown under the image"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                {form.type === "VIDEO" && (
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint/Stream recordings: open the video → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
-                  </p>
-                )}
-                {form.type === "PDF" && (
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint files: open the PDF in a web browser (not the desktop app) → click the <span className="font-medium text-slate-700">•••</span> (more options) → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
-                    <br />For non-SharePoint PDFs, paste the direct URL to the file.
-                  </p>
-                )}
-                {form.type === "PPT" && (
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    For SharePoint presentations: open the PPT in a web browser (not the desktop app) → click <span className="font-medium text-slate-700">File</span> → <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed this presentation</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The embed URL will be extracted automatically.
-                    <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/Doc.aspx?sourcedoc=&#123;GUID&#125;&amp;action=embedview
-                  </p>
-                )}
-                {form.type === "VIDEO" && (
-                  <div className="mt-3">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">
-                      Video length <span className="text-slate-400">(used to track watch progress of SharePoint videos)</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        value={form.duration != null ? Math.floor(form.duration / 3600) : ""}
-                        onChange={(e) => {
-                          const h = parseInt(e.target.value) || 0
-                          const rest = form.duration != null ? form.duration % 3600 : 0
-                          const total = h * 3600 + rest
-                          setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
-                        }}
-                        placeholder="0"
-                        className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-xs text-slate-500">h</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={59}
-                        value={form.duration != null ? Math.floor((form.duration % 3600) / 60) : ""}
-                        onChange={(e) => {
-                          const m = Math.min(59, parseInt(e.target.value) || 0)
-                          const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
-                          const s = form.duration != null ? form.duration % 60 : 0
-                          const total = h * 3600 + m * 60 + s
-                          setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
-                        }}
-                        placeholder="0"
-                        className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-xs text-slate-500">m</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={59}
-                        value={form.duration != null ? form.duration % 60 : ""}
-                        onChange={(e) => {
-                          const s = Math.min(59, parseInt(e.target.value) || 0)
-                          const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
-                          const m = form.duration != null ? Math.floor((form.duration % 3600) / 60) : 0
-                          const total = h * 3600 + m * 60 + s
-                          setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
-                        }}
-                        placeholder="0"
-                        className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-xs text-slate-500">s</span>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                {form.type === "TEXT" ? "Content" : form.type === "IN_PERSON" ? "Description" : "URL"}
+                {form.type === "IN_PERSON"
+                  ? <span className="ml-1 font-normal text-slate-400">(optional)</span>
+                  : <span className="text-red-500"> *</span>}
+              </label>
+              {form.type === "TEXT" ? (
+                <textarea
+                  required
+                  rows={5}
+                  value={form.value}
+                  onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+                  placeholder="Write the text content here…"
+                  className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : form.type === "IN_PERSON" ? (
+                <textarea
+                  rows={4}
+                  value={form.value}
+                  onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+                  placeholder="Add notes or instructions about this session (optional)…"
+                  className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              ) : (
+                <>
+                  <input
+                    required
+                    type="url"
+                    value={form.value}
+                    onChange={(e) => setForm((f) => ({ ...f, value: extractEmbedUrl(e.target.value) }))}
+                    placeholder={
+                      form.type === "VIDEO" || form.type === "PDF" || form.type === "PPT"
+                        ? "Paste the embed URL or the full <iframe> snippet from SharePoint"
+                        : form.type === "YOUTUBE_VIDEO"
+                        ? "Paste the YouTube video URL (e.g. https://youtu.be/… or https://www.youtube.com/watch?v=…)"
+                        : "https://…"
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {form.type === "VIDEO" && (
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      For SharePoint/Stream recordings: open the video → click <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
+                    </p>
+                  )}
+                  {form.type === "PDF" && (
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      For SharePoint files: open the PDF in a web browser (not the desktop app) → click the <span className="font-medium text-slate-700">•••</span> (more options) → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The UniqueId will be extracted automatically.
+                      <br />For non-SharePoint PDFs, paste the direct URL to the file.
+                    </p>
+                  )}
+                  {form.type === "PPT" && (
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      For SharePoint presentations: open the PPT in a web browser (not the desktop app) → click <span className="font-medium text-slate-700">File</span> → <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed this presentation</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The embed URL will be extracted automatically.
+                      <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/Doc.aspx?sourcedoc=&#123;GUID&#125;&amp;action=embedview
+                    </p>
+                  )}
+                  {form.type === "VIDEO" && (
+                    <div className="mt-3">
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Video length <span className="text-slate-400">(used to track watch progress of SharePoint videos)</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          value={form.duration != null ? Math.floor(form.duration / 3600) : ""}
+                          onChange={(e) => {
+                            const h = parseInt(e.target.value) || 0
+                            const rest = form.duration != null ? form.duration % 3600 : 0
+                            const total = h * 3600 + rest
+                            setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
+                          }}
+                          placeholder="0"
+                          className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-xs text-slate-500">h</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={59}
+                          value={form.duration != null ? Math.floor((form.duration % 3600) / 60) : ""}
+                          onChange={(e) => {
+                            const m = Math.min(59, parseInt(e.target.value) || 0)
+                            const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
+                            const s = form.duration != null ? form.duration % 60 : 0
+                            const total = h * 3600 + m * 60 + s
+                            setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
+                          }}
+                          placeholder="0"
+                          className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-xs text-slate-500">m</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={59}
+                          value={form.duration != null ? form.duration % 60 : ""}
+                          onChange={(e) => {
+                            const s = Math.min(59, parseInt(e.target.value) || 0)
+                            const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
+                            const m = form.duration != null ? Math.floor((form.duration % 3600) / 60) : 0
+                            const total = h * 3600 + m * 60 + s
+                            setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
+                          }}
+                          placeholder="0"
+                          className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-xs text-slate-500">s</span>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {form.type === "LINK" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Image <span className="font-normal text-slate-400">(optional, opens the link when clicked)</span>
+              </label>
+              <ContentImageUpload
+                courseId={courseId}
+                imageKey={form.imageKey}
+                onChange={(imageKey) => setForm((f) => ({ ...f, imageKey }))}
+                onBusyChange={setUploading}
+              />
+            </div>
+          )}
 
           {error && <p className="text-xs text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-            <button type="submit" disabled={pending} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={pending || uploading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               {pending ? "Saving…" : "Save"}
             </button>
           </div>
@@ -362,7 +413,10 @@ export function ContentManagement({ courseId, contents, outline }: { courseId: s
                     </span>
                   </td>
                   <td className="w-0 min-w-0 max-w-xs px-4 py-3 text-slate-500">
-                    {c.type === "TEXT" ? (
+                    {c.type === "IMAGE" && c.imageKey ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={contentImageUrl(c.imageKey)} alt="" className="h-10 w-16 rounded border border-slate-200 object-cover" />
+                    ) : c.type === "TEXT" ? (
                       <span className="block truncate italic text-slate-400">{c.value}</span>
                     ) : (
                       <a href={c.value} target="_blank" rel="noreferrer" className="block truncate text-blue-500 hover:underline">{c.value}</a>
@@ -404,8 +458,9 @@ export function ContentManagement({ courseId, contents, outline }: { courseId: s
 
       {creating && (
         <ContentFormModal
+          courseId={courseId}
           title="Add Content"
-          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null }}
+          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null, imageKey: null }}
           outline={outline}
           initialInsertAfterOrder={maxOrder}
           onClose={() => setCreating(false)}
@@ -414,8 +469,9 @@ export function ContentManagement({ courseId, contents, outline }: { courseId: s
       )}
       {editing && (
         <ContentFormModal
+          courseId={courseId}
           title="Edit Content"
-          initial={{ title: editing.title, type: editing.type, value: editing.value, duration: editing.duration }}
+          initial={{ title: editing.title, type: editing.type, value: editing.value, duration: editing.duration, imageKey: editing.imageKey }}
           outline={null}
           onClose={() => setEditing(null)}
           onSubmit={(d) => updateContent(editing.id, courseId, d)}

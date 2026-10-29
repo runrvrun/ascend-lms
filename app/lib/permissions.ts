@@ -48,3 +48,17 @@ export async function requireAdminPage() {
   if (!user.roles.includes("ADMIN")) redirect("/dashboard")
   return user
 }
+
+// Who edits a course's content: admins, the course's trainers, and SMEs of its topic
+// (the same people the admin, trainer and SME course pages let in).
+export async function canEditCourse(user: { id: string; roles: string[] }, courseId: string) {
+  if (user.roles.includes("ADMIN")) return true
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: {
+      trainers: { where: { userId: user.id }, select: { userId: true } },
+      topic: { select: { smes: { where: { userId: user.id }, select: { userId: true } } } },
+    },
+  })
+  return !!course && (course.trainers.length > 0 || (course.topic?.smes.length ?? 0) > 0)
+}

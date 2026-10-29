@@ -74,5 +74,8 @@ Almost all writes go through colocated `actions.ts` files (`"use server"`) next 
 ### Assignment file uploads
 Learner uploads are written to local disk under `UPLOAD_DIR` (default `./uploads/assignments`) by a server action. They're capped at 20 MB, which is why `next.config.ts` sets `serverActions.bodySizeLimit` to `21mb`. Downloads are served through `app/api/assignment-submissions/[id]/file/route.ts`, and the file extension whitelist is in `app/lib/assignmentFiles.ts`. Because files live on the deploy host's disk, they aren't in git and aren't in the DB backups.
 
+### Content images
+`IMAGE` content (and the optional image on `LINK` content, shown as a clickable image opening the link) stores a file key in `Content.imageKey`. Images are resized to 1600 px wide and re-encoded as WebP q0.82 in the browser by `app/lib/compressImage.ts` (JPEG fallback where WebP encoding isn't supported; GIFs pass through to keep animation), then uploaded via the `uploadContentImage` server action, validated by magic bytes and written to `UPLOAD_DIR/content-images` by `app/lib/contentImages.ts`. They're served to any signed-in user by `app/api/content-images/[key]/route.ts` with immutable caching — keys are never reused and files are never deleted (duplicated courses share them). Like assignment files they aren't in git or DB backups; course export/import embeds them as base64 so they survive a move between servers.
+
 ### Points to double-check before assuming
 - The README's feature list and project-structure diagram are a good orientation but are stale relative to the schema (missing Assignment, GrowthPlan, Topic/SME, CourseFeedback, CourseTrainer). Trust `prisma/schema.prisma` and the actual `app/` tree over the README for anything schema-adjacent.

@@ -76,7 +76,7 @@ export default async function PathwayPreviewPage({ params }: { params: Promise<{
   const sampleContent = firstContentId
     ? await prisma.content.findUnique({
         where: { id: firstContentId },
-        select: { id: true, title: true, type: true, value: true, order: true, duration: true },
+        select: { id: true, title: true, type: true, value: true, order: true, duration: true, imageKey: true },
       })
     : null
 

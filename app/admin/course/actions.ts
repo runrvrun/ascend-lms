@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { evaluateCourseCompletion } from "../../lib/courseCompletion"
+import { canEditCourse, getSessionUser } from "../../lib/permissions"
+import { isContentImageKey, saveContentImage } from "../../lib/contentImages"
 import { ContentType, QuestionType, Prisma } from "@prisma/client"
 
 export type CourseFormData = {
@@ -18,6 +20,7 @@ export type ContentFormData = {
   type: ContentType
   value: string
   duration: number | null // seconds, only relevant for VIDEO
+  imageKey: string | null // required for IMAGE, optional for LINK
   insertAfterOrder: number // 0 = insert at the very beginning
 }
 
@@ -26,6 +29,15 @@ export type ContentEditData = {
   type: ContentType
   value: string
   duration: number | null
+  imageKey: string | null
+}
+
+// Only IMAGE and LINK content carry an image; drop a stale key if the type changed.
+function contentImageKey(data: { type: ContentType; imageKey: string | null }) {
+  if (data.type !== "IMAGE" && data.type !== "LINK") return null
+  if (data.imageKey && !isContentImageKey(data.imageKey)) throw new Error("Invalid image.")
+  if (data.type === "IMAGE" && !data.imageKey) throw new Error("Upload an image first.")
+  return data.imageKey
 }
 
 export async function createCourse(data: CourseFormData): Promise<string> {
@@ -112,6 +124,7 @@ export async function duplicateCourse(id: string): Promise<string> {
         value: c.value,
         order: c.order,
         duration: c.duration,
+        imageKey: c.imageKey, // image files are never deleted, so the copy can share them
       })),
     })
   }
@@ -179,6 +192,8 @@ type CourseExport = {
     value: string
     duration: number | null
     order: number | null
+    // Base64 image embedded by the export route so it survives a move between servers
+    image?: { data: string } | null
     popQuizzes?: {
       time: number
       question: string
@@ -240,6 +255,12 @@ export async function importCourse(formData: FormData): Promise<string> {
     })
 
     for (const c of data.contents ?? []) {
+      let imageKey: string | null = null
+      if (c.image?.data) {
+        const saved = await saveContentImage(Buffer.from(c.image.data, "base64"))
+        if ("error" in saved) throw new Error(`"${c.title}": ${saved.error}`)
+        imageKey = saved.key
+      }
       const content = await tx.content.create({
         data: {
           courseId: newCourse.id,
@@ -248,6 +269,7 @@ export async function importCourse(formData: FormData): Promise<string> {
           value: c.value,
           duration: c.duration ?? null,
           order: c.order,
+          imageKey,
         },
       })
       for (const pq of c.popQuizzes ?? []) {
@@ -401,12 +423,22 @@ export async function swapCourseItemOrder(
 
 // ── Content ───────────────────────────────────────────────────────────────────
 
+// Errors are returned rather than thrown: thrown messages are redacted in production.
+export async function uploadContentImage(courseId: string, formData: FormData): Promise<{ key?: string; error?: string }> {
+  const user = await getSessionUser()
+  if (!user || !(await canEditCourse(user, courseId))) return { error: "You can't edit this course." }
+  const file = formData.get("image")
+  if (!(file instanceof File)) return { error: "No image received." }
+  return saveContentImage(Buffer.from(await file.arrayBuffer()))
+}
+
 export async function createContent(courseId: string, data: ContentFormData) {
+  const imageKey = contentImageKey(data)
   await prisma.$transaction(async (tx) => {
     const target = data.insertAfterOrder + 1
     await shiftCourseItemsUpFrom(tx, courseId, target)
     await tx.content.create({
-      data: { courseId, title: data.title, type: data.type, value: data.value, order: target, duration: data.duration },
+      data: { courseId, title: data.title, type: data.type, value: data.value, order: target, duration: data.duration, imageKey },
     })
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
@@ -414,10 +446,11 @@ export async function createContent(courseId: string, data: ContentFormData) {
 }
 
 export async function updateContent(id: string, courseId: string, data: ContentEditData) {
+  const imageKey = contentImageKey(data)
   await Promise.all([
     prisma.content.update({
       where: { id },
-      data: { title: data.title, type: data.type, value: data.value, duration: data.duration },
+      data: { title: data.title, type: data.type, value: data.value, duration: data.duration, imageKey },
     }),
     touchCourse(courseId),
   ])
