@@ -1,12 +1,12 @@
-// Disk storage for learner-uploaded assignment files. Shared by the upload
-// server action, the download route, and the monthly purge script — so this
-// module must not import the app's prisma singleton.
+// Storage for learner-uploaded assignment files (disk or Vercel Blob, see fileStorage.ts).
+// Shared by the upload server action, the download route, and the monthly purge
+// script — so this module must not import the app's prisma singleton.
 import path from "path"
 import { randomUUID } from "crypto"
-import { mkdir, writeFile, unlink, readFile } from "fs/promises"
+import { loadFile, removeFile, storageLocation, storeFile } from "./fileStorage"
 
-// Override with UPLOAD_DIR in production to keep uploads outside the git checkout.
-export const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads"), "assignments")
+// Shown by the purge script
+export const UPLOAD_DIR = storageLocation("assignments")
 
 export const MAX_ASSIGNMENT_FILE_BYTES = 20 * 1024 * 1024
 export const ASSIGNMENT_FILE_RETENTION_MONTHS = 6
@@ -33,9 +33,9 @@ export const ALLOWED_ASSIGNMENT_EXTENSIONS = Object.keys(MIME_TYPES)
 // fileKey is always `<uuid><ext>`; anything else is refused so a key can never escape UPLOAD_DIR.
 const FILE_KEY_RE = /^[0-9a-f-]{36}\.[a-z]+$/
 
-function filePath(fileKey: string) {
+function checkKey(fileKey: string) {
   if (!FILE_KEY_RE.test(fileKey)) throw new Error("Invalid file key")
-  return path.join(UPLOAD_DIR, fileKey)
+  return fileKey
 }
 
 export function validateAssignmentFile(file: File): string | null {
@@ -47,24 +47,20 @@ export function validateAssignmentFile(file: File): string | null {
 }
 
 export async function saveAssignmentFile(file: File): Promise<string> {
-  const fileKey = `${randomUUID()}${path.extname(file.name).toLowerCase()}`
-  await mkdir(UPLOAD_DIR, { recursive: true })
-  await writeFile(filePath(fileKey), Buffer.from(await file.arrayBuffer()))
+  const ext = path.extname(file.name).toLowerCase()
+  const fileKey = `${randomUUID()}${ext}`
+  await storeFile("assignments", checkKey(fileKey), Buffer.from(await file.arrayBuffer()), MIME_TYPES[ext] ?? "application/octet-stream")
   return fileKey
 }
 
 export async function readAssignmentFile(fileKey: string) {
   return {
-    data: await readFile(filePath(fileKey)),
+    data: await loadFile("assignments", checkKey(fileKey)),
     contentType: MIME_TYPES[path.extname(fileKey)] ?? "application/octet-stream",
   }
 }
 
 // Missing files are treated as already deleted.
 export async function deleteAssignmentFile(fileKey: string) {
-  try {
-    await unlink(filePath(fileKey))
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err
-  }
+  await removeFile("assignments", checkKey(fileKey))
 }

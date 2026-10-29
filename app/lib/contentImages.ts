@@ -1,13 +1,11 @@
 // Disk storage for images uploaded into course content (IMAGE content, and the
 // optional image on LINK content). Images are compressed in the browser first
 // (app/lib/compressImage.ts); this module only validates and stores them.
+// Stored on disk or in Vercel Blob (see fileStorage.ts).
 // Like assignmentFiles.ts it must not import the app's prisma singleton.
 import path from "path"
 import { randomUUID } from "crypto"
-import { mkdir, writeFile, readFile, unlink } from "fs/promises"
-
-// Same UPLOAD_DIR base as assignment files (set in production to live outside the checkout).
-export const CONTENT_IMAGE_DIR = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads"), "content-images")
+import { loadFile, removeFile, storeFile } from "./fileStorage"
 
 // After browser compression images are typically 100–500 KB; this only stops abuse.
 export const MAX_CONTENT_IMAGE_BYTES = 5 * 1024 * 1024
@@ -42,15 +40,14 @@ export async function saveContentImage(data: Buffer): Promise<{ key: string } | 
   const ext = sniffExtension(data)
   if (!ext) return { error: "Only JPEG, PNG, WebP and GIF images are supported." }
   const key = `${randomUUID()}${ext}`
-  await mkdir(CONTENT_IMAGE_DIR, { recursive: true })
-  await writeFile(path.join(CONTENT_IMAGE_DIR, key), data)
+  await storeFile("content-images", key, data, MIME_TYPES[ext])
   return { key }
 }
 
 export async function readContentImage(key: string) {
   if (!isContentImageKey(key)) throw new Error("Invalid image key")
   return {
-    data: await readFile(path.join(CONTENT_IMAGE_DIR, key)),
+    data: await loadFile("content-images", key),
     contentType: MIME_TYPES[path.extname(key)],
   }
 }
@@ -58,7 +55,5 @@ export async function readContentImage(key: string) {
 // Callers must first check no content still uses the key (duplicated courses share files).
 export async function deleteContentImage(key: string) {
   if (!isContentImageKey(key)) return
-  await unlink(path.join(CONTENT_IMAGE_DIR, key)).catch((err) => {
-    if (err?.code !== "ENOENT") console.error("[content-images] failed to delete", key, err)
-  })
+  await removeFile("content-images", key).catch((err) => console.error("[content-images] failed to delete", key, err))
 }
