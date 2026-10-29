@@ -4,7 +4,7 @@
 // Like assignmentFiles.ts it must not import the app's prisma singleton.
 import path from "path"
 import { randomUUID } from "crypto"
-import { mkdir, writeFile, readFile } from "fs/promises"
+import { mkdir, writeFile, readFile, unlink } from "fs/promises"
 
 // Same UPLOAD_DIR base as assignment files (set in production to live outside the checkout).
 export const CONTENT_IMAGE_DIR = path.resolve(process.env.UPLOAD_DIR ?? path.join(process.cwd(), "uploads"), "content-images")
@@ -53,4 +53,12 @@ export async function readContentImage(key: string) {
     data: await readFile(path.join(CONTENT_IMAGE_DIR, key)),
     contentType: MIME_TYPES[path.extname(key)],
   }
+}
+
+// Callers must first check no content still uses the key (duplicated courses share files).
+export async function deleteContentImage(key: string) {
+  if (!isContentImageKey(key)) return
+  await unlink(path.join(CONTENT_IMAGE_DIR, key)).catch((err) => {
+    if (err?.code !== "ENOENT") console.error("[content-images] failed to delete", key, err)
+  })
 }

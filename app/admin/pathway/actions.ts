@@ -68,8 +68,9 @@ export async function togglePathwayStatus(id: string, status: "DRAFT" | "PUBLISH
   revalidatePath("/pathways")
 }
 
+// Deleting and duplicating are admin-only; owners manage a pathway but can't remove or copy it.
 export async function deletePathway(id: string) {
-  await requirePathwayManager(id)
+  await requireAdmin()
   await prisma.pathway.update({
     where: { id },
     data: { deletedAt: new Date(), featuredAt: null },
@@ -107,7 +108,7 @@ export async function setPathwayFeatured(id: string, featured: boolean): Promise
 }
 
 export async function duplicatePathway(id: string): Promise<string> {
-  await requirePathwayManager(id)
+  await requireAdmin()
   const source = await prisma.pathway.findUnique({
     where: { id },
     include: { courses: { orderBy: { order: "asc" } }, owners: { select: { userId: true } } },
@@ -128,7 +129,6 @@ export async function duplicatePathway(id: string): Promise<string> {
       status: "DRAFT",
       visibility: source.visibility,
       tags: source.tags,
-      // Keep the same owners so an owner who duplicates can still manage the copy
       owners: { create: source.owners.map((o) => ({ userId: o.userId })) },
     },
   })

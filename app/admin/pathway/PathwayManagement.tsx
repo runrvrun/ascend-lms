@@ -443,8 +443,12 @@ export function PathwayManagement({
                     { label: "Manage Enrollments", icon: <Users size={14} />, href: `/admin/pathway/${p.id}/enrollments` },
                     { label: "Preview", icon: <Eye size={14} />, href: `/pathways/${p.id}?preview=1` },
                     { label: "Edit", icon: <Pencil size={14} />, onClick: () => setEditing(p) },
-                    { label: duplicating === p.id ? "Duplicating…" : "Duplicate", icon: <Copy size={14} />, onClick: () => handleDuplicate(p.id) },
-                    { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(p), variant: "danger" },
+                    ...(isAdmin
+                      ? [
+                          { label: duplicating === p.id ? "Duplicating…" : "Duplicate", icon: <Copy size={14} />, onClick: () => handleDuplicate(p.id) },
+                          { label: "Delete", icon: <Trash2 size={14} />, onClick: () => setDeleting(p), variant: "danger" as const },
+                        ]
+                      : []),
                   ]} />
                 </td>
               </tr>

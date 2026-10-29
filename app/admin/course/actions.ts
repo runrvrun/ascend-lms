@@ -6,7 +6,7 @@ import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { evaluateCourseCompletion } from "../../lib/courseCompletion"
 import { canEditCourse, getSessionUser } from "../../lib/permissions"
-import { isContentImageKey, saveContentImage } from "../../lib/contentImages"
+import { deleteContentImage, isContentImageKey, saveContentImage } from "../../lib/contentImages"
 import { ContentType, QuestionType, Prisma } from "@prisma/client"
 
 export type CourseFormData = {
@@ -432,6 +432,24 @@ export async function uploadContentImage(courseId: string, formData: FormData): 
   return saveContentImage(Buffer.from(await file.arrayBuffer()))
 }
 
+// Deletes image files that no live content uses any more. Duplicated courses share
+// image files, so a file goes only when its last reference is gone.
+async function deleteUnusedContentImages(keys: (string | null | undefined)[]) {
+  for (const key of new Set(keys)) {
+    if (!key || !isContentImageKey(key)) continue
+    const inUse = await prisma.content.count({ where: { imageKey: key, deletedAt: null } })
+    if (inUse === 0) await deleteContentImage(key)
+  }
+}
+
+// Called by the content form for images uploaded but not saved (replaced before saving,
+// or the form was cancelled). Only unreferenced files are removed.
+export async function discardContentImages(courseId: string, keys: string[]) {
+  const user = await getSessionUser()
+  if (!user || !(await canEditCourse(user, courseId))) return
+  await deleteUnusedContentImages(keys)
+}
+
 export async function createContent(courseId: string, data: ContentFormData) {
   const imageKey = contentImageKey(data)
   await prisma.$transaction(async (tx) => {
@@ -447,6 +465,7 @@ export async function createContent(courseId: string, data: ContentFormData) {
 
 export async function updateContent(id: string, courseId: string, data: ContentEditData) {
   const imageKey = contentImageKey(data)
+  const previous = await prisma.content.findUnique({ where: { id }, select: { imageKey: true } })
   await Promise.all([
     prisma.content.update({
       where: { id },
@@ -454,18 +473,22 @@ export async function updateContent(id: string, courseId: string, data: ContentE
     }),
     touchCourse(courseId),
   ])
+  if (previous?.imageKey && previous.imageKey !== imageKey) await deleteUnusedContentImages([previous.imageKey])
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function deleteContent(id: string, courseId: string) {
+  let removedImageKey: string | null = null
   await prisma.$transaction(async (tx) => {
-    const content = await tx.content.findUnique({ where: { id }, select: { order: true } })
+    const content = await tx.content.findUnique({ where: { id }, select: { order: true, imageKey: true } })
     if (!content || content.order === null) return
 
-    await tx.content.update({ where: { id }, data: { deletedAt: new Date(), order: null } })
+    removedImageKey = content.imageKey
+    await tx.content.update({ where: { id }, data: { deletedAt: new Date(), order: null, imageKey: null } })
     await shiftCourseItemsDownAfter(tx, courseId, content.order)
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
+  await deleteUnusedContentImages([removedImageKey])
   revalidatePath(`/admin/course/${courseId}`)
 }
 

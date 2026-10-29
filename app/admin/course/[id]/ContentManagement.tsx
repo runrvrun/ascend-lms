@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { Plus, Pencil, Trash2, X, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
 import { ContentType } from "@prisma/client"
-import { createContent, updateContent, deleteContent, swapCourseItemOrder, ContentFormData, ContentEditData } from "../actions"
+import { createContent, updateContent, deleteContent, discardContentImages, swapCourseItemOrder, ContentFormData, ContentEditData } from "../actions"
 import { PositionSelect } from "./PositionSelect"
 import type { OutlineItem } from "./courseOutline"
 import { ContentImageUpload } from "./ContentImageUpload"
@@ -96,6 +96,23 @@ function ContentFormModal({
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const [uploading, setUploading] = useState(false)
+  // Images uploaded while this form is open; any not saved get discarded on close
+  const [uploadedKeys, setUploadedKeys] = useState<string[]>([])
+
+  function setImageKey(imageKey: string | null) {
+    if (imageKey) setUploadedKeys((keys) => [...keys, imageKey])
+    setForm((f) => ({ ...f, imageKey }))
+  }
+
+  function discardUnsaved(savedKey: string | null) {
+    const unused = uploadedKeys.filter((k) => k !== savedKey)
+    if (unused.length > 0) discardContentImages(courseId, unused).catch(() => {})
+  }
+
+  function handleCancel() {
+    discardUnsaved(null)
+    onClose()
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -107,6 +124,7 @@ function ContentFormModal({
     startTransition(async () => {
       try {
         await onSubmit(form, insertAfterOrder)
+        discardUnsaved(form.type === "IMAGE" || form.type === "LINK" ? form.imageKey : null)
         onClose()
       } catch {
         setError("Something went wrong. Please try again.")
@@ -119,7 +137,7 @@ function ContentFormModal({
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X size={18} /></button>
+          <button onClick={handleCancel} className="rounded-lg p-1 hover:bg-slate-100"><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -158,7 +176,7 @@ function ContentFormModal({
                 <ContentImageUpload
                   courseId={courseId}
                   imageKey={form.imageKey}
-                  onChange={(imageKey) => setForm((f) => ({ ...f, imageKey }))}
+                  onChange={setImageKey}
                   onBusyChange={setUploading}
                 />
               </div>
@@ -300,7 +318,7 @@ function ContentFormModal({
               <ContentImageUpload
                 courseId={courseId}
                 imageKey={form.imageKey}
-                onChange={(imageKey) => setForm((f) => ({ ...f, imageKey }))}
+                onChange={setImageKey}
                 onBusyChange={setUploading}
               />
             </div>
@@ -309,7 +327,7 @@ function ContentFormModal({
           {error && <p className="text-xs text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={handleCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
             <button type="submit" disabled={pending || uploading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               {pending ? "Saving…" : "Save"}
             </button>
