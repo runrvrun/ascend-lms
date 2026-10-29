@@ -1,343 +1,426 @@
 "use client"
 
 import { useState } from "react"
-import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb } from "lucide-react"
+import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb, Megaphone, KeyRound, CalendarClock, Settings, History, Image as ImageIcon, Star, Route } from "lucide-react"
+import { RELEASE_NOTES, type ChangeKind } from "./releaseNotes"
 
-type Role = "learner" | "admin" | "manager" | "trainer" | "sme"
+type Role = "learner" | "admin" | "owner" | "manager" | "trainer" | "sme"
+type Tab = Role | "releases"
 
-const ROLES: { id: Role; label: string; icon: React.ElementType; color: string; bg: string }[] = [
-  { id: "learner",  label: "Learner",  icon: GraduationCap, color: "text-blue-700",   bg: "bg-blue-50 border-blue-200"   },
-  { id: "admin",   label: "Admin",   icon: ShieldCheck,   color: "text-red-700",    bg: "bg-red-50 border-red-200"     },
-  { id: "manager", label: "Manager", icon: Users,         color: "text-purple-700", bg: "bg-purple-50 border-purple-200" },
-  { id: "trainer", label: "Trainer", icon: PenLine,       color: "text-green-700",  bg: "bg-green-50 border-green-200" },
-  { id: "sme",     label: "SME",     icon: Lightbulb,     color: "text-violet-700", bg: "bg-violet-50 border-violet-200" },
+const TABS: { id: Tab; label: string; icon: React.ElementType; color: string; bg: string }[] = [
+  { id: "learner",  label: "Learner",       icon: GraduationCap, color: "text-blue-700",   bg: "bg-blue-50 border-blue-200"   },
+  { id: "admin",    label: "Admin",         icon: ShieldCheck,   color: "text-red-700",    bg: "bg-red-50 border-red-200"     },
+  { id: "owner",    label: "Pathway Owner", icon: Route,         color: "text-amber-700",  bg: "bg-amber-50 border-amber-200" },
+  { id: "manager",  label: "Manager",       icon: Users,         color: "text-purple-700", bg: "bg-purple-50 border-purple-200" },
+  { id: "trainer",  label: "Trainer",       icon: PenLine,       color: "text-green-700",  bg: "bg-green-50 border-green-200" },
+  { id: "sme",      label: "SME",           icon: Lightbulb,     color: "text-violet-700", bg: "bg-violet-50 border-violet-200" },
+  { id: "releases", label: "Release Notes", icon: Megaphone,     color: "text-teal-700",   bg: "bg-teal-50 border-teal-200"   },
 ]
 
 type Section = { title: string; icon: React.ElementType; steps: (string | { heading: string; items: string[] })[] }
 
+const CONTENT_TYPES = [
+  "YouTube Video — a YouTube video, which may include pop quizzes.",
+  "SharePoint Video — a video stored in SharePoint (paste its embed link).",
+  "Text — written content.",
+  "PDF and PPT — a SharePoint PDF or PowerPoint shown inside the course (open the file in a web browser, then use Embed to copy its link).",
+  "In Person — a face-to-face session, with an optional description.",
+  "External Link — a link to another website, with an optional picture that opens the link when clicked.",
+  "Image — a picture uploaded from your computer, with an optional caption. Pictures are resized and compressed automatically before upload.",
+]
+
 const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
   learner: {
-    intro: "As a Learner, you can browse and enroll in learning pathways, complete course content, take tests, submit assignments, and track your progress.",
+    intro: "As a Learner, you can browse and enroll in learning pathways, complete course content, take tests, submit assignments, and track your progress. Everyone in Ascend is a learner.",
     sections: [
       {
         title: "Home Dashboard",
         icon: Home,
         steps: [
           "After signing in, you land on the Home page.",
-          "The dashboard shows your active learning pathways with a progress bar for each.",
-          "You can see your current points, learning streak, and your rank on the leaderboard.",
-          "Recent activity is shown at the bottom of the page.",
+          "My Pathways shows the pathways you are still working on, with a progress bar for each. When there are more than fit, click View all to open the full list.",
+          "You can see your points, your learning streak (how many days in a row you have learned) and recent points earned. Click View full history to open your Learning History.",
+          "The Leaderboards show the top learners by points and by streak. The top 3 get gold, silver and bronze medals.",
+          "Use the menu button at the top of the left menu to hide or show it. On a phone, the menu opens on top of the page.",
         ],
       },
       {
         title: "Browsing & Enrolling in Pathways",
         icon: Map,
         steps: [
-          "Click Pathways in the left sidebar.",
-          "Browse all publicly visible pathways. Each card shows the pathway name, description, and tags. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
-          "Click a pathway card to view its details and the list of courses inside.",
+          "Click Pathways in the left menu.",
+          "Recommended for You at the top shows pathways featured by the Learning team. It is hidden when there is nothing featured for you.",
+          "Use the search box to find pathways by name or tag. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
+          "Click Preview on a pathway to see its courses, trainers and first lesson before enrolling.",
+          "Click Share to send a pathway to a colleague. They get a notification and an email with a link — sharing does not enroll them.",
           {
             heading: "To enroll:",
             items: [
-              "If the pathway is free enroll, click Enroll — you will be enrolled immediately.",
-              "If the pathway requires manager approval, click Request Enrollment, add an optional note, and submit. You will be notified once your manager approves or rejects the request.",
+              "If the pathway is free to enroll, click Enroll — you are enrolled immediately.",
+              "If the pathway needs approval, click Request Enrollment, add an optional note, and submit. Your manager is notified, and you will be notified once they approve or reject the request.",
             ],
           },
+        ],
+      },
+      {
+        title: "My Pathways & Learning History",
+        icon: History,
+        steps: [
+          "The My Pathways page (View all on the Home page) lists all your pathways. Click Open to continue one, or Review to look back at a completed one.",
+          "To leave a pathway you haven't finished, click the unenroll icon next to it on My Pathways.",
+          "Learning History lists everything you have completed and the points you earned. Completed pathways have a View Certificate link.",
         ],
       },
       {
         title: "Taking a Course",
         icon: BookOpen,
         steps: [
-          "Open a pathway you are enrolled in from the Home dashboard or the Pathways page.",
-          "The left panel shows the list of courses in the pathway. Click a course to expand it and see its contents.",
-          "Click a content item (lesson, video, or link) to open it in the main panel.",
-          "Read or watch the content. For videos, you must watch at least 75% before you can mark it as complete.",
-          "Click Mark as Completed at the bottom of the content to record your progress.",
-          "A course may include one or more tests placed at any point among the content — the left panel shows them in the order the trainer or admin set.",
+          "Open a pathway you are enrolled in from the Home page or the Pathways page.",
+          "The course outline on the left lists the courses in the pathway, sometimes grouped under section headings. On a phone, tap Contents to open it.",
+          "Click a lesson to open it. Lessons can be videos, written text, PDFs, slides, in-person sessions, links or pictures.",
+          "For videos, you must watch at least 75% before you can mark them as complete. YouTube videos may pause for a pop quiz — answer correctly to keep watching.",
+          "Click Mark as Completed to record your progress, then use Next Lesson to move on (or Previous Lesson to go back).",
+          "If a SharePoint video, PDF or slide doesn't load, click Content not loading? below it for tips (usually you need to sign in to Microsoft in the same browser), or use Open in new tab.",
+          "Each lesson has a discussion area where you can ask questions and reply to others.",
+          "When you finish a course, you can rate it and leave feedback.",
         ],
       },
       {
         title: "Taking a Test",
         icon: ClipboardList,
         steps: [
-          "Tests appear in the left panel at whatever point the trainer or admin placed them — you don't have to finish all content first, though courses are usually designed to be taken in order.",
+          "Tests appear in the course outline wherever the trainer placed them — a course can have more than one.",
           "Click a test to open it, then click Start Test. Answer all questions — multiple choice, true/false, fill-in-the-blank, ranking, or matching.",
-          "Click Submit Test when done. Your score will be shown immediately.",
-          "If you meet that test's passing threshold, it is marked as passed. If not, you can retake it.",
-          "A course is only marked complete once all of its content is done, every test in it is passed, and its assignment (if any) is passed.",
+          "Click Submit Test when done. Your score is shown immediately.",
+          "If you reach the test's passing score, it is marked as passed. If not, you can retake it.",
+          "A course is complete once all of its lessons are done, every test is passed, and its assignment (if any) is passed.",
         ],
       },
       {
         title: "Submitting an Assignment",
         icon: ClipboardList,
         steps: [
-          "Some courses have an assignment in addition to their test(s).",
-          "Read the assignment description and follow the instructions to upload your work to the provided SharePoint link.",
-          "Copy the link to your submitted file, paste it into the submission field, and click Submit.",
-          "Your trainer will review the submission and mark it as passed or failed. You will receive a notification with the result.",
+          "Some courses have an assignment. Read the instructions in the course.",
+          "Upload your file directly (up to 20 MB), or paste a link to your work (for example, a SharePoint file).",
+          "Click Submit. Your trainer reviews it and marks it as passed or failed, and you are notified of the result.",
+          "Uploaded files are deleted after 6 months, but your grade is kept.",
+        ],
+      },
+      {
+        title: "Deadlines & Reminder Emails",
+        icon: CalendarClock,
+        steps: [
+          "An assigned pathway may have a deadline. You get a reminder email the day before and on the deadline day.",
+          "One week after the deadline, the pathway is locked: you can still view its content, but you can't complete lessons, take tests or submit assignments. Contact your manager or admin if you need more time.",
+          "If you have unfinished pathways, you also get a reminder email every Wednesday. Its Start Learning button takes you straight to your next course.",
+          "Admins may also schedule extra reminders with a personal message.",
         ],
       },
       {
         title: "My Growth Plan",
         icon: Target,
         steps: [
-          "Click My Growth Plan in the sidebar to manage your personal development goals.",
-          "Click Add Item to create a new growth plan goal. You can optionally link it to a specific pathway.",
+          "Click My Growth Plan in the left menu to manage your personal development goals.",
+          "Click Add Item to create a goal. You can optionally link it to a pathway.",
           "Once you have acted on a goal, click the checkmark to mark it as completed.",
-          "Your manager will review your completed goals and confirm them. You will be notified when a goal is confirmed.",
-          "Confirmed goals are shown with a green badge.",
+          "Your manager reviews your completed goals and confirms them. You are notified when a goal is confirmed, and it gets a green badge.",
         ],
       },
       {
         title: "Notifications",
         icon: Bell,
         steps: [
-          "The bell icon in the sidebar shows how many unread notifications you have.",
-          "Click the bell to go to the Notifications page.",
-          "Notifications inform you about pathway approvals or rejections, assignment grades, growth plan confirmations, and new pathway assignments.",
-          "Click the action link in a notification to navigate directly to the relevant page.",
+          "The bell icon at the bottom of the left menu shows how many unread notifications you have. Click it to open the Notifications page.",
+          "Notifications cover enrollment approvals and rejections, new pathway assignments, pathways shared with you, assignment grades, growth plan confirmations, and replies to your comments.",
+          "Click the link in a notification to go straight to the relevant page.",
+        ],
+      },
+      {
+        title: "Settings",
+        icon: Settings,
+        steps: [
+          "Click the gear icon at the bottom of the left menu.",
+          "Turn the weekly learning reminder emails on or off.",
+          "Set or change a password for signing in with email (not needed if you sign in with Microsoft).",
         ],
       },
     ],
   },
 
   admin: {
-    intro: "As an Admin, you have full control over users, learning content, cohorts, and system configuration. All admin pages are found under the Admin section in the sidebar.",
+    intro: "As an Admin, you have full control over users, learning content, cohorts, and settings. All admin pages are under Admin in the left menu.",
     sections: [
+      {
+        title: "How Roles Work",
+        icon: KeyRound,
+        steps: [
+          "Admin is the only role you give by hand (Users → Actions → Assign Roles).",
+          {
+            heading: "Every other role follows what a person is assigned to:",
+            items: [
+              "Manager — anyone who has at least one direct report (Actions → Assign Managers on the team member).",
+              "Trainer — anyone assigned as a trainer on a course.",
+              "Subject Matter Expert — anyone assigned as SME on a topic.",
+              "Pathway Owner — anyone set as an owner of a pathway.",
+            ],
+          },
+          "The matching menu appears for them automatically and disappears when they no longer have that assignment — usually the next time they open or refresh a page.",
+          "Anyone can be picked as a manager, trainer, SME or pathway owner.",
+        ],
+      },
       {
         title: "Managing Users",
         icon: UserCog,
         steps: [
-          "Go to Admin → Users.",
-          "Click Add User to create a single user. Fill in name, email, division, title, and office.",
-          "To import multiple users at once, click Import, download the template, fill it in, and upload the completed file.",
+          "Go to Admin → Users. Use the filters to narrow by division, title or role.",
+          "New colleagues with a company Microsoft account are added automatically, and people who leave are deactivated automatically.",
+          "Click Add User to create a user by hand (name, email, division, title, office).",
+          "To add many users at once, click Import, download the template, fill it in and upload it. Click Export to download all users in the same format.",
           {
-            heading: "After creating a user:",
+            heading: "From each user's Actions menu:",
             items: [
-              "Use Actions → Assign Roles to grant them Admin, Manager, Trainer, or SME access.",
-              "Use Actions → Assign Managers to link them to one or more managers.",
-              "Use Actions → Assign Cohorts to add them to learning cohorts.",
-              "Use Actions → Send Activation Email to send them a link to set their password.",
+              "Progress — the User Progress Report: completed pathways and courses, on-time completion, streaks, points and an Attention needed list. Click Download Excel Report for a copy.",
+              "Edit — change name, email, division, title or office.",
+              "Assign Roles — give or remove Admin.",
+              "Assign Managers — link the user to one or more managers.",
+              "Assign Cohorts — add the user to cohorts.",
+              "Send Activation Email / Change Password — for people who sign in with email and password.",
+              "Delete — deactivates the user. Their history is kept, and adding the same email again restores them.",
             ],
           },
-          "To edit a user's name, email, division, title, or office, use Actions → Edit.",
-          "To permanently delete a user, use Actions → Delete.",
         ],
       },
       {
         title: "Managing Cohorts",
         icon: UsersRound,
         steps: [
-          "Go to Admin → Cohorts.",
-          "Click Add Cohort to create a new cohort group.",
-          "Open a cohort to manage its members and assigned pathways.",
-          "Use the Members tab to add or remove users from the cohort.",
-          "Use the Pathways tab to assign pathways to the entire cohort at once.",
+          "Go to Admin → Cohorts and click Add Cohort to create a group.",
+          "Members — add or remove people, upload members in bulk from Excel, or download the member list.",
+          "Pathways — assign pathways to the whole cohort, optionally with a deadline. Everyone in the cohort is enrolled and notified by email.",
+          "People added to the cohort later are enrolled in its pathways automatically (with the same deadline); people removed lose those cohort enrollments.",
+          "View Progress — see how the cohort is doing.",
         ],
       },
       {
         title: "Managing Pathways",
         icon: Map,
         steps: [
-          "Go to Admin → Pathways.",
-          "Click Add Pathway to create a new pathway. Fill in the name, description, and tags.",
-          "Set the pathway's visibility: Public — free enroll, Public — needs approval (manager sign-off required), or Hidden — assigned only (not shown on the Pathways page; only reachable by an admin or manager assigning it directly).",
-          "Open a pathway to manage its courses — add, reorder, or remove courses, and set point values per course.",
-          "Use the status toggle to publish or draft a pathway.",
+          "Go to Admin → Pathways and click Add Pathway.",
+          "Fill in the name, description and tags, and pick the owners (optional).",
+          "Choose who can see it: Public — free enroll, Public — needs approval (the learner's manager must approve), or Hidden — assigned only.",
+          "Use the status button to switch between Draft and Published, and the star to feature it. Up to 2 pathways can be featured; they appear under Recommended for You on the Pathways page.",
+          {
+            heading: "From each pathway's Actions menu:",
+            items: [
+              "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them.",
+              "Manage Enrollments — enroll people or cohorts (optionally with a deadline), change deadlines, schedule reminder emails, or remove enrollments.",
+              "Preview — see the pathway as a learner would.",
+              "Edit, Duplicate (the copy starts as a draft with no one enrolled), or Delete.",
+            ],
+          },
         ],
       },
       {
         title: "Managing Courses",
         icon: BookOpen,
         steps: [
-          "Go to Admin → Courses.",
-          "Click Add Course to create a new course. Set the name, description, topic, and trainer.",
-          "Click Manage Contents in the Actions menu to open the course detail page.",
-          "In the course detail page you can add content (text, video link, or external link), create one or more tests with questions, and set up an assignment. Each test has a Position selector so you can place it anywhere among the content — even between two existing items.",
-          "Use the status toggle at the top right to publish or draft the course.",
-          "The Submissions tab shows all assignment submissions from learners for grading.",
-          "The Feedback tab shows star ratings and comments left by learners.",
+          "Go to Admin → Courses and click Add Course. Set the name, description, topic and one or more trainers.",
+          {
+            heading: "From each course's Actions menu:",
+            items: [
+              "Manage Contents — add lessons, tests, pop quizzes and an assignment (see the Trainer tab for details).",
+              "Preview — see the course as a learner would.",
+              "Report — enrollment, completion, test, assignment and feedback results, with an Excel download.",
+              "Export — download the course as a file. Use Import on the Courses page to bring it into another Ascend server as a new draft.",
+              "Edit, Duplicate (the copy starts as a draft), or Delete.",
+            ],
+          },
+          "Use the status button on the course page to switch between Draft and Published.",
         ],
       },
       {
         title: "Managing Topics & SMEs",
         icon: Lightbulb,
         steps: [
-          "Go to Admin → Topics.",
-          "Click Add Topic to create a new topic category.",
-          "In each topic card, use the SME search field to assign Subject Matter Experts to that topic.",
-          "Courses can be assigned to a topic when creating or editing them.",
+          "Go to Admin → Topics and click Add Topic.",
+          "In each topic card, search for and add Subject Matter Experts. Anyone can be an SME.",
+          "Assign courses to a topic when creating or editing them.",
         ],
       },
       {
         title: "Managing Offices",
         icon: UsersRound,
         steps: [
-          "Go to Admin → Offices to add, edit, or delete office locations.",
-          "Offices are used to categorise users by location.",
+          "Go to Admin → Offices to add, edit or delete office locations used to group users.",
         ],
       },
       {
         title: "Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Admin → Analytics for a system-wide overview.",
-          "Use the filters at the top to narrow down by division, title, or office.",
-          "Key metrics include total users, total enrolments, overall completion rate, and average points per user.",
-          "Scroll down to see top pathways by enrolment, breakdown by division and title, and the global leaderboard.",
+          "Go to Admin → Analytics for a company-wide overview.",
+          "Use the filters at the top to narrow by division, title or office.",
+          "See total users, enrollments, completion rate and average points, plus top pathways, breakdowns by division and title, and the leaderboard.",
+        ],
+      },
+    ],
+  },
+
+  owner: {
+    intro: "As a Pathway Owner, you manage the pathways an admin has made you owner of. You'll find them under Admin → Pathways, which only lists your pathways.",
+    sections: [
+      {
+        title: "What You Can Do",
+        icon: Route,
+        steps: [
+          "Edit your pathway's name, description, tags and visibility, and switch it between Draft and Published.",
+          "Manage Courses — add, reorder and remove courses, set points, and add section headings.",
+          "Manage Enrollments — enroll people or cohorts, set or change deadlines, schedule reminder emails, and remove enrollments.",
+          "Preview the pathway as a learner would.",
+          "Only admins can add a new pathway, change owners, feature, duplicate or delete a pathway, or edit the courses themselves.",
         ],
       },
     ],
   },
 
   manager: {
-    intro: "As a Manager, you can view the learning progress of your team members, approve pathway requests, assign pathways, and confirm their growth plan goals. Access all Manager features from the Manager section in the sidebar.",
+    intro: "You're a Manager when at least one person has you as their manager. You can follow your team's learning, approve pathway requests, assign pathways, and confirm growth plan goals from the Manager section in the left menu.",
     sections: [
       {
         title: "Viewing Your Team",
         icon: Users,
         steps: [
-          "Go to Manager → Professionals.",
-          "You will see all users who have been assigned to you as their manager.",
-          "Each row shows the team member's name, division, title, number of enrolled and completed pathways, and total points.",
-          "Click View Progress on any team member to open their detailed progress page.",
+          "Go to Manager → Professionals to see everyone who reports to you.",
+          "Each row shows the person's division, title, enrolled and completed pathways, and points.",
+          "Click Assign Pathway to enroll a team member in a pathway, optionally with a deadline. They get a notification and an email.",
+          "Click View Progress to open their detailed progress page.",
         ],
       },
       {
         title: "Team Member Detail",
         icon: UserCog,
         steps: [
-          "On the professional's detail page, the Learning tab shows all their enrolled pathways.",
-          "For each pathway, you can see how many courses they have completed out of the total, and whether the pathway is finished.",
-          "Use Assign Pathway to enrol a team member directly into a pathway. You can set a deadline.",
-          "You can update the deadline for any existing enrolment using the edit icon next to it.",
-          "Switch to the Growth Plan tab to see and confirm their personal development goals.",
+          "The Learning tab lists their pathways. Expand one to see every course, lesson, test and assignment, with completion dates and anything waiting for review.",
+          "Use the edit icon next to a deadline to change it.",
+          "The Growth Plan tab shows their personal goals for you to confirm.",
         ],
       },
       {
         title: "Approving Pathway Requests",
         icon: ClipboardList,
         steps: [
-          "Go to Manager → Pathway Requests.",
-          "This page lists all pending enrolment requests from your team members.",
-          "Each card shows who is requesting, which pathway, and any note they included.",
-          "Click Approve to grant access, or Reject to decline. If rejecting, you must provide a reason.",
-          "The team member will receive a notification with your decision.",
+          "You are notified when a team member asks to join a pathway that needs approval.",
+          "Go to Manager → Pathway Requests to see pending requests, with any note they added.",
+          "Click Approve, or Reject with a reason. They are notified of your decision.",
         ],
       },
       {
         title: "Confirming Growth Plans",
         icon: Target,
         steps: [
-          "You will receive a notification whenever a team member marks a growth plan item as completed.",
-          "Click the notification link to go directly to their Growth Plan tab.",
-          "Review the completed item and click Confirm to acknowledge it.",
-          "The team member will be notified that their goal has been confirmed.",
+          "You are notified when a team member marks a growth plan goal as completed.",
+          "Click the notification to open their Growth Plan tab, review the goal and click Confirm.",
         ],
       },
       {
         title: "Team Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Manager → Analytics for metrics specific to your team.",
-          "Use the filters at the top to narrow by division, title, or office.",
-          "The dashboard shows team size, active enrolments, completion rate, and average points.",
-          "Scroll down to see your team's pathway progress, breakdown by division and title, and the team leaderboard.",
+          "Go to Manager → Analytics for your team's numbers: team size, active enrollments, completion rate and average points.",
+          "Use the filters to narrow by division, title or office, and scroll down for pathway progress and the team leaderboard.",
         ],
       },
     ],
   },
 
   trainer: {
-    intro: "As a Trainer, you can manage the courses assigned to you — including content, tests, assignments, and grading. Access your courses from the Trainer section in the sidebar.",
+    intro: "You're a Trainer when you are assigned to at least one course. You can manage those courses — content, tests, assignments and grading — from the Trainer section in the left menu.",
     sections: [
       {
         title: "Viewing Your Courses",
         icon: BookOpen,
         steps: [
-          "Go to Trainer → My Courses.",
-          "You will see all courses where you have been assigned as the trainer.",
-          "Each card shows the number of content items, how many tests exist, and whether an assignment exists.",
-          "Click a course card to open the course management page.",
+          "Go to Trainer → My Courses to see the courses you train.",
+          "Each card shows the number of lessons and tests and whether there is an assignment. Click a card to manage the course.",
+          "Click Preview on the course page to see it exactly as learners will.",
         ],
       },
       {
-        title: "Managing Course Content",
-        icon: BookOpen,
+        title: "Adding Course Content",
+        icon: ImageIcon,
         steps: [
-          "On the course detail page, the Content tab shows all content items in the course.",
-          "Click Add Content to create a new lesson. Choose the type: Text (written content), Video (SharePoint or other video URL), or Link (external resource).",
-          "For Video content, set the duration in hours, minutes, and seconds — this determines the 75% watch threshold for completion.",
-          "Use the edit and delete icons next to each item to update or remove content.",
-          "Drag items to reorder them (or use the order field).",
+          "On the Content tab, click Add Content and choose a type:",
+          { heading: "Content types:", items: CONTENT_TYPES },
+          "Use Position to place the new item anywhere in the course.",
+          "For SharePoint videos, enter the duration — learners must watch 75% of it before they can mark it complete.",
+          "Use the edit and delete icons to change or remove content, and the up/down arrows to reorder.",
+        ],
+      },
+      {
+        title: "Pop Quizzes (YouTube videos)",
+        icon: ClipboardList,
+        steps: [
+          "In the Pop Quiz section, add a multiple-choice question to a YouTube video at a chosen time.",
+          "The video pauses at that moment and only continues once the learner answers correctly.",
         ],
       },
       {
         title: "Creating a Test",
         icon: ClipboardList,
         steps: [
-          "In the course detail page, scroll to the Tests section and click Add Test. A course can have any number of tests.",
-          "Give the test a title (e.g. \"Module 1 Quiz\"), choose where it sits using the Position selector — anywhere before, after, or between existing content and other tests — and set the passing threshold percentage (e.g. 70 means learners must score 70% or above to pass).",
-          "Click Add Question to add questions to that test. Supported types: Multiple Choice, True/False, Fill in the Blank, Ranking, and Matching.",
-          "For Multiple Choice, mark the correct answer(s). For Ranking, set the correct order. For Matching, set the key pairs.",
-          "You can edit or delete tests and questions at any time, and use the up/down arrows to move a test relative to the content around it.",
+          "In the Tests section, click Add Test. A course can have any number of tests.",
+          "Give it a title (e.g. \"Module 1 Quiz\"), choose its Position among the lessons, and set the passing score (e.g. 70 means 70% or above passes).",
+          "Click Add Question. Types: Multiple Choice, True/False, Fill in the Blank, Ranking and Matching. Mark the correct answers, order or pairs.",
+          "Edit or delete tests and questions at any time. You can move a test from its Edit Test window or with the up/down arrows.",
         ],
       },
       {
         title: "Creating an Assignment",
         icon: ClipboardList,
         steps: [
-          "In the course detail page, scroll to the Assignment section and click Create Assignment.",
-          "Write a clear description of what learners need to do.",
-          "Paste the SharePoint folder URL where learners should upload their work.",
-          "Click Save. Learners will see the instructions and the upload link in their course view.",
+          "In the Assignment section, click Create Assignment and describe what learners need to do.",
+          "Optionally add a SharePoint folder link. Learners can upload a file directly or paste a link to their work.",
         ],
       },
       {
         title: "Grading Submissions",
         icon: ClipboardList,
         steps: [
-          "Click the Submissions tab on the course detail page to see all submitted assignments.",
-          "Each row shows the learner's name, pathway, submission date, and current status.",
-          "Click Grade on a submission to open the grading panel.",
-          "Review the learner's submission by clicking the link to their uploaded file.",
-          "Select Passed or Failed, add optional feedback notes, and click Save.",
-          "The learner will receive a notification with the result.",
+          "Open the Submissions tab to see all submitted assignments.",
+          "Click Grade, open the learner's file or link, choose Passed or Failed, add optional feedback, and click Save.",
+          "The learner is notified of the result.",
         ],
       },
       {
         title: "Viewing Feedback",
-        icon: BarChart3,
+        icon: Star,
         steps: [
-          "Click the Feedback tab on the course detail page.",
-          "You can see the average star rating and all individual reviews left by learners.",
-          "Use the toggle at the top of the Feedback tab to enable or disable feedback collection for this course.",
+          "Open the Feedback tab to see the average star rating and each learner's comments.",
+          "Use the toggle at the top to turn feedback collection on or off for the course.",
         ],
       },
     ],
   },
 
   sme: {
-    intro: "As a Subject Matter Expert (SME), you are responsible for the courses within your assigned topics. You have the same course management capabilities as a Trainer. Access your topics from the Subject Matter Expert section in the sidebar.",
+    intro: "You're a Subject Matter Expert (SME) when you are assigned to a topic. You look after all the courses in your topics, with the same course tools as a Trainer, from the Subject Matter Expert section in the left menu.",
     sections: [
       {
         title: "Viewing Your Topics & Courses",
         icon: Lightbulb,
         steps: [
-          "Go to Subject Matter Expert → My Topics.",
-          "You will see all topics you have been assigned to, grouped with their courses.",
-          "Each course card shows its content count, whether it has a test or assignment, the assigned trainer, and its status.",
-          "Click New Course to create a new course within your topic. You can assign a trainer during creation.",
-          "Click a course card to open the course management page.",
+          "Go to Subject Matter Expert → My Topics to see your topics and their courses.",
+          "Each course card shows its content, tests, assignment, trainers and status.",
+          "Click New Course to create a course in your topic, optionally with trainers.",
+          "Click a course card to manage it, or Preview to see it as learners will.",
         ],
       },
       {
         title: "Managing Trainers",
         icon: PenLine,
         steps: [
-          "On the course detail page, the Trainers section at the top shows who is assigned to the course.",
-          "Click Add Trainer to assign a trainer — only users with the Trainer role will appear in search results.",
+          "On the course page, the Trainers section shows who trains the course.",
+          "Click Add Trainer and search for anyone — they get the Trainer menu automatically.",
           "Click Remove next to a trainer to unassign them.",
         ],
       },
@@ -345,12 +428,51 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Managing Course Content, Tests & Assignments",
         icon: BookOpen,
         steps: [
-          "The Content, Test, and Assignment management works the same as for Trainers.",
-          "Refer to the Trainer section of this guide for detailed steps on adding content, creating tests, creating assignments, and grading submissions.",
+          "Content, pop quizzes, tests, assignments, grading and feedback work the same as for Trainers — see the Trainer tab for step-by-step instructions.",
         ],
       },
     ],
   },
+}
+
+const KIND_STYLES: Record<ChangeKind, { label: string; className: string }> = {
+  new:      { label: "New",      className: "bg-blue-100 text-blue-700" },
+  improved: { label: "Improved", className: "bg-green-100 text-green-700" },
+  fixed:    { label: "Fixed",    className: "bg-amber-100 text-amber-700" },
+}
+
+function formatReleaseDate(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+}
+
+function ReleaseDaySection({ day, defaultOpen }: { day: (typeof RELEASE_NOTES)[number]; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-slate-50"
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-semibold text-slate-800">{formatReleaseDate(day.date)}</span>
+          <span className="text-xs text-slate-400">{day.changes.length} {day.changes.length === 1 ? "change" : "changes"}</span>
+        </div>
+        {open ? <ChevronDown size={16} className="shrink-0 text-slate-400" /> : <ChevronRight size={16} className="shrink-0 text-slate-400" />}
+      </button>
+      {open && (
+        <ul className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4">
+          {day.changes.map((change, i) => (
+            <li key={i} className="flex items-start gap-3 text-sm text-slate-700">
+              <span className={`mt-0.5 w-16 shrink-0 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ${KIND_STYLES[change.kind].className}`}>
+                {KIND_STYLES[change.kind].label}
+              </span>
+              <span>{change.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 function AccordionSection({ section }: { section: Section }) {
@@ -399,51 +521,53 @@ function AccordionSection({ section }: { section: Section }) {
 }
 
 export function HelpContent() {
-  const [activeRole, setActiveRole] = useState<Role>("learner")
-  const role = ROLES.find((r) => r.id === activeRole)!
-  const content = CONTENT[activeRole]
+  const [activeTab, setActiveTab] = useState<Tab>("learner")
+  const tab = TABS.find((t) => t.id === activeTab)!
+  const content = activeTab === "releases" ? null : CONTENT[activeTab]
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">User Guide</h1>
-        <p className="mt-1 text-sm text-slate-500">Step-by-step instructions for each role in Ascend.</p>
+        <p className="mt-1 text-sm text-slate-500">Step-by-step instructions for each role in Ascend, and what&apos;s new.</p>
       </div>
 
-      {/* Role tabs */}
+      {/* Tabs */}
       <div className="mb-6 flex flex-wrap gap-2">
-        {ROLES.map((r) => {
-          const Icon = r.icon
-          const active = r.id === activeRole
+        {TABS.map((t) => {
+          const Icon = t.icon
+          const active = t.id === activeTab
           return (
             <button
-              key={r.id}
-              onClick={() => setActiveRole(r.id)}
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
               className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                active ? `${r.bg} ${r.color}` : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                active ? `${t.bg} ${t.color}` : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
               <Icon size={15} />
-              {r.label}
+              {t.label}
             </button>
           )
         })}
       </div>
 
-      {/* Role intro */}
-      <div className={`mb-6 rounded-2xl border p-5 ${role.bg}`}>
+      {/* Intro */}
+      <div className={`mb-6 rounded-2xl border p-5 ${tab.bg}`}>
         <div className="flex items-center gap-2 mb-1">
-          <role.icon size={16} className={role.color} />
-          <span className={`font-semibold ${role.color}`}>{role.label}</span>
+          <tab.icon size={16} className={tab.color} />
+          <span className={`font-semibold ${tab.color}`}>{tab.label}</span>
         </div>
-        <p className="text-sm text-slate-700">{content.intro}</p>
+        <p className="text-sm text-slate-700">
+          {content ? content.intro : "Everything that has changed in Ascend, newest first. Click a day to see its changes."}
+        </p>
       </div>
 
       {/* Sections */}
       <div className="flex flex-col gap-3">
-        {content.sections.map((section) => (
-          <AccordionSection key={section.title} section={section} />
-        ))}
+        {content
+          ? content.sections.map((section) => <AccordionSection key={`${activeTab}-${section.title}`} section={section} />)
+          : RELEASE_NOTES.map((day, i) => <ReleaseDaySection key={day.date} day={day} defaultOpen={i === 0} />)}
       </div>
     </main>
   )
