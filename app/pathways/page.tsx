@@ -8,7 +8,7 @@ import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
 import { MAX_FEATURED_PATHWAYS } from "../lib/featuredPathways"
-import { buildRecommendations, isExcludedFromRecommendations, MAX_RECOMMENDATIONS, type Recommendation } from "../lib/pathwayRecommendations"
+import type { Recommendation } from "../lib/pathwayRecommendations"
 
 export default async function PathwaysPage() {
   const session = await getServerSession(authOptions)
@@ -16,7 +16,7 @@ export default async function PathwaysPage() {
 
   const userId = (session.user as any).id as string
 
-  const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts, currentUser, allEnrollments, allCompletedCourses] = await Promise.all([
+  const [pathways, enrollments, courseProgressRecords, pathwayCourseCounts] = await Promise.all([
     prisma.pathway.findMany({
       where: { deletedAt: null, status: "PUBLISHED", visibility: { not: "HIDDEN" } },
       select: {
@@ -45,20 +45,7 @@ export default async function PathwaysPage() {
     }),
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true, course: { select: { topicId: true } } },
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { division: true },
-    }),
-    prisma.pathwayEnrollment.findMany({
-      where: { status: "APPROVED" },
-      select: { userId: true, pathwayId: true, type: true, cohortId: true, createdAt: true, user: { select: { division: true } } },
-    }),
-    prisma.courseProgress.groupBy({
-      by: ["userId", "pathwayId"],
-      where: { completed: true, course: { status: "PUBLISHED", deletedAt: null } },
-      _count: { _all: true },
+      select: { pathwayId: true },
     }),
   ])
 
@@ -87,60 +74,24 @@ export default async function PathwaysPage() {
     }
   })
 
-  // Only recommend pathways the user isn't enrolled in (or waiting on) and hasn't completed.
+  // Only feature pathways the user isn't enrolled in (or waiting on) and hasn't completed.
   const isOpenToUser = (p: (typeof pathwayCards)[number]) => {
     const status = p.enrollment?.status
     return (!status || status === "REJECTED") && !p.isCompleted
   }
 
-  // Admin-featured pathways take the recommendation slots first (shown to everyone not
-  // already enrolled, oldest-featured first); any remaining slots go to automated picks.
+  // Automated recommendations (buildRecommendations in app/lib/pathwayRecommendations.ts)
+  // are switched off at HR's request: the section shows only admin-featured pathways,
+  // oldest-featured first, and is hidden when there are none.
   const featuredIds = pathwayCards
     .filter((p) => p.featuredAt && isOpenToUser(p))
     .sort((a, b) => a.featuredAt!.getTime() - b.featuredAt!.getTime())
     .slice(0, MAX_FEATURED_PATHWAYS)
     .map((p) => p.id)
 
-  const pathwayFeatures: Record<string, Set<string>> = {}
-  for (const p of pathways) pathwayFeatures[p.id] = new Set(p.tags.map((t) => `tag:${t.trim().toLowerCase()}`))
-  for (const pc of pathwayCourseCounts) {
-    if (pc.course.topicId) pathwayFeatures[pc.pathwayId]?.add(`topic:${pc.course.topicId}`)
-  }
-
-  const completedPairs = new Set(
-    allCompletedCourses
-      .filter((c) => (totalByPathway[c.pathwayId] ?? 0) > 0 && c._count._all >= totalByPathway[c.pathwayId])
-      .map((c) => `${c.userId}:${c.pathwayId}`)
-  )
-
-  const excludedIds = new Set(pathways.filter((p) => isExcludedFromRecommendations(p)).map((p) => p.id))
-
-  const automated = buildRecommendations({
-    userId,
-    userDivision: currentUser?.division ?? null,
-    slots: MAX_RECOMMENDATIONS - featuredIds.length,
-    eligibleIds: pathwayCards
-      .filter((p) => !featuredIds.includes(p.id) && !excludedIds.has(p.id) && isOpenToUser(p))
-      .map((p) => p.id),
-    pathwayNames: Object.fromEntries(pathways.map((p) => [p.id, p.name])),
-    pathwayFeatures,
-    myEnrolledIds: enrollments.filter((e) => e.status === "APPROVED" && !excludedIds.has(e.pathwayId)).map((e) => e.pathwayId),
-    myCompletedIds: pathwayCards.filter((p) => p.isCompleted && !excludedIds.has(p.id)).map((p) => p.id),
-    completedPairs,
-    enrollments: allEnrollments.map((e) => ({
-      userId: e.userId,
-      pathwayId: e.pathwayId,
-      createdAt: e.createdAt,
-      // Assigned or cohort enrollments are often mandatory training, not a choice
-      voluntary: e.type !== "ASSIGNED" && !e.cohortId,
-      division: e.user.division,
-    })),
-  })
-
   const recommendations: Record<string, Recommendation> = {}
   for (const id of featuredIds) recommendations[id] = { kind: "featured", label: "Featured" }
-  for (const r of automated) recommendations[r.pathwayId] = r.recommendation
-  const recommendedOrder = [...featuredIds, ...automated.map((r) => r.pathwayId)]
+  const recommendedOrder = featuredIds
 
   const pathwayCardsWithRec = pathwayCards.map(({ featuredAt, ...p }) => ({
     ...p,

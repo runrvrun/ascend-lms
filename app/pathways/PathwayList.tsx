@@ -302,7 +302,7 @@ export function PathwayList({ pathways, recommendedOrder }: { pathways: PathwayC
       )
     : pathways
 
-  // Featured first, then automated picks.
+  // Featured pathways only while automated recommendations are switched off (see page.tsx).
   const recommendations = recommendedOrder
     .map((id) => pathways.find((p) => p.id === id))
     .filter((p): p is PathwayCard => !!p)
