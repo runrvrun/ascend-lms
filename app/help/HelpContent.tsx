@@ -258,9 +258,11 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Admin → Analytics for a company-wide overview.",
-          "Use the filters at the top to narrow by division, title or office.",
-          "See total users, enrollments, completion rate and average points, plus top pathways, breakdowns by division and title, and the leaderboard.",
+          "Go to Admin → Analytics for a company-wide overview. Use the filters at the top to narrow by division, title or office.",
+          "Users — how many people there are, how many signed in during the last 30 days, pathway enrollments and completion rate, a breakdown by division and title, and the top learners by points and by courses completed.",
+          "Pathways — every pathway with how many people are enrolled, how many completed, average progress, overdue people and pending requests. A colored bar shows how many people are at each stage (not started, 1–24%, 25–49%, 50–74%, 75–99%, completed); hover over it for the numbers.",
+          "Courses — the same view for each course, plus average test score, pass rate, star rating, and assignments waiting to be graded.",
+          "Click a pathway or course to see more: a chart of people by completion, and how far people get through each course (for a pathway) or each lesson and test (for a course).",
         ],
       },
     ],
@@ -326,8 +328,10 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Team Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Manager → Analytics for your team's numbers: team size, active enrollments, completion rate and average points.",
-          "Use the filters to narrow by division, title or office, and scroll down for pathway progress and the team leaderboard.",
+          "Go to Manager → Analytics. It works like the admin Analytics page, but only counts your team.",
+          "Users — team size, who signed in recently, pathway completion, breakdowns by division and title, and your top learners.",
+          "Pathways and Courses — how many of your team are in each pathway and course, and how far along they are. Click one for details.",
+          "Use the filters to narrow by division, title or office.",
         ],
       },
     ],
@@ -399,6 +403,15 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Use the toggle at the top to turn feedback collection on or off for the course.",
         ],
       },
+      {
+        title: "Course Analytics",
+        icon: BarChart3,
+        steps: [
+          "Go to Trainer → Analytics to see how learners are doing in the courses you train.",
+          "Users — how many people are taking your courses, who signed in recently, and who has completed the most of your courses.",
+          "Courses — learners, completions, average progress, test scores, ratings and assignments to grade for each course. Click a course to see how many learners finished each lesson and test.",
+        ],
+      },
     ],
   },
 
@@ -429,6 +442,14 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: BookOpen,
         steps: [
           "Content, pop quizzes, tests, assignments, grading and feedback work the same as for Trainers — see the Trainer tab for step-by-step instructions.",
+        ],
+      },
+      {
+        title: "Topic Analytics",
+        icon: BarChart3,
+        steps: [
+          "Go to Subject Matter Expert → Analytics to see how learners are doing in your topics.",
+          "Users, Pathways and Courses tabs cover the courses in your topics and the pathways that include them. Click a pathway or course for details.",
         ],
       },
     ],

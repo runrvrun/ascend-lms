@@ -12,6 +12,9 @@ export const RELEASE_NOTES: ReleaseDay[] = [
   {
     date: "2026-10-30",
     changes: [
+      { kind: "new", text: "Analytics now has Users, Pathways and Courses tabs. See how many people are in each pathway and course, how far along they are (from not started to completed), who is overdue, test scores, ratings and assignments to grade. Click any pathway or course for more detail." },
+      { kind: "new", text: "Managers see the same analytics for their team. Trainers and Subject Matter Experts get a new Analytics page for their own courses and topics." },
+      { kind: "improved", text: "The analytics filters now include every division and job title." },
       { kind: "new", text: "The Users list can now be filtered by office." },
       { kind: "improved", text: "Featured pathways now stay in Recommended for You even after you enroll, so everyone sees the same featured pathways." },
       { kind: "improved", text: "In a course's content list, long web addresses are replaced by a small Open link button." },

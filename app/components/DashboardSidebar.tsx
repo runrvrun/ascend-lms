@@ -270,6 +270,10 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                     <GraduationCap size={14} />
                     My Courses
                   </a>
+                  <a href="/trainer/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <BarChart3 size={14} />
+                    Analytics
+                  </a>
                 </div>
               )}
             </div>
@@ -289,6 +293,10 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                   <a href="/sme/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                     <GraduationCap size={14} />
                     My Topics
+                  </a>
+                  <a href="/sme/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
+                    <BarChart3 size={14} />
+                    Analytics
                   </a>
                 </div>
               )}
