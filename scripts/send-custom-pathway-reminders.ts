@@ -6,8 +6,9 @@
 //   npx tsx --env-file=.env scripts/send-custom-pathway-reminders.ts
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
-import { sendLearningReminder } from "../app/lib/email"
-import { pickMessage, sendThrottled } from "../app/lib/pathwayReminders"
+import { learningReminderEmail } from "../app/lib/email"
+import type { EmailMessage } from "../app/lib/emailOutbox"
+import { pickMessage } from "../app/lib/pathwayReminders"
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
@@ -101,29 +102,37 @@ async function main() {
       : []
     const completedSet = new Set(completedProgress.map((p) => `${p.userId}:${p.courseId}`))
 
-    await sendThrottled(targets, 600, async (target) => {
+    const emails: EmailMessage[] = []
+    for (const target of targets) {
       const nextEntry = reminder.pathway.courses.find((pc) => !completedSet.has(`${target.userId}:${pc.course.id}`))
       if (!nextEntry) {
         skipped++
-        return // pathway already complete for this learner
+        continue // pathway already complete for this learner
       }
 
       const startLearningUrl = `${BASE_URL}/pathways/${reminder.pathwayId}?course=${nextEntry.course.id}`
-      await sendLearningReminder(
-        target.email,
-        target.name ?? "there",
-        reminder.message ?? pickMessage(),
-        [{ pathwayId: reminder.pathwayId, pathwayName: reminder.pathway.name, nextCourseName: nextEntry.course.name }],
-        startLearningUrl
+      emails.push(
+        learningReminderEmail(
+          target.email,
+          target.name ?? "there",
+          reminder.message ?? pickMessage(),
+          [{ pathwayId: reminder.pathwayId, pathwayName: reminder.pathway.name, nextCourseName: nextEntry.course.name }],
+          startLearningUrl
+        )
       )
-      sent++
-    })
+    }
 
-    await prisma.pathwayReminder.update({ where: { id: reminder.id }, data: { sentAt: new Date() } })
+    // Queued; the send-emails cron delivers them within the mail server's rate limit.
+    // Queue and mark sent together so a crash can't queue the same reminder twice.
+    await prisma.$transaction([
+      prisma.emailOutbox.createMany({ data: emails.map((e) => ({ ...e, bulk: true })) }),
+      prisma.pathwayReminder.update({ where: { id: reminder.id }, data: { sentAt: new Date() } }),
+    ])
+    sent += emails.length
   }
 
   console.log(
-    `Custom pathway reminders: ${dueReminders.length} reminder(s) due, ${sent} email(s) sent, ${skipped} skipped (already completed).`
+    `Custom pathway reminders: ${dueReminders.length} reminder(s) due, ${sent} email(s) queued, ${skipped} skipped (already completed).`
   )
 }
 

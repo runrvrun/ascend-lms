@@ -5,7 +5,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { NotificationType } from "@prisma/client"
-import { sendPathwayAssigned } from "../../lib/email"
+import { pathwayAssignedEmail } from "../../lib/email"
+import { sendEmails } from "../../lib/sendEmail"
 
 export async function assignPathway(userId: string, pathwayId: string, deadline: string | null) {
   const session = await getServerSession(authOptions)
@@ -38,7 +39,7 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
   })
 
   if (user?.email && pathway) {
-    await sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId)
+    await sendEmails([pathwayAssignedEmail(user.email, user.name ?? user.email, pathway.name, pathwayId)])
   }
 
   revalidatePath("/manager/professionals")

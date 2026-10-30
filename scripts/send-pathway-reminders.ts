@@ -8,8 +8,9 @@
 //   npx tsx --env-file=.env scripts/send-pathway-reminders.ts
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
-import { sendLearningReminder } from "../app/lib/email"
-import { pickMessage, sendThrottled } from "../app/lib/pathwayReminders"
+import { learningReminderEmail } from "../app/lib/email"
+import { enqueueEmails } from "../app/lib/emailOutbox"
+import { pickMessage } from "../app/lib/pathwayReminders"
 import { startOfUtcDay } from "../app/lib/pathwayDeadline"
 
 const prisma = new PrismaClient({
@@ -91,22 +92,25 @@ async function main() {
     })
   )
 
-  let sent = 0
-  await sendThrottled(recipients, 600, async (r) => {
-    const first = r.pathways[0]
-    const startLearningUrl = `${BASE_URL}/pathways/${first.pathwayId}?course=${first.nextCourseId}`
-    await sendLearningReminder(
-      r.email,
-      r.name ?? "there",
-      pickMessage(),
-      r.pathways.map((p) => ({ pathwayId: p.pathwayId, pathwayName: p.pathwayName, nextCourseName: p.nextCourseName })),
-      startLearningUrl
-    )
-    sent++
-  })
+  // Queued; the send-emails cron delivers them within the mail server's rate limit.
+  await enqueueEmails(
+    prisma,
+    recipients.map((r) => {
+      const first = r.pathways[0]
+      const startLearningUrl = `${BASE_URL}/pathways/${first.pathwayId}?course=${first.nextCourseId}`
+      return learningReminderEmail(
+        r.email,
+        r.name ?? "there",
+        pickMessage(),
+        r.pathways.map((p) => ({ pathwayId: p.pathwayId, pathwayName: p.pathwayName, nextCourseName: p.nextCourseName })),
+        startLearningUrl
+      )
+    }),
+    { bulk: true }
+  )
 
   console.log(
-    `Pathway reminders: ${enrollments.length} enrollment(s) considered, ${recipients.length} learner(s) with open pathways, ${sent} email(s) sent.`
+    `Pathway reminders: ${enrollments.length} enrollment(s) considered, ${recipients.length} learner(s) with open pathways, ${recipients.length} email(s) queued.`
   )
 }
 

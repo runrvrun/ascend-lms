@@ -25,8 +25,9 @@ export default async function PathwayDetailPage({ params }: { params: Promise<{ 
         },
       },
     }),
+    // Only published courses can be added to a pathway.
     prisma.course.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, status: "PUBLISHED" },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

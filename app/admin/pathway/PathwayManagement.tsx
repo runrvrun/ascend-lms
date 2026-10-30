@@ -174,7 +174,7 @@ function PathwayFormModal({
         await onSubmit(form)
         onClose()
       } catch {
-        setError("A pathway with this name already exists.")
+        setError("Couldn't save this pathway. Please try again.")
       }
     })
   }

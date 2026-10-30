@@ -12,6 +12,7 @@
     "send-pathway-reminders": "tsx --env-file=.env scripts/send-pathway-reminders.ts",
     "send-custom-pathway-reminders": "tsx --env-file=.env scripts/send-custom-pathway-reminders.ts",
     "send-deadline-reminders": "tsx --env-file=.env scripts/send-deadline-reminders.ts",
+    "send-emails": "tsx --env-file=.env scripts/send-emails.ts",
     "purge-assignment-files": "tsx --env-file=.env scripts/purge-old-assignment-files.ts"
   },
   "prisma": {

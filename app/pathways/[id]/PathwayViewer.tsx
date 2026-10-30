@@ -1133,11 +1133,11 @@ function LessonNav({ prev, next, onSelect }: { prev: NavItem | null; next: NavIt
       {next && (
         <button
           onClick={() => onSelect(next.selection)}
-          className="flex min-w-0 max-w-[48%] items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-right text-sm font-semibold text-white hover:bg-blue-700"
+          className="flex min-w-0 max-w-[48%] items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-right text-sm font-medium text-slate-600 hover:bg-slate-50"
         >
           <span className="min-w-0">
             <span className="block">Next Lesson</span>
-            <span className="block truncate text-xs font-normal text-blue-100">{next.title}</span>
+            <span className="block truncate text-xs font-normal text-slate-400">{next.title}</span>
           </span>
           <ChevronRight size={15} className="shrink-0" />
         </button>

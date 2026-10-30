@@ -62,3 +62,24 @@ export async function canEditCourse(user: { id: string; roles: string[] }, cours
   })
   return !!course && (course.trainers.length > 0 || (course.topic?.smes.length ?? 0) > 0)
 }
+
+export async function requireCourseEditor(courseId: string) {
+  const user = await getSessionUser()
+  if (!user || !(await canEditCourse(user, courseId))) throw new Error("Unauthorized")
+  return user
+}
+
+// Who picks a course's trainers, and who creates courses in a topic: admins and the topic's SMEs.
+export async function isTopicSme(userId: string, topicId: string) {
+  const sme = await prisma.topicSME.findFirst({ where: { topicId, userId }, select: { userId: true } })
+  return !!sme
+}
+
+export async function requireCourseTrainerManager(courseId: string) {
+  const user = await getSessionUser()
+  if (!user) throw new Error("Unauthorized")
+  if (user.roles.includes("ADMIN")) return user
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { topicId: true } })
+  if (!course?.topicId || !(await isTopicSme(user.id, course.topicId))) throw new Error("Unauthorized")
+  return user
+}

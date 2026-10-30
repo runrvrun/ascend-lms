@@ -210,7 +210,7 @@ model CohortPathway {
 
 model Pathway {
   id                String        @id @default(dbgenerated("gen_random_uuid()::text"))
-  name              String        @unique
+  name              String        // not unique: two pathways may share a name
   description       String?
   visibility        PathwayVisibility @default(PUBLIC_FREE)
   tags              String[]      @default([])
@@ -761,3 +761,30 @@ model GrowthPlan {
   confirmedBy User?    @relation("GrowthPlanConfirmer", fields: [confirmedById], references: [id])
 }
 
+// Every outgoing email is queued here and sent by processOutbox (app/lib/emailOutbox.ts)
+// within the mail server's rate limits, with retries. Doubles as the send log.
+model EmailOutbox {
+  id            String      @id @default(dbgenerated("gen_random_uuid()::text"))
+  to            String
+  subject       String
+  html          String
+  status        EmailStatus @default(PENDING)
+  bulk          Boolean     @default(false) // mass sends wait behind one-off emails
+  attempts      Int         @default(0)
+  nextAttemptAt DateTime    @default(now())
+  claimedAt     DateTime?
+  sentAt        DateTime?
+  lastError     String?
+  createdAt     DateTime    @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@index([sentAt])
+  @@index([to, createdAt])
+}
+
+enum EmailStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}

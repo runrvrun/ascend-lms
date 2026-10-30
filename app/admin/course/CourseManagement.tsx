@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react"
 import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, Copy, Eye, BarChart3, Download, Upload } from "lucide-react"
-import { createCourse, updateCourse, deleteCourse, toggleCourseStatus, setCourseTrainers, duplicateCourse, importCourse, CourseFormData } from "./actions"
+import { useCourseStatusToggle } from "./[id]/CourseStatusToggle"
+import { createCourse, updateCourse, deleteCourse, setCourseTrainers, duplicateCourse, importCourse, CourseFormData } from "./actions"
 import { SearchableSelect, SearchableMultiSelect } from "../../components/SearchableSelect"
 import { ActionsMenu } from "../../components/ActionsMenu"
 
@@ -21,22 +22,24 @@ type CourseRow = {
 }
 
 function StatusToggle({ id, status }: { id: string; status: "DRAFT" | "PUBLISHED" }) {
-  const [pending, startTransition] = useTransition()
-  const isOn = status === "PUBLISHED"
+  const { isOn, pending, toggle, dialog } = useCourseStatusToggle(id, status)
   return (
-    <button
-      disabled={pending}
-      onClick={() => startTransition(() => toggleCourseStatus(id, isOn ? "DRAFT" : "PUBLISHED"))}
-      className="flex items-center gap-2 disabled:opacity-50"
-      title={isOn ? "Published — click to set Draft" : "Draft — click to Publish"}
-    >
-      <div className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${isOn ? "bg-green-500" : "bg-slate-300"}`}>
-        <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${isOn ? "translate-x-[18px]" : "translate-x-0.5"}`} />
-      </div>
-      <span className={`text-xs font-medium ${isOn ? "text-green-700" : "text-slate-400"}`}>
-        {pending ? "…" : isOn ? "Published" : "Draft"}
-      </span>
-    </button>
+    <>
+      <button
+        disabled={pending}
+        onClick={toggle}
+        className="flex items-center gap-2 disabled:opacity-50"
+        title={isOn ? "Published — click to set Draft" : "Draft — click to Publish"}
+      >
+        <div className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${isOn ? "bg-green-500" : "bg-slate-300"}`}>
+          <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${isOn ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+        </div>
+        <span className={`text-xs font-medium ${isOn ? "text-green-700" : "text-slate-400"}`}>
+          {pending ? "…" : isOn ? "Published" : "Draft"}
+        </span>
+      </button>
+      {dialog}
+    </>
   )
 }
 

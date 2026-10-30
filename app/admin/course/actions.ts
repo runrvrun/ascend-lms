@@ -1,11 +1,19 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { after } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
-import { evaluateCourseCompletion } from "../../lib/courseCompletion"
-import { canEditCourse, getSessionUser } from "../../lib/permissions"
+import { evaluateCourseCompletion, recheckCourseCompletionAfterRemoval } from "../../lib/courseCompletion"
+import {
+  canEditCourse,
+  getSessionUser,
+  isTopicSme,
+  requireAdmin,
+  requireCourseEditor,
+  requireCourseTrainerManager,
+} from "../../lib/permissions"
 import { deleteContentImage, isContentImageKey, saveContentImage } from "../../lib/contentImages"
 import { ContentType, QuestionType, Prisma } from "@prisma/client"
 
@@ -49,7 +57,12 @@ async function releaseDeletedCourseName(name: string) {
   }
 }
 
+// Admins create courses in any topic; SMEs only in their own topics (from the SME page).
 export async function createCourse(data: CourseFormData): Promise<string> {
+  const user = await getSessionUser()
+  const allowed =
+    !!user && (user.roles.includes("ADMIN") || (!!data.topicId && (await isTopicSme(user.id, data.topicId))))
+  if (!allowed) throw new Error("Unauthorized")
   await releaseDeletedCourseName(data.name)
   const course = await prisma.course.create({
     data: { name: data.name, description: data.description || null, status: "DRAFT", topicId: data.topicId || null },
@@ -59,12 +72,54 @@ export async function createCourse(data: CourseFormData): Promise<string> {
   return course.id
 }
 
-export async function toggleCourseStatus(id: string, status: "DRAFT" | "PUBLISHED") {
-  await prisma.course.update({ where: { id }, data: { status } })
+// Pathways may only contain published courses, so unpublishing a course that is in any
+// pathway takes it out of all of them. The UI asks first (getCoursePathwayNames) and then
+// passes removeFromPathways; without it the change is refused.
+export async function toggleCourseStatus(
+  id: string,
+  status: "DRAFT" | "PUBLISHED",
+  opts: { removeFromPathways?: boolean } = {}
+): Promise<{ error?: string }> {
+  const user = await getSessionUser()
+  if (!user || !(await canEditCourse(user, id))) return { error: "You can't edit this course." }
+
+  if (status === "DRAFT") {
+    const inPathways = await prisma.pathwayCourse.count({ where: { courseId: id } })
+    if (inPathways > 0 && !opts.removeFromPathways) {
+      return { error: "This course is in a pathway. Unpublishing it removes it from every pathway." }
+    }
+    await prisma.$transaction([
+      prisma.pathwayCourse.deleteMany({ where: { courseId: id } }),
+      prisma.course.update({ where: { id }, data: { status } }),
+    ])
+    if (inPathways > 0) {
+      revalidatePath("/admin/pathway", "layout")
+      revalidatePath("/pathways", "layout")
+    }
+  } else {
+    await prisma.course.update({ where: { id }, data: { status } })
+  }
   revalidatePath("/admin/course")
+  revalidatePath(`/admin/course/${id}`)
+  revalidatePath("/sme/course", "layout")
+  revalidatePath("/trainer/course", "layout")
+  return {}
+}
+
+// Names of the live pathways a course is in, for the unpublish warning.
+export async function getCoursePathwayNames(id: string): Promise<string[]> {
+  const user = await getSessionUser()
+  if (!user || !(await canEditCourse(user, id))) return []
+  const rows = await prisma.pathwayCourse.findMany({
+    where: { courseId: id, pathway: { deletedAt: null } },
+    select: { pathway: { select: { name: true } } },
+    orderBy: { pathway: { name: "asc" } },
+  })
+  return rows.map((r) => r.pathway.name)
 }
 
 export async function updateCourse(id: string, data: CourseFormData) {
+  await requireAdmin()
   await releaseDeletedCourseName(data.name)
   await prisma.course.update({
     where: { id },
@@ -76,11 +131,13 @@ export async function updateCourse(id: string, data: CourseFormData) {
 }
 
 export async function deleteCourse(id: string) {
+  await requireAdmin()
   await prisma.course.update({ where: { id }, data: { deletedAt: new Date() } })
   revalidatePath("/admin/course")
 }
 
 export async function duplicateCourse(id: string): Promise<string> {
+  await requireAdmin()
   const source = await prisma.course.findUnique({
     where: { id },
     include: {
@@ -411,11 +468,25 @@ async function moveCourseItemInTx(
   await setOrder(item.kind, item.id, adjustedTarget)
 }
 
+// Child rows must belong to the course the caller was authorized for, so an editor of one
+// course can't change another course's items by passing their ids.
+async function assertInCourse(row: Promise<unknown>) {
+  if (!(await row)) throw new Error("Not found in this course.")
+}
+
+const courseItemInCourse = (kind: CourseItemKind, id: string, courseId: string) =>
+  kind === "CONTENT"
+    ? prisma.content.findFirst({ where: { id, courseId }, select: { id: true } })
+    : prisma.test.findFirst({ where: { id, courseId }, select: { id: true } })
+
 export async function swapCourseItemOrder(
   item1: { kind: CourseItemKind; id: string; order: number },
   item2: { kind: CourseItemKind; id: string; order: number },
   courseId: string,
 ) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(courseItemInCourse(item1.kind, item1.id, courseId))
+  await assertInCourse(courseItemInCourse(item2.kind, item2.id, courseId))
   await prisma.$transaction(async (tx) => {
     const setOrder = (kind: CourseItemKind, id: string, order: number) =>
       kind === "CONTENT" ? tx.content.update({ where: { id }, data: { order } }) : tx.test.update({ where: { id }, data: { order } })
@@ -464,6 +535,7 @@ export async function discardContentImages(courseId: string, keys: string[]) {
 }
 
 export async function createContent(courseId: string, data: ContentFormData) {
+  await requireCourseEditor(courseId)
   const imageKey = contentImageKey(data)
   await prisma.$transaction(async (tx) => {
     const target = data.insertAfterOrder + 1
@@ -477,6 +549,8 @@ export async function createContent(courseId: string, data: ContentFormData) {
 }
 
 export async function updateContent(id: string, courseId: string, data: ContentEditData) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(courseItemInCourse("CONTENT", id, courseId))
   const imageKey = contentImageKey(data)
   const previous = await prisma.content.findUnique({ where: { id }, select: { imageKey: true } })
   await Promise.all([
@@ -491,6 +565,8 @@ export async function updateContent(id: string, courseId: string, data: ContentE
 }
 
 export async function deleteContent(id: string, courseId: string) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(courseItemInCourse("CONTENT", id, courseId))
   let removedImageKey: string | null = null
   await prisma.$transaction(async (tx) => {
     const content = await tx.content.findUnique({ where: { id }, select: { order: true, imageKey: true } })
@@ -502,6 +578,7 @@ export async function deleteContent(id: string, courseId: string) {
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
   await deleteUnusedContentImages([removedImageKey])
+  after(() => recheckCourseCompletionAfterRemoval(courseId))
   revalidatePath(`/admin/course/${courseId}`)
 }
 
@@ -513,6 +590,7 @@ export type TestFormData = {
 }
 
 export async function createTest(courseId: string, data: TestFormData & { insertAfterOrder: number }) {
+  await requireCourseEditor(courseId)
   await prisma.$transaction(async (tx) => {
     const target = data.insertAfterOrder + 1
     await shiftCourseItemsUpFrom(tx, courseId, target)
@@ -525,6 +603,8 @@ export async function createTest(courseId: string, data: TestFormData & { insert
 }
 
 export async function updateTest(testId: string, courseId: string, data: TestFormData & { insertAfterOrder: number }) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(courseItemInCourse("TEST", testId, courseId))
   await prisma.$transaction(async (tx) => {
     await tx.test.update({ where: { id: testId }, data: { title: data.title, passThreshold: data.passThreshold } })
     await moveCourseItemInTx(tx, courseId, { kind: "TEST", id: testId }, data.insertAfterOrder)
@@ -534,6 +614,8 @@ export async function updateTest(testId: string, courseId: string, data: TestFor
 }
 
 export async function deleteTest(testId: string, courseId: string) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(courseItemInCourse("TEST", testId, courseId))
   await prisma.$transaction(async (tx) => {
     const test = await tx.test.findUnique({ where: { id: testId }, select: { order: true } })
     if (!test || test.order === null) return
@@ -542,6 +624,7 @@ export async function deleteTest(testId: string, courseId: string) {
     await shiftCourseItemsDownAfter(tx, courseId, test.order)
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
+  after(() => recheckCourseCompletionAfterRemoval(courseId))
   revalidatePath(`/admin/course/${courseId}`)
 }
 
@@ -562,6 +645,8 @@ export type QuestionFormData = {
 }
 
 export async function createQuestion(testId: string, courseId: string, data: QuestionFormData) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(courseItemInCourse("TEST", testId, courseId))
   await Promise.all([
     prisma.question.create({
       data: {
@@ -577,7 +662,12 @@ export async function createQuestion(testId: string, courseId: string, data: Que
   revalidatePath(`/admin/course/${courseId}`)
 }
 
+const questionInCourse = (questionId: string, courseId: string) =>
+  prisma.question.findFirst({ where: { id: questionId, test: { courseId } }, select: { id: true } })
+
 export async function updateQuestion(questionId: string, courseId: string, data: QuestionFormData) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(questionInCourse(questionId, courseId))
   await prisma.questionOption.deleteMany({ where: { questionId } })
   await Promise.all([
     prisma.question.update({
@@ -595,6 +685,8 @@ export async function updateQuestion(questionId: string, courseId: string, data:
 }
 
 export async function deleteQuestion(questionId: string, courseId: string) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(questionInCourse(questionId, courseId))
   await Promise.all([
     prisma.question.delete({ where: { id: questionId } }),
     touchCourse(courseId),
@@ -624,6 +716,8 @@ async function assertYoutubeContent(contentId: string) {
 }
 
 export async function createPopQuiz(courseId: string, data: PopQuizFormData) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(courseItemInCourse("CONTENT", data.contentId, courseId))
   await assertYoutubeContent(data.contentId)
   await Promise.all([
     prisma.popQuiz.create({
@@ -643,7 +737,13 @@ export async function createPopQuiz(courseId: string, data: PopQuizFormData) {
   revalidatePath(`/sme/course/${courseId}`)
 }
 
+const popQuizInCourse = (popQuizId: string, courseId: string) =>
+  prisma.popQuiz.findFirst({ where: { id: popQuizId, content: { courseId } }, select: { id: true } })
+
 export async function updatePopQuiz(popQuizId: string, courseId: string, data: PopQuizFormData) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(popQuizInCourse(popQuizId, courseId))
+  await assertInCourse(courseItemInCourse("CONTENT", data.contentId, courseId))
   await assertYoutubeContent(data.contentId)
   await prisma.popQuizOption.deleteMany({ where: { popQuizId } })
   await Promise.all([
@@ -666,6 +766,8 @@ export async function updatePopQuiz(popQuizId: string, courseId: string, data: P
 }
 
 export async function deletePopQuiz(popQuizId: string, courseId: string) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(popQuizInCourse(popQuizId, courseId))
   await Promise.all([
     prisma.popQuiz.delete({ where: { id: popQuizId } }),
     touchCourse(courseId),
@@ -678,16 +780,19 @@ export async function deletePopQuiz(popQuizId: string, courseId: string) {
 // ── Trainers ──────────────────────────────────────────────────────────────────
 
 export async function addCourseTrainer(courseId: string, userId: string) {
+  await requireCourseTrainerManager(courseId)
   await prisma.courseTrainer.create({ data: { courseId, userId } })
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function removeCourseTrainer(courseId: string, userId: string) {
+  await requireCourseTrainerManager(courseId)
   await prisma.courseTrainer.deleteMany({ where: { courseId, userId } })
   revalidatePath(`/admin/course/${courseId}`)
 }
 
 export async function setCourseTrainers(courseId: string, userIds: string[]) {
+  await requireCourseTrainerManager(courseId)
   await prisma.courseTrainer.deleteMany({ where: { courseId } })
   if (userIds.length > 0) {
     await prisma.courseTrainer.createMany({ data: userIds.map((userId) => ({ courseId, userId })) })
@@ -704,6 +809,7 @@ export type AssignmentFormData = {
 }
 
 export async function createAssignment(courseId: string, data: AssignmentFormData) {
+  await requireCourseEditor(courseId)
   await Promise.all([
     prisma.assignment.create({
       data: { courseId, description: data.description, submitUrl: data.submitUrl.trim() || null },
@@ -713,7 +819,12 @@ export async function createAssignment(courseId: string, data: AssignmentFormDat
   revalidatePath(`/admin/course/${courseId}`)
 }
 
+const assignmentInCourse = (assignmentId: string, courseId: string) =>
+  prisma.assignment.findFirst({ where: { id: assignmentId, courseId }, select: { id: true } })
+
 export async function updateAssignment(assignmentId: string, courseId: string, data: AssignmentFormData) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(assignmentInCourse(assignmentId, courseId))
   await Promise.all([
     prisma.assignment.update({
       where: { id: assignmentId },
@@ -725,10 +836,13 @@ export async function updateAssignment(assignmentId: string, courseId: string, d
 }
 
 export async function deleteAssignment(assignmentId: string, courseId: string) {
+  await requireCourseEditor(courseId)
+  await assertInCourse(assignmentInCourse(assignmentId, courseId))
   await Promise.all([
     prisma.assignment.update({ where: { id: assignmentId }, data: { deletedAt: new Date() } }),
     touchCourse(courseId),
   ])
+  after(() => recheckCourseCompletionAfterRemoval(courseId))
   revalidatePath(`/admin/course/${courseId}`)
 }
 
@@ -738,11 +852,10 @@ export async function gradeSubmission(
   status: "PASSED" | "FAILED",
   adminNote: string | null
 ) {
-  const session = await getServerSession(authOptions)
-  const gradedById = (session?.user as any)?.id as string | undefined
+  const { id: gradedById } = await requireCourseEditor(courseId)
 
-  const submission = await prisma.assignmentSubmission.findUnique({
-    where: { id: submissionId },
+  const submission = await prisma.assignmentSubmission.findFirst({
+    where: { id: submissionId, assignment: { courseId } },
     include: {
       user: { select: { id: true, name: true } },
       pathway: { select: { id: true, name: true } },
@@ -752,7 +865,7 @@ export async function gradeSubmission(
 
   await prisma.assignmentSubmission.update({
     where: { id: submissionId },
-    data: { status, adminNote, gradedAt: new Date(), gradedById: gradedById ?? null },
+    data: { status, adminNote, gradedAt: new Date(), gradedById },
   })
 
   // Mirror assignment verdict into CourseProgress so sidebar can reflect it
@@ -799,6 +912,7 @@ export async function gradeSubmission(
 // ── Feedback ───────────────────────────────────────────────────────────────────
 
 export async function toggleCourseFeedback(courseId: string, enabled: boolean) {
+  await requireCourseEditor(courseId)
   await prisma.course.update({ where: { id: courseId }, data: { feedbackEnabled: enabled } })
   revalidatePath(`/admin/course/${courseId}`)
   revalidatePath(`/trainer/course/${courseId}`)

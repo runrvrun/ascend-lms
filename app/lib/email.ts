@@ -1,88 +1,10 @@
-// Email utility.
-// Production: set SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD in .env → emails sent via SMTP.
-// Development: leave those unset → emails captured by Mailtrap sandbox.
+// Email templates. Each builder returns a message for the queue: app code sends it
+// with sendEmails() (app/lib/sendEmail.ts), cron scripts with enqueueEmails()
+// (app/lib/emailOutbox.ts). Delivery, rate limits and retries live in emailOutbox.ts.
 
-import nodemailer from "nodemailer"
-import { after } from "next/server"
+import type { EmailMessage } from "./emailOutbox"
 
 const BASE_URL = process.env.NEXTAUTH_URL ?? "https://ycp-ascend-lms.vercel.app"
-
-let transporter: ReturnType<typeof nodemailer.createTransport> | null = null
-function getTransporter() {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT),
-      // 465 = TLS from the start; 587 (e.g. Office 365) = STARTTLS upgrade.
-      secure: Number(process.env.SMTP_PORT) === 465,
-      requireTLS: Number(process.env.SMTP_PORT) !== 465,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
-      // Nodemailer's defaults wait up to 2 minutes on an unreachable server.
-      connectionTimeout: 15_000,
-      greetingTimeout: 15_000,
-      socketTimeout: 30_000,
-    })
-  }
-  return transporter
-}
-
-// Inside a request (server actions), defer delivery until after the response is
-// sent so a slow or unreachable mail server never blocks the UI. Cron scripts have
-// no request scope — `after` throws there — so they deliver inline.
-async function send(to: string, subject: string, html: string) {
-  try {
-    after(() => deliver(to, subject, html))
-  } catch {
-    await deliver(to, subject, html)
-  }
-}
-
-async function deliver(to: string, subject: string, html: string) {
-  if (process.env.SMTP_HOST) {
-    try {
-      await getTransporter().sendMail({
-        // SMTP_FROM lets the login account send as another address (needs Send As rights).
-        from: `Ascend LMS <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-        to,
-        subject,
-        html,
-      })
-    } catch (err) {
-      console.error("[email] SMTP send failed to", to, err)
-    }
-    return
-  }
-
-  const token = process.env.MAILTRAP_TOKEN
-  const inboxId = process.env.MAILTRAP_INBOX_ID
-
-  if (!token || !inboxId) {
-    console.warn("[email] No email provider configured — skipping email to", to)
-    return
-  }
-
-  try {
-    const res = await fetch(`https://sandbox.api.mailtrap.io/api/send/${inboxId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        from: { email: "noreply@ascend.ycp.com", name: "Ascend LMS" },
-        to: [{ email: to }],
-        subject,
-        html,
-      }),
-    })
-    if (!res.ok) {
-      const body = await res.text()
-      console.error("[email] Mailtrap error:", res.status, body)
-    }
-  } catch (err) {
-    console.error("[email] Failed to send to", to, err)
-  }
-}
 
 function layout(body: string) {
   return `<!DOCTYPE html>
@@ -113,12 +35,12 @@ function layout(body: string) {
 </html>`
 }
 
-export async function sendAccountActivation(to: string, userName: string, token: string) {
+export function accountActivationEmail(to: string, userName: string, token: string): EmailMessage {
   const link = `${BASE_URL}/auth/activate?token=${token}`
-  await send(
+  return {
     to,
-    "Set your Ascend LMS password",
-    layout(`
+    subject: "Set your Ascend LMS password",
+    html: layout(`
       <p>Hi <strong>${userName}</strong>,</p>
       <p>An account has been created for you on <strong>Ascend LMS</strong>. Click the button below to set your password and activate your account.</p>
       <p style="margin-top:24px;">
@@ -128,15 +50,15 @@ export async function sendAccountActivation(to: string, userName: string, token:
         </a>
       </p>
       <p style="margin-top:20px;font-size:12px;color:#64748b;">This link expires in 48 hours. If you did not expect this email, you can safely ignore it.</p>
-    `)
-  )
+    `),
+  }
 }
 
-export async function sendEnrollmentApproved(to: string, userName: string, pathwayName: string) {
-  await send(
+export function enrollmentApprovedEmail(to: string, userName: string, pathwayName: string): EmailMessage {
+  return {
     to,
-    `Your enrollment in "${pathwayName}" has been approved`,
-    layout(`
+    subject: `Your enrollment in "${pathwayName}" has been approved`,
+    html: layout(`
       <p>Hi <strong>${userName}</strong>,</p>
       <p>Your request to enroll in <strong>${pathwayName}</strong> has been
         <span style="color:#16a34a;font-weight:600;">approved</span>. You can now start learning!</p>
@@ -146,21 +68,21 @@ export async function sendEnrollmentApproved(to: string, userName: string, pathw
           Go to Pathways
         </a>
       </p>
-    `)
-  )
+    `),
+  }
 }
 
-export async function sendEnrollmentRejected(
+export function enrollmentRejectedEmail(
   to: string,
   userName: string,
   pathwayName: string,
   reason: string,
   managerName: string
-) {
-  await send(
+): EmailMessage {
+  return {
     to,
-    `Your enrollment request for "${pathwayName}" was not approved`,
-    layout(`
+    subject: `Your enrollment request for "${pathwayName}" was not approved`,
+    html: layout(`
       <p>Hi <strong>${userName}</strong>,</p>
       <p>Your request to enroll in <strong>${pathwayName}</strong> was
         <span style="color:#dc2626;font-weight:600;">not approved</span>.</p>
@@ -168,23 +90,23 @@ export async function sendEnrollmentRejected(
         <p style="margin:0;font-size:13px;"><strong>Reason:</strong> ${reason}</p>
       </div>
       <p>Please speak with your manager (<strong>${managerName}</strong>) if you have any questions.</p>
-    `)
-  )
+    `),
+  }
 }
 
-export async function sendPathwayAssigned(
+export function pathwayAssignedEmail(
   to: string,
   userName: string,
   pathwayName: string,
   pathwayId: string,
   cohortName?: string,
   deadline?: Date | null
-) {
+): EmailMessage {
   const link = `${BASE_URL}/pathways/${pathwayId}`
-  await send(
+  return {
     to,
-    `You've been assigned to "${pathwayName}"`,
-    layout(`
+    subject: `You've been assigned to "${pathwayName}"`,
+    html: layout(`
       <p>Hi <strong>${userName}</strong>,</p>
       <p>${
         cohortName
@@ -199,22 +121,22 @@ export async function sendPathwayAssigned(
           View Pathway
         </a>
       </p>
-    `)
-  )
+    `),
+  }
 }
 
-export async function sendPathwayShared(
+export function pathwaySharedEmail(
   to: string,
   userName: string,
   sharerName: string,
   pathwayName: string,
   pathwayId: string
-) {
+): EmailMessage {
   const link = `${BASE_URL}/pathways/${pathwayId}/preview`
-  await send(
+  return {
     to,
-    `${sharerName} shared "${pathwayName}" with you`,
-    layout(`
+    subject: `${sharerName} shared "${pathwayName}" with you`,
+    html: layout(`
       <p>Hi <strong>${userName}</strong>,</p>
       <p><strong>${sharerName}</strong> thought you might be interested in this pathway:</p>
       <p style="font-size:16px;font-weight:600;margin:12px 0 20px;">${pathwayName}</p>
@@ -225,8 +147,8 @@ export async function sendPathwayShared(
         </a>
       </p>
       <p style="margin-top:20px;font-size:12px;color:#64748b;">You have not been enrolled. Preview the pathway and enroll if it interests you.</p>
-    `)
-  )
+    `),
+  }
 }
 
 // Deadlines are calendar dates stored as UTC midnight — format in UTC so the day never shifts.
@@ -234,7 +156,7 @@ function formatDeadline(deadline: Date) {
   return deadline.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
 }
 
-export async function sendDeadlineReminder(
+export function deadlineReminderEmail(
   to: string,
   userName: string,
   pathwayName: string,
@@ -242,12 +164,12 @@ export async function sendDeadlineReminder(
   dueToday: boolean,
   graceDays: number,
   continueUrl: string
-) {
+): EmailMessage {
   const when = dueToday ? "today" : "tomorrow"
-  await send(
+  return {
     to,
-    `Reminder: "${pathwayName}" is due ${when}`,
-    layout(`
+    subject: `Reminder: "${pathwayName}" is due ${when}`,
+    html: layout(`
       <p>Hi <strong>${userName}</strong>,</p>
       <p>Your pathway <strong>${pathwayName}</strong> is due <strong>${when}, ${formatDeadline(deadline)}</strong>.</p>
       <p>After ${graceDays} days past the deadline you will no longer be able to complete courses or submit assignments in this pathway.</p>
@@ -257,17 +179,17 @@ export async function sendDeadlineReminder(
           Continue Learning
         </a>
       </p>
-    `)
-  )
+    `),
+  }
 }
 
-export async function sendLearningReminder(
+export function learningReminderEmail(
   to: string,
   userName: string,
   message: string,
   pathways: { pathwayId: string; pathwayName: string; nextCourseName: string }[],
   startLearningUrl: string
-) {
+): EmailMessage {
   const pathwayItems = pathways
     .map(
       (p) => `
@@ -277,10 +199,10 @@ export async function sendLearningReminder(
     )
     .join("")
 
-  await send(
+  return {
     to,
-    message,
-    layout(`
+    subject: message,
+    html: layout(`
       <p>Hi <strong>${userName}</strong>,</p>
       <p style="font-size:16px;font-weight:600;margin:12px 0 20px;">${message}</p>
       <ul style="margin:0 0 20px;padding-left:20px;">${pathwayItems}</ul>
@@ -290,21 +212,21 @@ export async function sendLearningReminder(
           Start Learning
         </a>
       </p>
-    `)
-  )
+    `),
+  }
 }
 
-export async function sendNewEnrollmentRequest(
+export function newEnrollmentRequestEmail(
   to: string,
   managerName: string,
   learnerName: string,
   pathwayName: string,
   note: string | null
-) {
-  await send(
+): EmailMessage {
+  return {
     to,
-    `${learnerName} has requested enrollment in "${pathwayName}"`,
-    layout(`
+    subject: `${learnerName} has requested enrollment in "${pathwayName}"`,
+    html: layout(`
       <p>Hi <strong>${managerName}</strong>,</p>
       <p><strong>${learnerName}</strong> has requested to enroll in the pathway
         <strong>${pathwayName}</strong>.</p>
@@ -317,6 +239,6 @@ export async function sendNewEnrollmentRequest(
           Review Request
         </a>
       </p>
-    `)
-  )
+    `),
+  }
 }

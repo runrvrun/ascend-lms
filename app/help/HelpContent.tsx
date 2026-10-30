@@ -49,8 +49,8 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Map,
         steps: [
           "Click Pathways in the left menu.",
-          "Recommended for You at the top shows the pathways featured by the Learning team. It is hidden when nothing is featured.",
-          "Use the search box to find pathways by name or tag. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
+          "Use the search box at the top to find pathways by name or tag. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
+          "Recommended for You, below the search box, shows the pathways featured by the Learning team. It is hidden when nothing is featured or while you are searching.",
           "Click Preview on a pathway to see its courses, trainers and first lesson before enrolling.",
           "Click Share to send a pathway to a colleague. They get a notification and an email with a link — sharing does not enroll them.",
           {
@@ -212,7 +212,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           {
             heading: "From each pathway's Actions menu:",
             items: [
-              "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them.",
+              "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them. Only published courses can be added.",
               "Manage Enrollments — enroll people or cohorts (optionally with a deadline), change deadlines, schedule reminder emails, or remove enrollments.",
               "Preview — see the pathway as a learner would.",
               "Edit, Duplicate (the copy starts as a draft with no one enrolled), or Delete.",
@@ -235,7 +235,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
               "Edit, Duplicate (the copy starts as a draft), or Delete.",
             ],
           },
-          "Use the status button on the course page to switch between Draft and Published.",
+          "Use the status button on the course page to switch between Draft and Published. Setting a course that is in a pathway back to Draft removes it from every pathway; you'll be shown which ones and asked to confirm first.",
         ],
       },
       {
@@ -276,7 +276,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Route,
         steps: [
           "Edit your pathway's name, description, tags and visibility, and switch it between Draft and Published.",
-          "Manage Courses — add, reorder and remove courses, set points, and add section headings.",
+          "Manage Courses — add, reorder and remove courses, set points, and add section headings. Only published courses can be added.",
           "Manage Enrollments — enroll people or cohorts, set or change deadlines, schedule reminder emails, and remove enrollments.",
           "Preview the pathway as a learner would.",
           "Only admins can add a new pathway, change owners, feature, duplicate or delete a pathway, or edit the courses themselves.",

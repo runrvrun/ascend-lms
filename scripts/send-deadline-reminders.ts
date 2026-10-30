@@ -8,8 +8,8 @@
 // Pass --dry-run to only list who would be emailed.
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
-import { sendDeadlineReminder } from "../app/lib/email"
-import { sendThrottled } from "../app/lib/pathwayReminders"
+import { deadlineReminderEmail } from "../app/lib/email"
+import { enqueueEmails } from "../app/lib/emailOutbox"
 import { addDays, startOfUtcDay, DEADLINE_GRACE_DAYS } from "../app/lib/pathwayDeadline"
 
 const prisma = new PrismaClient({
@@ -66,27 +66,30 @@ async function main() {
     }))
     .filter((e) => e.nextCourseId) // pathway already finished — nothing to remind about
 
-  let sent = 0
-  await sendThrottled(due, dryRun ? 0 : 600, async (e) => {
-    const dueToday = startOfUtcDay(e.deadline!).getTime() === today.getTime()
-    if (dryRun) {
-      console.log(`  would email ${e.user.email}: "${e.pathway.name}" due ${dueToday ? "today" : "tomorrow"}`)
-      return
-    }
-    await sendDeadlineReminder(
-      e.user.email!,
-      e.user.name ?? "there",
-      e.pathway.name,
-      e.deadline!,
-      dueToday,
-      DEADLINE_GRACE_DAYS,
-      `${BASE_URL}/pathways/${e.pathwayId}?course=${e.nextCourseId}`
+  const isDueToday = (e: (typeof due)[number]) => startOfUtcDay(e.deadline!).getTime() === today.getTime()
+  if (dryRun) {
+    for (const e of due) console.log(`  would email ${e.user.email}: "${e.pathway.name}" due ${isDueToday(e) ? "today" : "tomorrow"}`)
+  } else {
+    // Queued; the send-emails cron delivers them within the mail server's rate limit.
+    await enqueueEmails(
+      prisma,
+      due.map((e) =>
+        deadlineReminderEmail(
+          e.user.email!,
+          e.user.name ?? "there",
+          e.pathway.name,
+          e.deadline!,
+          isDueToday(e),
+          DEADLINE_GRACE_DAYS,
+          `${BASE_URL}/pathways/${e.pathwayId}?course=${e.nextCourseId}`
+        )
+      ),
+      { bulk: true }
     )
-    sent++
-  })
+  }
 
   console.log(
-    `${dryRun ? "[dry run] " : ""}Deadline reminders: ${enrollments.length} enrollment(s) due today/tomorrow, ${due.length} unfinished, ${sent} email(s) sent.`
+    `${dryRun ? "[dry run] " : ""}Deadline reminders: ${enrollments.length} enrollment(s) due today/tomorrow, ${due.length} unfinished, ${dryRun ? 0 : due.length} email(s) queued.`
   )
 }
 

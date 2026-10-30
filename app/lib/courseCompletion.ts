@@ -63,3 +63,41 @@ export async function evaluateCourseCompletion(userId: string, courseId: string,
   await awardCoursePoints(userId, courseId, pathwayId)
   return true
 }
+
+// Completion is only evaluated when a learner finishes something, so deleting the one item a
+// learner hadn't done would leave the course incomplete forever. Call after removing a content
+// item, test or assignment to re-check everyone who may now be done.
+export async function recheckCourseCompletionAfterRemoval(courseId: string) {
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: {
+      contents: { where: { deletedAt: null }, select: { id: true } },
+      tests: { where: { deletedAt: null }, select: { id: true } },
+    },
+  })
+  // An emptied course isn't auto-completed for everyone; that matches how a new empty course behaves.
+  if (!course || course.contents.length + course.tests.length === 0) return
+
+  // Cheap pre-filter: only learners who finished every remaining content item (or, in a
+  // test-only course, passed every test) can be done. evaluateCourseCompletion decides.
+  const candidates = course.contents.length
+    ? await prisma.contentProgress.groupBy({
+        by: ["userId", "pathwayId"],
+        where: { contentId: { in: course.contents.map((c) => c.id) } },
+        having: { contentId: { _count: { equals: course.contents.length } } },
+      })
+    : await prisma.testProgress.groupBy({
+        by: ["userId", "pathwayId"],
+        where: { status: "PASSED", testId: { in: course.tests.map((t) => t.id) } },
+        having: { testId: { _count: { equals: course.tests.length } } },
+      })
+
+  const alreadyComplete = new Set(
+    (
+      await prisma.courseProgress.findMany({ where: { courseId, completed: true }, select: { userId: true, pathwayId: true } })
+    ).map((p) => `${p.userId}:${p.pathwayId}`)
+  )
+  for (const c of candidates) {
+    if (!alreadyComplete.has(`${c.userId}:${c.pathwayId}`)) await evaluateCourseCompletion(c.userId, courseId, c.pathwayId)
+  }
+}

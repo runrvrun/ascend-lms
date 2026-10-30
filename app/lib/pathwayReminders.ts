@@ -13,12 +13,3 @@ export const MESSAGES = [
 export function pickMessage() {
   return MESSAGES[Math.floor(Math.random() * MESSAGES.length)]
 }
-
-// Resend's default rate limit is 2 requests/second; stay comfortably under it
-// (and under Mailtrap's sandbox limit) by sending one at a time with a pause.
-export async function sendThrottled<T>(items: T[], delayMs: number, fn: (item: T) => Promise<void>) {
-  for (const item of items) {
-    await fn(item)
-    await new Promise((r) => setTimeout(r, delayMs))
-  }
-}

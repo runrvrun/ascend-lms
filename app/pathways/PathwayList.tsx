@@ -309,6 +309,16 @@ export function PathwayList({ pathways, recommendedOrder }: { pathways: PathwayC
 
   return (
     <>
+      <div className="relative mb-6">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search pathways…"
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
       {!search && recommendations.length > 0 && (
         <section className="mb-8">
           <div className="mb-3 flex items-center gap-2">
@@ -323,16 +333,6 @@ export function PathwayList({ pathways, recommendedOrder }: { pathways: PathwayC
           <div className="mt-6 border-t border-slate-200" />
         </section>
       )}
-
-      <div className="relative mb-6">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search pathways…"
-          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-400">

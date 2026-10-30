@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
-import { sendEnrollmentApproved, sendEnrollmentRejected } from "../../lib/email"
+import { enrollmentApprovedEmail, enrollmentRejectedEmail } from "../../lib/email"
+import { sendEmails } from "../../lib/sendEmail"
 
 async function getManagerId() {
   const session = await getServerSession(authOptions)
@@ -40,11 +41,9 @@ export async function approveRequest(enrollmentId: string) {
   revalidatePath("/dashboard")
 
   if (enrollment.user.email) {
-    await sendEnrollmentApproved(
-      enrollment.user.email,
-      enrollment.user.name ?? enrollment.user.email,
-      enrollment.pathway.name
-    )
+    await sendEmails([
+      enrollmentApprovedEmail(enrollment.user.email, enrollment.user.name ?? enrollment.user.email, enrollment.pathway.name),
+    ])
   }
 }
 
@@ -82,12 +81,14 @@ export async function rejectRequest(enrollmentId: string, rejectionReason: strin
   revalidatePath("/dashboard")
 
   if (enrollment.user.email) {
-    await sendEnrollmentRejected(
-      enrollment.user.email,
-      enrollment.user.name ?? enrollment.user.email,
-      enrollment.pathway.name,
-      rejectionReason,
-      manager?.name ?? "your manager"
-    )
+    await sendEmails([
+      enrollmentRejectedEmail(
+        enrollment.user.email,
+        enrollment.user.name ?? enrollment.user.email,
+        enrollment.pathway.name,
+        rejectionReason,
+        manager?.name ?? "your manager"
+      ),
+    ])
   }
 }

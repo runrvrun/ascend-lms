@@ -7,7 +7,8 @@ import { Division, JobTitle, Prisma, Role } from "@prisma/client"
 import * as xlsx from "xlsx"
 import crypto from "crypto"
 import bcrypt from "bcryptjs"
-import { sendAccountActivation } from "../../lib/email"
+import { accountActivationEmail } from "../../lib/email"
+import { sendEmails } from "../../lib/sendEmail"
 
 const VALID_DIVISIONS = new Set(Object.values(Division))
 const VALID_TITLES = new Set(Object.values(JobTitle))
@@ -241,7 +242,7 @@ export async function sendActivationEmail(userId: string) {
     data: { activationToken: token, activationTokenExpiry: expiry },
   })
 
-  await sendAccountActivation(user.email, user.name ?? "there", token)
+  await sendEmails([accountActivationEmail(user.email, user.name ?? "there", token)])
 }
 
 export async function adminSetPassword(userId: string, newPassword: string) {

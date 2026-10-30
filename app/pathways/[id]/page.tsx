@@ -7,6 +7,7 @@ import { isPathwayOwner } from "../../lib/permissions"
 import { SidebarWithStats } from "../../components/SidebarWithStats"
 import { PathwayViewer } from "./PathwayViewer"
 import { isDeadlineLocked, toDeadlineInput } from "../../lib/pathwayDeadline"
+import { evaluateCourseCompletion } from "../../lib/courseCompletion"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -148,6 +149,24 @@ export default async function PathwayDetailPage({
   for (const r of courseProgressRecords as { courseId: string; assignmentStatus: string | null }[]) {
     if (r.assignmentStatus) assignmentStatusByCourseId[r.courseId] = r.assignmentStatus as "PASSED" | "FAILED"
   }
+
+  // A course can look finished but still be marked incomplete, e.g. when the one item the
+  // learner hadn't done was deleted before the delete-time re-check existed. Re-check those.
+  if (!isPreviewMode && enrollment?.status === "APPROVED") {
+    const passedAssignmentIds = new Set(assignmentSubmissions.filter((s) => s.status === "PASSED").map((s) => s.assignmentId))
+    const looksDone = pathway.courses.filter(
+      ({ course }) =>
+        !completedCourseIds.has(course.id) &&
+        course.contents.length + course.tests.length > 0 &&
+        course.contents.every((c) => completedContentIds.has(c.id)) &&
+        course.tests.every((t) => testStatusByTestId[t.id] === "PASSED") &&
+        (!course.assignment || passedAssignmentIds.has(course.assignment.id))
+    )
+    for (const { course } of looksDone) {
+      if (await evaluateCourseCompletion(userId, course.id, id)) completedCourseIds.add(course.id)
+    }
+  }
+
   const isPathwayComplete =
     !isPreviewMode &&
     pathway.courses.length > 0 &&

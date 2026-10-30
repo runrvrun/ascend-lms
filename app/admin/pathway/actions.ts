@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "../../lib/prisma"
-import { sendPathwayAssigned } from "../../lib/email"
+import { pathwayAssignedEmail } from "../../lib/email"
+import { sendEmails } from "../../lib/sendEmail"
 import { parseDeadlineInput } from "../../lib/pathwayDeadline"
 import { PathwayVisibility } from "@prisma/client"
 import { MAX_FEATURED_PATHWAYS } from "../../lib/featuredPathways"
@@ -17,18 +18,8 @@ export type PathwayFormData = {
   ownerIds?: string[]
 }
 
-// Pathway.name is unique across soft-deleted rows too, so a deleted pathway would block
-// its name forever. Rename any deleted holder out of the way before reusing a name.
-async function releaseDeletedPathwayName(name: string) {
-  const holder = await prisma.pathway.findFirst({ where: { name, deletedAt: { not: null } }, select: { id: true } })
-  if (holder) {
-    await prisma.pathway.update({ where: { id: holder.id }, data: { name: `${name} [deleted ${holder.id.slice(0, 8)}]` } })
-  }
-}
-
 export async function createPathway(data: PathwayFormData) {
   await requireAdmin()
-  await releaseDeletedPathwayName(data.name)
   await prisma.pathway.create({
     data: {
       name: data.name,
@@ -44,7 +35,6 @@ export async function createPathway(data: PathwayFormData) {
 
 export async function updatePathway(id: string, data: PathwayFormData) {
   const user = await requirePathwayManager(id)
-  await releaseDeletedPathwayName(data.name)
   if (user.roles.includes("ADMIN") && data.ownerIds) {
     await prisma.$transaction([
       prisma.pathwayOwner.deleteMany({ where: { pathwayId: id, userId: { notIn: data.ownerIds } } }),
@@ -122,22 +112,18 @@ export async function duplicatePathway(id: string): Promise<{ error?: string }> 
   await requireAdmin()
   const source = await prisma.pathway.findFirst({
     where: { id, deletedAt: null },
-    include: { courses: { orderBy: { order: "asc" } }, owners: { select: { userId: true } } },
+    include: {
+      // Pathways only hold published courses; don't carry over drafts from before that rule.
+      courses: { where: { course: { deletedAt: null, status: "PUBLISHED" } }, orderBy: { order: "asc" } },
+      owners: { select: { userId: true } },
+    },
   })
   if (!source) return { error: "Pathway not found." }
-
-  const baseName = `${source.name}-copy`
-  let newName = baseName
-  let suffix = 2
-  while (await prisma.pathway.findFirst({ where: { name: newName, deletedAt: null } })) {
-    newName = `${baseName} ${suffix++}`
-  }
-  await releaseDeletedPathwayName(newName)
 
   // One nested create so a failure can't leave a copy without its courses.
   await prisma.pathway.create({
     data: {
-      name: newName,
+      name: `${source.name}-copy`,
       description: source.description,
       status: "DRAFT",
       visibility: source.visibility,
@@ -163,13 +149,22 @@ export async function duplicatePathway(id: string): Promise<{ error?: string }> 
 const touchPathway = (pathwayId: string) =>
   prisma.pathway.update({ where: { id: pathwayId }, data: { updatedAt: new Date() } })
 
-export async function addCourseToPathway(pathwayId: string, courseId: string, order: number, points: number) {
+export async function addCourseToPathway(
+  pathwayId: string,
+  courseId: string,
+  order: number,
+  points: number
+): Promise<{ error?: string }> {
   await requirePathwayManager(pathwayId)
+  // Pathways only hold published courses (see toggleCourseStatus in app/admin/course/actions.ts).
+  const course = await prisma.course.findFirst({ where: { id: courseId, deletedAt: null }, select: { status: true } })
+  if (course?.status !== "PUBLISHED") return { error: "Only published courses can be added to a pathway." }
   await Promise.all([
     prisma.pathwayCourse.create({ data: { pathwayId, courseId, order, points } }),
     touchPathway(pathwayId),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
+  return {}
 }
 
 export async function updatePathwayCourse(id: string, pathwayId: string, order: number, points: number) {
@@ -247,10 +242,11 @@ export async function adminEnrollUsers(pathwayId: string, userIds: string[], dea
       skipDuplicates: true,
     })
 
-    await Promise.all(
-      users.map((u) =>
-        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId, undefined, deadline) : Promise.resolve()
-      )
+    await sendEmails(
+      users.flatMap((u) =>
+        u.email ? [pathwayAssignedEmail(u.email, u.name ?? u.email, pathway.name, pathwayId, undefined, deadline)] : []
+      ),
+      { bulk: true }
     )
   }
 
@@ -299,10 +295,11 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
       skipDuplicates: true,
     })
 
-    await Promise.all(
-      cohort.users.map(({ user }) =>
-        user.email ? sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name, deadline) : Promise.resolve()
-      )
+    await sendEmails(
+      cohort.users.flatMap(({ user }) =>
+        user.email ? [pathwayAssignedEmail(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name, deadline)] : []
+      ),
+      { bulk: true }
     )
   }
 

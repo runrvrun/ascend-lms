@@ -72,11 +72,11 @@ async function upsertPathway(
   description: string,
   visibility: "PUBLIC_FREE" | "PUBLIC_APPROVAL" | "HIDDEN"
 ) {
-  return prisma.pathway.upsert({
-    where: { name },
-    create: { name, description, visibility },
-    update: { description, visibility },
-  })
+  // Pathway names aren't unique, so match the first live one by name.
+  const existing = await prisma.pathway.findFirst({ where: { name, deletedAt: null }, select: { id: true } })
+  return existing
+    ? prisma.pathway.update({ where: { id: existing.id }, data: { description, visibility } })
+    : prisma.pathway.create({ data: { name, description, visibility } })
 }
 
 async function linkCourseToPathway(pathwayId: string, courseId: string, order: number, points: number) {

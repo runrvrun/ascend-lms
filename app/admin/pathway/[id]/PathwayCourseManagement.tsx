@@ -41,7 +41,8 @@ function AddCourseModal({
     setError("")
     startTransition(async () => {
       try {
-        await addCourseToPathway(pathwayId, courseId, order, points)
+        const result = await addCourseToPathway(pathwayId, courseId, order, points)
+        if (result.error) return setError(result.error)
         onClose()
       } catch {
         setError("Order number already in use. Choose a different one.")
@@ -57,7 +58,7 @@ function AddCourseModal({
             <h2 className="text-lg font-semibold text-slate-900">Add Course</h2>
             <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X size={18} /></button>
           </div>
-          <p className="text-sm text-slate-500">All courses have already been added to this pathway.</p>
+          <p className="text-sm text-slate-500">All published courses have already been added to this pathway. Draft courses must be published before they can be added.</p>
           <div className="mt-4 flex justify-end">
             <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Close

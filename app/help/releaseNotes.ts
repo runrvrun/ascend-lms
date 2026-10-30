@@ -19,7 +19,13 @@ export const RELEASE_NOTES: ReleaseDay[] = [
       { kind: "improved", text: "Featured pathways now stay in Recommended for You even after you enroll, so everyone sees the same featured pathways." },
       { kind: "improved", text: "In a course's content list, long web addresses are replaced by a small Open link button." },
       { kind: "fixed", text: "Duplicating a pathway or course no longer fails when an earlier copy was deleted. You can also reuse the name of a deleted pathway or course." },
+      { kind: "improved", text: "Two pathways can now have the same name." },
       { kind: "fixed", text: "Wide tables in the admin, manager, trainer and SME pages now scroll sideways instead of cutting off columns." },
+      { kind: "improved", text: "The Previous Lesson and Next Lesson buttons now share the same plain style." },
+      { kind: "improved", text: "The search box on the Pathways page is now at the top, above Recommended for You." },
+      { kind: "fixed", text: "If a lesson, test or assignment you hadn't done yet is removed from a course, the course now counts as complete once you've finished everything else, so you can finish the pathway and leave feedback. Courses already stuck this way are fixed the next time you open the pathway." },
+      { kind: "improved", text: "Pathways now hold only published courses. A draft course must be published before it can be added to a pathway." },
+      { kind: "improved", text: "Setting a published course back to Draft now warns you that it will be removed from every pathway it's in, and lists those pathways. If you confirm, it's removed from them and set to Draft." },
     ],
   },
   {

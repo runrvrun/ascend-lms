@@ -5,7 +5,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { NotificationType } from "@prisma/client"
-import { sendNewEnrollmentRequest, sendPathwayShared } from "../lib/email"
+import { newEnrollmentRequestEmail, pathwaySharedEmail } from "../lib/email"
+import { sendEmails } from "../lib/sendEmail"
 import { evaluateCourseCompletion } from "../lib/courseCompletion"
 import { validateAssignmentFile, saveAssignmentFile, deleteAssignmentFile } from "../lib/assignmentFiles"
 import { isDeadlineLocked, DEADLINE_GRACE_DAYS } from "../lib/pathwayDeadline"
@@ -226,28 +227,20 @@ export async function requestPathway(pathwayId: string, note: string) {
 
   if (user?.managers.length && pathway) {
     const requesterName = user.name ?? user.email ?? "A team member"
-    await Promise.all(
-      user.managers.map(async ({ manager }) => {
-        await Promise.all([
-          manager.email
-            ? sendNewEnrollmentRequest(
-                manager.email,
-                manager.name ?? manager.email,
-                requesterName,
-                pathway.name,
-                note
-              )
-            : Promise.resolve(),
-          prisma.notification.create({
-            data: {
-              userId: manager.id,
-              type: "ENROLLMENT_REQUESTED",
-              message: `${requesterName} has requested enrollment in "${pathway.name}". Please review their request.`,
-              pathwayId,
-            },
-          }),
-        ])
-      })
+    await prisma.notification.createMany({
+      data: user.managers.map(({ manager }) => ({
+        userId: manager.id,
+        type: "ENROLLMENT_REQUESTED" as const,
+        message: `${requesterName} has requested enrollment in "${pathway.name}". Please review their request.`,
+        pathwayId,
+      })),
+    })
+    await sendEmails(
+      user.managers.flatMap(({ manager }) =>
+        manager.email
+          ? [newEnrollmentRequestEmail(manager.email, manager.name ?? manager.email, requesterName, pathway.name, note)]
+          : []
+      )
     )
     revalidatePath("/notifications")
   }
@@ -398,7 +391,7 @@ export async function sharePathway(pathwayId: string, recipientId: string): Prom
     },
   })
   if (recipient.email) {
-    await sendPathwayShared(recipient.email, recipient.name ?? recipient.email, sharerName, pathway.name, pathwayId)
+    await sendEmails([pathwaySharedEmail(recipient.email, recipient.name ?? recipient.email, sharerName, pathway.name, pathwayId)])
   }
   return {}
 }

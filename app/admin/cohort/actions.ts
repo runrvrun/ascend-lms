@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache"
 import * as xlsx from "xlsx"
 import { prisma } from "../../lib/prisma"
 import { requireAdmin } from "../../lib/permissions"
-import { sendPathwayAssigned } from "../../lib/email"
+import { pathwayAssignedEmail } from "../../lib/email"
+import { sendEmails } from "../../lib/sendEmail"
 
 export type BulkAddMembersResult = {
   added: number
@@ -75,12 +76,13 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
     skipDuplicates: true,
   })
 
-  await Promise.all(
+  await sendEmails(
     cohortPathways.flatMap(({ pathwayId, pathway, deadline }) =>
-      users.map((u) =>
-        u.email ? sendPathwayAssigned(u.email, u.name ?? u.email, pathway.name, pathwayId, cohort.name, deadline) : Promise.resolve()
+      users.flatMap((u) =>
+        u.email ? [pathwayAssignedEmail(u.email, u.name ?? u.email, pathway.name, pathwayId, cohort.name, deadline)] : []
       )
-    )
+    ),
+    { bulk: true }
   )
 }
 
@@ -234,10 +236,11 @@ export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
       skipDuplicates: true,
     })
 
-    await Promise.all(
-      cohort.users.map(({ user }) =>
-        user.email ? sendPathwayAssigned(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name) : Promise.resolve()
-      )
+    await sendEmails(
+      cohort.users.flatMap(({ user }) =>
+        user.email ? [pathwayAssignedEmail(user.email, user.name ?? user.email, pathway.name, pathwayId, cohort.name)] : []
+      ),
+      { bulk: true }
     )
   }
 
