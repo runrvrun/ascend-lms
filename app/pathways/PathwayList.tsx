@@ -229,7 +229,9 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
           </div>
         )}
 
-        <div className="mb-3 flex items-center gap-2">
+        {/* Preview and Share sit next to the main button, so they stay together at the card's bottom. */}
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
+          <ActionButton />
           <a
             href={`/pathways/${pathway.id}/preview`}
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -244,14 +246,10 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
             <Share2 size={12} />
             Share
           </button>
-        </div>
-
-        <div className="mt-auto flex items-center justify-between gap-2">
-          <ActionButton />
 
           {isEnrolled && (
             unenrollConfirming ? (
-              <div className="flex items-center gap-1.5 text-sm">
+              <div className="ml-auto flex items-center gap-1.5 text-sm">
                 <span className="text-slate-500">Unenroll?</span>
                 <button
                   disabled={unenrollPending}
@@ -270,7 +268,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
             ) : (
               <button
                 onClick={() => setUnenrollConfirming(true)}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                className="ml-auto flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
               >
                 <LogOut size={12} />
                 Unenroll
