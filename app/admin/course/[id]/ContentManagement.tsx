@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
+import { Plus, Pencil, Trash2, X, GripVertical, ChevronUp, ChevronDown, ExternalLink } from "lucide-react"
 import { ContentType } from "@prisma/client"
 import { createContent, updateContent, deleteContent, discardContentImages, swapCourseItemOrder, ContentFormData, ContentEditData } from "../actions"
 import { PositionSelect } from "./PositionSelect"
@@ -404,8 +404,8 @@ export function ContentManagement({ courseId, contents, outline }: { courseId: s
           No contents yet. Add the first one above.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3 w-10">#</th>
@@ -426,19 +426,33 @@ export function ContentManagement({ courseId, contents, outline }: { courseId: s
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900">{c.title}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[c.type]}`}>
+                    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[c.type]}`}>
                       {TYPE_LABELS[c.type]}
                     </span>
                   </td>
-                  <td className="w-0 min-w-0 max-w-xs px-4 py-3 text-slate-500">
-                    {c.type === "IMAGE" && c.imageKey ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={contentImageUrl(c.imageKey)} alt="" className="h-10 w-16 rounded border border-slate-200 object-cover" />
-                    ) : c.type === "TEXT" ? (
-                      <span className="block truncate italic text-slate-400">{c.value}</span>
-                    ) : (
-                      <a href={c.value} target="_blank" rel="noreferrer" className="block truncate text-blue-500 hover:underline">{c.value}</a>
-                    )}
+                  <td className="max-w-[16rem] px-4 py-3 text-slate-500">
+                    <div className="flex items-center gap-2">
+                      {c.imageKey && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={contentImageUrl(c.imageKey)} alt="" className="h-10 w-16 shrink-0 rounded border border-slate-200 object-cover" />
+                      )}
+                      {c.type === "TEXT" || c.type === "IN_PERSON" || c.type === "IMAGE" ? (
+                        c.value && <span className="block min-w-0 truncate italic text-slate-400">{c.value}</span>
+                      ) : (
+                        c.value && (
+                          <a
+                            href={c.value}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={c.value}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                          >
+                            <ExternalLink size={13} />
+                            Open
+                          </a>
+                        )
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">

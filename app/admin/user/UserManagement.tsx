@@ -696,12 +696,14 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
   const [divisionFilter, setDivisionFilter] = useState<Division | "">("")
   const [titleFilter, setTitleFilter] = useState<JobTitle | "">("")
   const [roleFilter, setRoleFilter] = useState<AppRole | "">("")
+  const [officeFilter, setOfficeFilter] = useState("") // office id, or "none"
 
   const filtered = users.filter((u) => {
     if (search && !u.name?.toLowerCase().includes(search.toLowerCase())) return false
     if (divisionFilter && u.division !== divisionFilter) return false
     if (titleFilter && u.title !== titleFilter) return false
     if (roleFilter && !u.derivedRoles.includes(roleFilter)) return false
+    if (officeFilter && (officeFilter === "none" ? u.officeId : u.officeId !== officeFilter)) return false
     return true
   })
 
@@ -763,6 +765,15 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
         >
           <option value="">All Titles</option>
           {TITLES.map((t) => <option key={t} value={t}>{formatEnum(t)}</option>)}
+        </select>
+        <select
+          value={officeFilter}
+          onChange={(e) => setOfficeFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Offices</option>
+          {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          <option value="none">No office</option>
         </select>
         <select
           value={roleFilter}

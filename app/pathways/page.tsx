@@ -74,17 +74,11 @@ export default async function PathwaysPage() {
     }
   })
 
-  // Only feature pathways the user isn't enrolled in (or waiting on) and hasn't completed.
-  const isOpenToUser = (p: (typeof pathwayCards)[number]) => {
-    const status = p.enrollment?.status
-    return (!status || status === "REJECTED") && !p.isCompleted
-  }
-
   // Automated recommendations (buildRecommendations in app/lib/pathwayRecommendations.ts)
-  // are switched off at HR's request: the section shows only admin-featured pathways,
-  // oldest-featured first, and is hidden when there are none.
+  // are switched off at HR's request: the section shows the admin-featured pathways to
+  // everyone (enrolled or not), oldest-featured first, and is hidden when there are none.
   const featuredIds = pathwayCards
-    .filter((p) => p.featuredAt && isOpenToUser(p))
+    .filter((p) => p.featuredAt)
     .sort((a, b) => a.featuredAt!.getTime() - b.featuredAt!.getTime())
     .slice(0, MAX_FEATURED_PATHWAYS)
     .map((p) => p.id)

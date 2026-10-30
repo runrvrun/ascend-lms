@@ -320,8 +320,14 @@ export function PathwayManagement({
   function handleDuplicate(pathwayId: string) {
     setDuplicating(pathwayId)
     startDupTransition(async () => {
-      await duplicatePathway(pathwayId)
-      setDuplicating(null)
+      try {
+        const result = await duplicatePathway(pathwayId)
+        if (result.error) alert(result.error)
+      } catch {
+        alert("Couldn't duplicate this pathway. Please try again.")
+      } finally {
+        setDuplicating(null)
+      }
     })
   }
 

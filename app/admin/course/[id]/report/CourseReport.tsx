@@ -204,6 +204,7 @@ export function CourseReport({ data }: { data: CourseReportData }) {
           <div className="border-b border-slate-100 px-5 py-3">
             <h2 className="text-sm font-semibold text-slate-900">Per-Test Breakdown</h2>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
@@ -226,6 +227,7 @@ export function CourseReport({ data }: { data: CourseReportData }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

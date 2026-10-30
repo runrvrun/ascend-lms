@@ -40,7 +40,17 @@ function contentImageKey(data: { type: ContentType; imageKey: string | null }) {
   return data.imageKey
 }
 
+// Course.name is unique across soft-deleted rows too, so a deleted course would block
+// its name forever. Rename any deleted holder out of the way before reusing a name.
+async function releaseDeletedCourseName(name: string) {
+  const holder = await prisma.course.findFirst({ where: { name, deletedAt: { not: null } }, select: { id: true } })
+  if (holder) {
+    await prisma.course.update({ where: { id: holder.id }, data: { name: `${name} [deleted ${holder.id.slice(0, 8)}]` } })
+  }
+}
+
 export async function createCourse(data: CourseFormData): Promise<string> {
+  await releaseDeletedCourseName(data.name)
   const course = await prisma.course.create({
     data: { name: data.name, description: data.description || null, status: "DRAFT", topicId: data.topicId || null },
   })
@@ -55,6 +65,7 @@ export async function toggleCourseStatus(id: string, status: "DRAFT" | "PUBLISHE
 }
 
 export async function updateCourse(id: string, data: CourseFormData) {
+  await releaseDeletedCourseName(data.name)
   await prisma.course.update({
     where: { id },
     data: { name: data.name, description: data.description || null, topicId: data.topicId || null },
@@ -98,6 +109,7 @@ export async function duplicateCourse(id: string): Promise<string> {
   while (await prisma.course.findFirst({ where: { name: newName, deletedAt: null } })) {
     newName = `${baseName} ${suffix++}`
   }
+  await releaseDeletedCourseName(newName)
 
   const newCourse = await prisma.course.create({
     data: {
@@ -242,6 +254,7 @@ export async function importCourse(formData: FormData): Promise<string> {
     newName = suffix === 2 ? `${baseName} (imported)` : `${baseName} (imported ${suffix})`
     suffix++
   }
+  await releaseDeletedCourseName(newName)
 
   const newCourseId = await prisma.$transaction(async (tx) => {
     const newCourse = await tx.course.create({

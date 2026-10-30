@@ -468,7 +468,7 @@ function TestCard({
             No questions yet.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>

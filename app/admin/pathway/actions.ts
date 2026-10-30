@@ -17,8 +17,18 @@ export type PathwayFormData = {
   ownerIds?: string[]
 }
 
+// Pathway.name is unique across soft-deleted rows too, so a deleted pathway would block
+// its name forever. Rename any deleted holder out of the way before reusing a name.
+async function releaseDeletedPathwayName(name: string) {
+  const holder = await prisma.pathway.findFirst({ where: { name, deletedAt: { not: null } }, select: { id: true } })
+  if (holder) {
+    await prisma.pathway.update({ where: { id: holder.id }, data: { name: `${name} [deleted ${holder.id.slice(0, 8)}]` } })
+  }
+}
+
 export async function createPathway(data: PathwayFormData) {
   await requireAdmin()
+  await releaseDeletedPathwayName(data.name)
   await prisma.pathway.create({
     data: {
       name: data.name,
@@ -34,6 +44,7 @@ export async function createPathway(data: PathwayFormData) {
 
 export async function updatePathway(id: string, data: PathwayFormData) {
   const user = await requirePathwayManager(id)
+  await releaseDeletedPathwayName(data.name)
   if (user.roles.includes("ADMIN") && data.ownerIds) {
     await prisma.$transaction([
       prisma.pathwayOwner.deleteMany({ where: { pathwayId: id, userId: { notIn: data.ownerIds } } }),
@@ -107,13 +118,13 @@ export async function setPathwayFeatured(id: string, featured: boolean): Promise
   return {}
 }
 
-export async function duplicatePathway(id: string): Promise<string> {
+export async function duplicatePathway(id: string): Promise<{ error?: string }> {
   await requireAdmin()
-  const source = await prisma.pathway.findUnique({
-    where: { id },
+  const source = await prisma.pathway.findFirst({
+    where: { id, deletedAt: null },
     include: { courses: { orderBy: { order: "asc" } }, owners: { select: { userId: true } } },
   })
-  if (!source) throw new Error("Pathway not found")
+  if (!source) return { error: "Pathway not found." }
 
   const baseName = `${source.name}-copy`
   let newName = baseName
@@ -121,8 +132,10 @@ export async function duplicatePathway(id: string): Promise<string> {
   while (await prisma.pathway.findFirst({ where: { name: newName, deletedAt: null } })) {
     newName = `${baseName} ${suffix++}`
   }
+  await releaseDeletedPathwayName(newName)
 
-  const newPathway = await prisma.pathway.create({
+  // One nested create so a failure can't leave a copy without its courses.
+  await prisma.pathway.create({
     data: {
       name: newName,
       description: source.description,
@@ -130,23 +143,19 @@ export async function duplicatePathway(id: string): Promise<string> {
       visibility: source.visibility,
       tags: source.tags,
       owners: { create: source.owners.map((o) => ({ userId: o.userId })) },
+      courses: {
+        create: source.courses.map((c) => ({
+          courseId: c.courseId,
+          order: c.order,
+          points: c.points,
+          sectionTitle: c.sectionTitle,
+        })),
+      },
     },
   })
 
-  if (source.courses.length > 0) {
-    await prisma.pathwayCourse.createMany({
-      data: source.courses.map((c) => ({
-        pathwayId: newPathway.id,
-        courseId: c.courseId,
-        order: c.order,
-        points: c.points,
-        sectionTitle: c.sectionTitle,
-      })),
-    })
-  }
-
   revalidatePath("/admin/pathway")
-  return newPathway.id
+  return {}
 }
 
 // ── Pathway Courses ───────────────────────────────────────────────────────────

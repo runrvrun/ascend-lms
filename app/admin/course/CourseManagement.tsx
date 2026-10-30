@@ -228,8 +228,13 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
   function handleDuplicate(courseId: string) {
     setDuplicating(courseId)
     startDupTransition(async () => {
-      await duplicateCourse(courseId)
-      setDuplicating(null)
+      try {
+        await duplicateCourse(courseId)
+      } catch {
+        alert("Couldn't duplicate this course. Please try again.")
+      } finally {
+        setDuplicating(null)
+      }
     })
   }
 

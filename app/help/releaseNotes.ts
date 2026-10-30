@@ -10,6 +10,16 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-10-30",
+    changes: [
+      { kind: "new", text: "The Users list can now be filtered by office." },
+      { kind: "improved", text: "Featured pathways now stay in Recommended for You even after you enroll, so everyone sees the same featured pathways." },
+      { kind: "improved", text: "In a course's content list, long web addresses are replaced by a small Open link button." },
+      { kind: "fixed", text: "Duplicating a pathway or course no longer fails when an earlier copy was deleted. You can also reuse the name of a deleted pathway or course." },
+      { kind: "fixed", text: "Wide tables in the admin, manager, trainer and SME pages now scroll sideways instead of cutting off columns." },
+    ],
+  },
+  {
     date: "2026-10-29",
     changes: [
       { kind: "new", text: "Courses can now include pictures. Course editors pick \"Image\" as the content type and upload a picture straight from their computer." },

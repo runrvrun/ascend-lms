@@ -49,7 +49,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Map,
         steps: [
           "Click Pathways in the left menu.",
-          "Recommended for You at the top shows pathways featured by the Learning team. It is hidden when there is nothing featured for you.",
+          "Recommended for You at the top shows the pathways featured by the Learning team. It is hidden when nothing is featured.",
           "Use the search box to find pathways by name or tag. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
           "Click Preview on a pathway to see its courses, trainers and first lesson before enrolling.",
           "Click Share to send a pathway to a colleague. They get a notification and an email with a link — sharing does not enroll them.",
@@ -172,7 +172,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Managing Users",
         icon: UserCog,
         steps: [
-          "Go to Admin → Users. Use the filters to narrow by division, title or role.",
+          "Go to Admin → Users. Use the filters to narrow by division, title, office or role.",
           "New colleagues with a company Microsoft account are added automatically, and people who leave are deactivated automatically.",
           "Click Add User to create a user by hand (name, email, division, title, office).",
           "To add many users at once, click Import, download the template, fill it in and upload it. Click Export to download all users in the same format.",
