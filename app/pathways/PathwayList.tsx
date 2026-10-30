@@ -229,55 +229,59 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
           </div>
         )}
 
-        {/* Preview and Share sit next to the main button, so they stay together at the card's bottom. */}
-        <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
+        {/* Main button on the left; Share, then Preview and/or Unenroll, on the right. */}
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
           <ActionButton />
-          {/* Enrolled learners open the pathway itself, so Preview would only duplicate Go to Pathway. */}
-          {enrollmentStatus !== "APPROVED" && (
-            <a
-              href={`/pathways/${pathway.id}/preview`}
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              onClick={() => setSharing(true)}
               className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
-              <Eye size={12} />
-              Preview
-            </a>
-          )}
-          <button
-            onClick={() => setSharing(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            <Share2 size={12} />
-            Share
-          </button>
+              <Share2 size={12} />
+              Share
+            </button>
 
-          {isEnrolled && (
-            unenrollConfirming ? (
-              <div className="ml-auto flex items-center gap-1.5 text-sm">
-                <span className="text-slate-500">Unenroll?</span>
-                <button
-                  disabled={unenrollPending}
-                  onClick={handleUnenroll}
-                  className="rounded-lg px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
-                  {unenrollPending ? "…" : "Yes"}
-                </button>
-                <button
-                  onClick={() => setUnenrollConfirming(false)}
-                  className="rounded-lg px-2.5 py-1 text-xs text-slate-400 hover:bg-slate-100"
-                >
-                  No
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setUnenrollConfirming(true)}
-                className="ml-auto flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            {/* Enrolled learners open the pathway itself, so Preview would only duplicate Go to Pathway. */}
+            {enrollmentStatus !== "APPROVED" && (
+              <a
+                href={`/pathways/${pathway.id}/preview`}
+                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
               >
-                <LogOut size={12} />
-                Unenroll
-              </button>
-            )
-          )}
+                <Eye size={12} />
+                Preview
+              </a>
+            )}
+
+            {isEnrolled && (
+              unenrollConfirming ? (
+                <div className="flex items-center gap-1.5 text-sm">
+                  <span className="text-slate-500">Unenroll?</span>
+                  <button
+                    disabled={unenrollPending}
+                    onClick={handleUnenroll}
+                    className="rounded-lg px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {unenrollPending ? "…" : "Yes"}
+                  </button>
+                  <button
+                    onClick={() => setUnenrollConfirming(false)}
+                    className="rounded-lg px-2.5 py-1 text-xs text-slate-400 hover:bg-slate-100"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setUnenrollConfirming(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                >
+                  <LogOut size={12} />
+                  Unenroll
+                </button>
+              )
+            )}
+          </div>
         </div>
       </div>
 
