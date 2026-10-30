@@ -13,7 +13,9 @@ function getTransporter() {
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
-      secure: true,
+      // 465 = TLS from the start; 587 (e.g. Office 365) = STARTTLS upgrade.
+      secure: Number(process.env.SMTP_PORT) === 465,
+      requireTLS: Number(process.env.SMTP_PORT) !== 465,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
       // Nodemailer's defaults wait up to 2 minutes on an unreachable server.
       connectionTimeout: 15_000,
@@ -39,7 +41,8 @@ async function deliver(to: string, subject: string, html: string) {
   if (process.env.SMTP_HOST) {
     try {
       await getTransporter().sendMail({
-        from: `Ascend LMS <${process.env.SMTP_USER}>`,
+        // SMTP_FROM lets the login account send as another address (needs Send As rights).
+        from: `Ascend LMS <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
         to,
         subject,
         html,

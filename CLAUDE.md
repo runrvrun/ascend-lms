@@ -66,7 +66,7 @@ Almost all writes go through colocated `actions.ts` files (`"use server"`) next 
 - `app/admin/topic/`, `app/sme/`, `app/trainer/`, `app/growth-plan/` are newer areas not yet described in README.md — check these directly rather than trusting the README's project structure section for full coverage (it predates SME/Trainer/Topic/GrowthPlan/Assignment features visible in `prisma/schema.prisma`).
 
 ### Email
-`app/lib/email.ts` sends over SMTP (nodemailer) when `SMTP_HOST` is set (production; also needs `SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`). Otherwise it uses the Mailtrap sandbox API (`MAILTRAP_TOKEN`/`MAILTRAP_INBOX_ID`) for local dev, and if neither is configured it just logs and skips. Send failures are logged, not thrown. Don't add another code path — extend the existing `send()` helper.
+`app/lib/email.ts` sends over SMTP (nodemailer) when `SMTP_HOST` is set (production; also needs `SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`, plus optional `SMTP_FROM` to send as another address; port 465 uses TLS directly, any other port STARTTLS). Otherwise it uses the Mailtrap sandbox API (`MAILTRAP_TOKEN`/`MAILTRAP_INBOX_ID`) for local dev, and if neither is configured it just logs and skips. Send failures are logged, not thrown. Don't add another code path — extend the existing `send()` helper.
 
 ### Pathway deadlines
 `PathwayEnrollment.deadline` is a calendar date stored as UTC midnight, and every day boundary is a UTC day. All deadline rules live as pure functions in `app/lib/pathwayDeadline.ts`: reminder emails go out the day before and on the day, and `DEADLINE_GRACE_DAYS` (7) after the deadline the enrollment locks — content stays viewable, but nothing can be completed or submitted. Reuse those helpers for any deadline check; don't do your own date math.
