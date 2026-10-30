@@ -12,6 +12,8 @@ export const RELEASE_NOTES: ReleaseDay[] = [
   {
     date: "2026-10-30",
     changes: [
+      { kind: "new", text: "Admins have a new Email Log page (Admin → Email Log). It lists every email Ascend sends, shows whether it was sent, is waiting in the queue or failed, and lets you open any email to see what was sent. Failed emails can be resent one at a time or all at once." },
+      { kind: "improved", text: "Each day in the Release Notes now has a Copy button that copies that day's changes as plain text, ready to paste into a chat." },
       { kind: "new", text: "Analytics now has Users, Pathways and Courses tabs. See how many people are in each pathway and course, how far along they are (from not started to completed), who is overdue, test scores, ratings and assignments to grade. Click any pathway or course for more detail." },
       { kind: "new", text: "Managers see the same analytics for their team. Trainers and Subject Matter Experts get a new Analytics page for their own courses and topics." },
       { kind: "improved", text: "The analytics filters now include every division and job title." },

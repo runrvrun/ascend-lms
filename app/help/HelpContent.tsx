@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb, Megaphone, KeyRound, CalendarClock, Settings, History, Image as ImageIcon, Star, Route } from "lucide-react"
+import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb, Megaphone, KeyRound, CalendarClock, Settings, History, Image as ImageIcon, Star, Route, Copy, Check, Mail } from "lucide-react"
 import { RELEASE_NOTES, type ChangeKind } from "./releaseNotes"
 
 type Role = "learner" | "admin" | "owner" | "manager" | "trainer" | "sme"
@@ -265,6 +265,16 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Click a pathway or course to see more: a chart of people by completion, and how far people get through each course (for a pathway) or each lesson and test (for a course).",
         ],
       },
+      {
+        title: "Email Log",
+        icon: Mail,
+        steps: [
+          "Go to Admin → Email Log to see every email Ascend sends, newest first. Search by recipient or subject, or filter by status.",
+          "Emails go out at most 20 a minute and 9,000 a day, so a big assignment (for example a whole cohort) can take a while to finish sending. Those emails show as Queued until they go.",
+          "If an email can't be sent, Ascend tries again automatically up to 5 times over about 8 hours. After that it shows as Failed, with the reason underneath.",
+          "Click View to see exactly what was sent. Click Resend on a failed email, or Resend all failed at the top, to send them again.",
+        ],
+      },
     ],
   },
 
@@ -466,20 +476,63 @@ function formatReleaseDate(date: string) {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
 }
 
+// Plain text for pasting into a chat: the day as a heading, then the changes grouped by kind.
+function releaseDayText(day: (typeof RELEASE_NOTES)[number]) {
+  const groups = (Object.keys(KIND_STYLES) as ChangeKind[])
+    .map((kind) => ({ kind, changes: day.changes.filter((c) => c.kind === kind) }))
+    .filter((g) => g.changes.length > 0)
+    .map((g) => `${KIND_STYLES[g.kind].label}\n${g.changes.map((c) => `• ${c.text}`).join("\n")}`)
+  return [`Ascend LMS updates – ${formatReleaseDate(day.date)}`, ...groups].join("\n\n")
+}
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    // Clipboard API is unavailable on plain http and in some embedded browsers.
+    const textarea = document.createElement("textarea")
+    textarea.value = text
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand("copy")
+    textarea.remove()
+  }
+}
+
 function ReleaseDaySection({ day, defaultOpen }: { day: (typeof RELEASE_NOTES)[number]; defaultOpen: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    await copyText(releaseDayText(day))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-slate-50"
-      >
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="font-semibold text-slate-800">{formatReleaseDate(day.date)}</span>
-          <span className="text-xs text-slate-400">{day.changes.length} {day.changes.length === 1 ? "change" : "changes"}</span>
-        </div>
-        {open ? <ChevronDown size={16} className="shrink-0 text-slate-400" /> : <ChevronRight size={16} className="shrink-0 text-slate-400" />}
-      </button>
+      <div className="flex items-center hover:bg-slate-50">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 py-4 pl-5 pr-3 text-left"
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-semibold text-slate-800">{formatReleaseDate(day.date)}</span>
+            <span className="text-xs text-slate-400">{day.changes.length} {day.changes.length === 1 ? "change" : "changes"}</span>
+          </div>
+          {open ? <ChevronDown size={16} className="shrink-0 text-slate-400" /> : <ChevronRight size={16} className="shrink-0 text-slate-400" />}
+        </button>
+        <button
+          onClick={handleCopy}
+          title="Copy this day's changes as text to paste into a chat"
+          className={`mr-4 flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${
+            copied ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
       {open && (
         <ul className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4">
           {day.changes.map((change, i) => (
