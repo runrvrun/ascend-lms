@@ -25,7 +25,7 @@ export const RELEASE_NOTES: ReleaseDay[] = [
       { kind: "fixed", text: "Wide tables in the admin, manager, trainer and SME pages now scroll sideways instead of cutting off columns." },
       { kind: "improved", text: "The Previous Lesson and Next Lesson buttons now share the same plain style." },
       { kind: "improved", text: "The search box on the Pathways page is now at the top, above Recommended for You." },
-      { kind: "improved", text: "On the Pathways page, each card now has its buttons on one line at the bottom: Enroll or Go to Pathway on the left, and Share, Preview and Unenroll on the right. Pathways you're already enrolled in no longer show Preview, since Go to Pathway opens them." },
+      { kind: "improved", text: "On the Pathways page, each card now has its buttons on one line at the bottom: Enroll or Go to Pathway on the left, and Share with Preview or Unenroll on the right. Preview only shows on pathways you haven't joined or requested yet. While a request is awaiting approval, the button to withdraw it now says Cancel." },
       { kind: "fixed", text: "If a lesson, test or assignment you hadn't done yet is removed from a course, the course now counts as complete once you've finished everything else, so you can finish the pathway and leave feedback. Courses already stuck this way are fixed the next time you open the pathway." },
       { kind: "improved", text: "Pathways now hold only published courses. A draft course must be published before it can be added to a pathway." },
       { kind: "improved", text: "Setting a published course back to Draft now warns you that it will be removed from every pathway it's in, and lists those pathways. If you confirm, it's removed from them and set to Draft." },

@@ -229,7 +229,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
           </div>
         )}
 
-        {/* Main button on the left; Share, then Preview and/or Unenroll, on the right. */}
+        {/* Main button on the left; Share, then Preview, Unenroll or Cancel, on the right. */}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
           <ActionButton />
 
@@ -242,8 +242,8 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
               Share
             </button>
 
-            {/* Enrolled learners open the pathway itself, so Preview would only duplicate Go to Pathway. */}
-            {enrollmentStatus !== "APPROVED" && (
+            {/* Only for pathways the learner hasn't joined or requested yet. */}
+            {!isEnrolled && (
               <a
                 href={`/pathways/${pathway.id}/preview`}
                 className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -256,7 +256,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
             {isEnrolled && (
               unenrollConfirming ? (
                 <div className="flex items-center gap-1.5 text-sm">
-                  <span className="text-slate-500">Unenroll?</span>
+                  <span className="text-slate-500">{enrollmentStatus === "PENDING" ? "Cancel request?" : "Unenroll?"}</span>
                   <button
                     disabled={unenrollPending}
                     onClick={handleUnenroll}
@@ -276,8 +276,8 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
                   onClick={() => setUnenrollConfirming(true)}
                   className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                 >
-                  <LogOut size={12} />
-                  Unenroll
+                  {enrollmentStatus === "PENDING" ? <X size={12} /> : <LogOut size={12} />}
+                  {enrollmentStatus === "PENDING" ? "Cancel" : "Unenroll"}
                 </button>
               )
             )}
