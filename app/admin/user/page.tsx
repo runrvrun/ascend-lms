@@ -7,8 +7,8 @@ import { UserManagement } from "./UserManagement"
 
 export default async function AdminUserPage() {
   const [users, allManagers, cohorts, offices] = await Promise.all([
+    // Deactivated users are listed too, behind the Status filter.
     prisma.user.findMany({
-      where: { deletedAt: null },
       include: {
         managers: { select: { managerId: true, manager: { select: { id: true, name: true } } } },
         roles: { select: { role: true } },

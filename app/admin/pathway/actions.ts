@@ -214,6 +214,9 @@ export async function swapPathwayCourseOrder(
 
 export async function adminEnrollUsers(pathwayId: string, userIds: string[], deadlineInput: string | null = null) {
   await requirePathwayManager(pathwayId)
+  // Only active (not deactivated) users can be enrolled.
+  const activeUsers = await prisma.user.findMany({ where: { id: { in: userIds }, deletedAt: null }, select: { id: true } })
+  userIds = activeUsers.map((u) => u.id)
   if (userIds.length === 0) return
   const deadline = parseDeadlineInput(deadlineInput)
   await prisma.pathwayEnrollment.createMany({
@@ -290,7 +293,11 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
     prisma.cohort.findUnique({
       where: { id: cohortId },
-      select: { name: true, users: { select: { userId: true, user: { select: { name: true, email: true } } } } },
+      // Deactivated members stay in the cohort but aren't enrolled.
+      select: {
+        name: true,
+        users: { where: { user: { deletedAt: null } }, select: { userId: true, user: { select: { name: true, email: true } } } },
+      },
     }),
   ])
 

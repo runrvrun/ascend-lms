@@ -107,6 +107,13 @@ export async function deleteUser(id: string) {
   revalidatePath("/admin/user")
 }
 
+// Restores a deactivated user along with their history (same as re-adding their email).
+export async function reactivateUser(id: string) {
+  await requireAdmin()
+  await prisma.user.update({ where: { id }, data: { deletedAt: null } })
+  revalidatePath("/admin/user")
+}
+
 export type BulkImportResult = {
   created: number
   updated: number
@@ -255,6 +262,9 @@ export async function adminSetPassword(userId: string, newPassword: string) {
 
 export async function setUserCohorts(userId: string, cohortIds: string[]) {
   await requireAdmin()
+  if (cohortIds.length > 0 && !(await prisma.user.findFirst({ where: { id: userId, deletedAt: null }, select: { id: true } }))) {
+    throw new Error("Only active users can be added to a cohort.")
+  }
   await prisma.cohortUser.deleteMany({ where: { userId } })
   if (cohortIds.length > 0) {
     await prisma.cohortUser.createMany({

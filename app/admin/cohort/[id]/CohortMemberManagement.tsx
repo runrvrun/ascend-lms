@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react"
 import { Plus, Trash2, X, UserCircle2, Search, CheckSquare, Square, Upload, Download, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Division, JobTitle } from "@prisma/client"
 import { addUsersToCohort, removeUserFromCohort, bulkAddMembersToCohort, type BulkAddMembersResult } from "../actions"
 
 type UserOption = {
@@ -34,19 +35,26 @@ function AddMembersModal({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState("")
+  const [divisionFilter, setDivisionFilter] = useState("")
+  const [titleFilter, setTitleFilter] = useState("")
+  const [officeFilter, setOfficeFilter] = useState("") // office name, or "none"
   const [pending, startTransition] = useTransition()
+
+  const offices = useMemo(
+    () => [...new Set(availableUsers.flatMap((u) => (u.office ? [u.office] : [])))].sort(),
+    [availableUsers]
+  )
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    if (!q) return availableUsers
-    return availableUsers.filter(
-      (u) =>
-        u.name?.toLowerCase().includes(q) ||
-        u.email?.toLowerCase().includes(q) ||
-        u.office?.toLowerCase().includes(q) ||
-        u.division.toLowerCase().includes(q)
-    )
-  }, [availableUsers, search])
+    return availableUsers.filter((u) => {
+      if (q && !u.name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q)) return false
+      if (divisionFilter && u.division !== divisionFilter) return false
+      if (titleFilter && u.title !== titleFilter) return false
+      if (officeFilter && (officeFilter === "none" ? u.office : u.office !== officeFilter)) return false
+      return true
+    })
+  }, [availableUsers, search, divisionFilter, titleFilter, officeFilter])
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -120,10 +128,37 @@ function AddMembersModal({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, email, office, division…"
+              placeholder="Search by name or email…"
               className="w-full rounded-lg border border-slate-200 py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <select
+              value={divisionFilter}
+              onChange={(e) => setDivisionFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Divisions</option>
+              {Object.values(Division).map((d) => <option key={d} value={d}>{d === Division.NA ? "N/A" : d}</option>)}
+            </select>
+            <select
+              value={titleFilter}
+              onChange={(e) => setTitleFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Job Titles</option>
+              {Object.values(JobTitle).map((t) => <option key={t} value={t}>{formatEnum(t)}</option>)}
+            </select>
+            <select
+              value={officeFilter}
+              onChange={(e) => setOfficeFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Offices</option>
+              {offices.map((o) => <option key={o} value={o}>{o}</option>)}
+              <option value="none">No office</option>
+            </select>
           </div>
         </div>
 
@@ -143,7 +178,7 @@ function AddMembersModal({
         {/* User list */}
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
           {filtered.length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-slate-400">No users match your search.</p>
+            <p className="px-6 py-10 text-center text-sm text-slate-400">No users match your filters.</p>
           ) : (
             filtered.map((u) => {
               const isSelected = selected.has(u.id)

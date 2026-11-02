@@ -19,6 +19,7 @@ export async function GET() {
       division: true,
       title: true,
       office: { select: { name: true } },
+      deletedAt: true,
       managers: {
         take: 1,
         select: { manager: { select: { email: true } } },
@@ -33,7 +34,7 @@ export async function GET() {
   const wb = xlsx.utils.book_new()
 
   const rows: (string | null)[][] = [
-    ["Name", "Email", "Division", "Title", "Office", "Manager Email", "Cohort Name"],
+    ["Name", "Email", "Division", "Title", "Office", "Manager Email", "Cohort Name", "Status"],
     ...users.map((u) => [
       u.name ?? "",
       u.email ?? "",
@@ -42,6 +43,7 @@ export async function GET() {
       u.office?.name ?? "",
       u.managers[0]?.manager.email ?? "",
       u.cohorts[0]?.cohort.name ?? "",
+      u.deletedAt ? "Inactive" : "Active",
     ]),
   ]
 
@@ -54,6 +56,7 @@ export async function GET() {
     { wch: 24 },
     { wch: 32 },
     { wch: 28 },
+    { wch: 10 },
   ]
   xlsx.utils.book_append_sheet(wb, ws, "Users")
 

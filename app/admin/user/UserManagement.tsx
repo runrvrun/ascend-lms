@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { Division, JobTitle, Role } from "@prisma/client"
 import type { AppRole } from "../../lib/userRoles"
-import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, Mail, KeyRound, BarChart2 } from "lucide-react"
+import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, Mail, KeyRound, BarChart2, RotateCcw } from "lucide-react"
 import { SearchableSelect } from "../../components/SearchableSelect"
 import { ActionsMenu } from "../../components/ActionsMenu"
-import { createUser, updateUser, deleteUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, addUserManager, removeUserManager, UserFormData, BulkImportResult } from "./actions"
+import { createUser, updateUser, deleteUser, reactivateUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, addUserManager, removeUserManager, UserFormData, BulkImportResult } from "./actions"
 
 type ManagerOption = { id: string; name: string | null }
 type CohortOption = { id: string; name: string }
@@ -25,11 +25,16 @@ type UserRow = {
   // Stored ADMIN plus roles derived from assignments (see app/lib/userRoles.ts)
   derivedRoles: AppRole[]
   cohorts: { cohortId: string }[]
+  deletedAt: Date | null
 }
 
 const DIVISIONS = Object.values(Division)
 const TITLES = Object.values(JobTitle)
 const ALL_ROLES: AppRole[] = ["ADMIN", "MANAGER", "TRAINER", "SME", "PATHWAY_OWNER"]
+
+function emailDomain(email: string | null) {
+  return email ? email.slice(email.lastIndexOf("@") + 1).toLowerCase() : ""
+}
 
 function formatEnum(val: string) {
   if (val === "NA") return "N/A"
@@ -697,6 +702,18 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
   const [titleFilter, setTitleFilter] = useState<JobTitle | "">("")
   const [roleFilter, setRoleFilter] = useState<AppRole | "">("")
   const [officeFilter, setOfficeFilter] = useState("") // office id, or "none"
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "">("active")
+  const [domainFilter, setDomainFilter] = useState("")
+  // Every email domain in use, most common first.
+  const domains = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const u of users) {
+      const d = emailDomain(u.email)
+      if (d) counts.set(d, (counts.get(d) ?? 0) + 1)
+    }
+    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([d]) => d)
+  }, [users])
+  const [, startReactivate] = useTransition()
 
   const filtered = users.filter((u) => {
     if (search && !u.name?.toLowerCase().includes(search.toLowerCase())) return false
@@ -704,6 +721,8 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
     if (titleFilter && u.title !== titleFilter) return false
     if (roleFilter && !u.derivedRoles.includes(roleFilter)) return false
     if (officeFilter && (officeFilter === "none" ? u.officeId : u.officeId !== officeFilter)) return false
+    if (statusFilter && (statusFilter === "active") !== !u.deletedAt) return false
+    if (domainFilter && emailDomain(u.email) !== domainFilter) return false
     return true
   })
 
@@ -783,6 +802,23 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
           <option value="">All Roles</option>
           {ALL_ROLES.map((r) => <option key={r} value={r}>{formatEnum(r)}</option>)}
         </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "active" | "inactive" | "")}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <select
+          value={domainFilter}
+          onChange={(e) => setDomainFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Email Domains</option>
+          {domains.map((d) => <option key={d} value={d}>@{d}</option>)}
+        </select>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -794,6 +830,7 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
               <th className="px-5 py-3">Division</th>
               <th className="px-5 py-3">Title</th>
               <th className="px-5 py-3">Office</th>
+              <th className="px-5 py-3">Status</th>
               <th className="px-5 py-3">Manager(s)</th>
               <th className="sticky right-0 bg-slate-50 px-5 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)]" />
             </tr>
@@ -801,7 +838,7 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
                   {users.length === 0 ? "No users yet. Add one above." : "No users match your filters."}
                 </td>
               </tr>
@@ -818,11 +855,21 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
                 <td className="px-5 py-3 text-slate-600">{u.division}</td>
                 <td className="px-5 py-3 text-slate-600">{formatEnum(u.title)}</td>
                 <td className="px-5 py-3 text-slate-500">{u.office?.name ?? "—"}</td>
+                <td className="px-5 py-3">
+                  {u.deletedAt ? (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Inactive</span>
+                  ) : (
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
+                  )}
+                </td>
                 <td className="px-5 py-3 text-slate-600">
                   {u.managers.length === 0 ? <span className="text-slate-300 italic">—</span> : u.managers.map((m) => m.manager.name ?? "—").join(", ")}
                 </td>
                 <td className="sticky right-0 bg-white px-4 py-3 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.06)] group-hover:bg-slate-50">
-                  <ActionsMenu items={[
+                  <ActionsMenu items={u.deletedAt ? [
+                    { label: "Progress", icon: <BarChart2 size={14} />, onClick: () => { window.location.href = `/admin/user/${u.id}/progress` } },
+                    { label: "Reactivate", icon: <RotateCcw size={14} />, onClick: () => startReactivate(() => reactivateUser(u.id)) },
+                  ] : [
                     { label: "Assign Cohorts", icon: <Users size={14} />, onClick: () => setAssigningCohorts(u) },
                     { label: "Assign Managers", icon: <Users size={14} />, onClick: () => setAssigningManagers(u) },
                     { label: "Assign Roles", icon: <ShieldCheck size={14} />, onClick: () => setAssigningRoles(u) },

@@ -27,12 +27,31 @@ const STALE_SENDING_MS = 10 * 60_000
 // Arbitrary key for the Postgres advisory lock that lets only one processOutbox claim at a time.
 const OUTBOX_LOCK_KEY = 74_201_377
 
+const DEACTIVATED_RECIPIENT_ERROR = "Not sent: the recipient is a deactivated user"
+
+// Lowercased addresses, out of those given, that belong to a deactivated (soft-deleted) user.
+// Deactivated users never get email, whichever feature sends it.
+async function deactivatedRecipients(db: PrismaClient, addresses: string[]): Promise<Set<string>> {
+  if (!addresses.length) return new Set()
+  const users = await db.user.findMany({
+    where: { deletedAt: { not: null }, email: { in: [...new Set(addresses)], mode: "insensitive" } },
+    select: { email: true },
+  })
+  return new Set(users.map((u) => u.email!.toLowerCase()))
+}
+
 // Queue emails. `bulk` mail (mass assignments, reminders) waits behind one-off mail such as
-// account activation, so a big send never holds those up.
+// account activation, so a big send never holds those up. Mail to deactivated users is dropped.
 export async function enqueueEmails(db: PrismaClient, messages: EmailMessage[], opts: { bulk?: boolean } = {}) {
   if (!messages.length) return
+  const blocked = await deactivatedRecipients(db, messages.map((m) => m.to))
+  const allowed = messages.filter((m) => !blocked.has(m.to.toLowerCase()))
+  if (allowed.length < messages.length) {
+    console.log(`[email] Skipped ${messages.length - allowed.length} email(s) to deactivated users`)
+  }
+  if (!allowed.length) return
   await db.emailOutbox.createMany({
-    data: messages.map((m) => ({ to: m.to, subject: m.subject, html: m.html, bulk: opts.bulk ?? false })),
+    data: allowed.map((m) => ({ to: m.to, subject: m.subject, html: m.html, bulk: opts.bulk ?? false })),
   })
 }
 
@@ -47,9 +66,20 @@ export async function processOutbox(db: PrismaClient): Promise<{ sent: number; f
   }
 
   const batch = await claimBatch(db)
+  // Recheck at send time: the user may have been deactivated after the email was queued
+  // (or it was resent from the Email Log).
+  const blocked = await deactivatedRecipients(db, batch.map((e) => e.to))
   let sent = 0
   let failed = 0
   for (const email of batch) {
+    if (blocked.has(email.to.toLowerCase())) {
+      await db.emailOutbox.update({
+        where: { id: email.id },
+        data: { status: "FAILED", lastError: DEACTIVATED_RECIPIENT_ERROR },
+      })
+      failed++
+      continue
+    }
     try {
       await deliver(email)
       await db.emailOutbox.update({

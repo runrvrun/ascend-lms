@@ -172,7 +172,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Managing Users",
         icon: UserCog,
         steps: [
-          "Go to Admin → Users. Use the filters to narrow by division, title, office or role.",
+          "Go to Admin → Users. Use the filters to narrow by division, title, office, role, status or email domain. The list shows active users unless you change the Status filter.",
           "New colleagues with a company Microsoft account are added automatically, and people who leave are deactivated automatically.",
           "Click Add User to create a user by hand (name, email, division, title, office).",
           "To add many users at once, click Import, download the template, fill it in and upload it. Click Export to download all users in the same format.",
@@ -185,7 +185,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
               "Assign Managers — link the user to one or more managers.",
               "Assign Cohorts — add the user to cohorts.",
               "Send Activation Email / Change Password — for people who sign in with email and password.",
-              "Delete — deactivates the user. Their history is kept, and adding the same email again restores them.",
+              "Delete — deactivates the user. Their history is kept. To restore them, set the Status filter to Inactive and choose Reactivate from their menu (or add the same email again).",
             ],
           },
         ],
@@ -195,8 +195,8 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: UsersRound,
         steps: [
           "Go to Admin → Cohorts and click Add Cohort to create a group.",
-          "Members — add or remove people, upload members in bulk from Excel, or download the member list.",
-          "Pathways — assign pathways to the whole cohort, optionally with a deadline. Everyone in the cohort is enrolled and notified by email.",
+          "Members — add or remove people, upload members in bulk from Excel, or download the member list. When adding, search by name or email and filter by division, job title or office, then use Select all visible to add everyone shown.",
+          "Pathways — assign pathways to the whole cohort, optionally with a deadline. Every active member of the cohort is enrolled and notified by email; deactivated members are skipped.",
           "People added to the cohort later are enrolled in its pathways automatically (with the same deadline); people removed lose those cohort enrollments.",
           "View Progress — see how the cohort is doing.",
         ],

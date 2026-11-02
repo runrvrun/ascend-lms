@@ -35,6 +35,12 @@ export async function deleteCohort(id: string) {
 
 // ── Cohort Users ──────────────────────────────────────────────────────────────
 
+// Only active (not deactivated) users can be added to a cohort or enrolled through one.
+async function activeUserIds(userIds: string[]) {
+  const users = await prisma.user.findMany({ where: { id: { in: userIds }, deletedAt: null }, select: { id: true } })
+  return users.map((u) => u.id)
+}
+
 async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) {
   if (userIds.length === 0) return
 
@@ -88,13 +94,15 @@ async function enrollUsersInCohortPathways(cohortId: string, userIds: string[]) 
 
 export async function addUserToCohort(cohortId: string, userId: string) {
   await requireAdmin()
+  if ((await activeUserIds([userId])).length === 0) return
   await prisma.cohortUser.create({ data: { cohortId, userId } })
   await enrollUsersInCohortPathways(cohortId, [userId])
   revalidatePath(`/admin/cohort/${cohortId}`)
 }
 
-export async function addUsersToCohort(cohortId: string, userIds: string[]) {
+export async function addUsersToCohort(cohortId: string, requestedUserIds: string[]) {
   await requireAdmin()
+  const userIds = await activeUserIds(requestedUserIds)
   if (userIds.length === 0) return
   await prisma.cohortUser.createMany({
     data: userIds.map((userId) => ({ cohortId, userId })),
@@ -152,9 +160,9 @@ export async function bulkAddMembersToCohort(
   })
   const memberUserIds = new Set(existingMembers.map((m) => m.userId))
 
-  const allUsers = await prisma.user.findMany({ select: { id: true, email: true } })
-  const emailToId = new Map(
-    allUsers.filter((u) => u.email).map((u) => [u.email!.toLowerCase(), u.id])
+  const allUsers = await prisma.user.findMany({ select: { id: true, email: true, deletedAt: true } })
+  const emailToUser = new Map(
+    allUsers.filter((u) => u.email).map((u) => [u.email!.toLowerCase(), u])
   )
 
   const toAdd: string[] = []
@@ -172,11 +180,16 @@ export async function bulkAddMembersToCohort(
       continue
     }
 
-    const userId = emailToId.get(email)
-    if (!userId) {
+    const user = emailToUser.get(email)
+    if (!user) {
       notFound.push(email)
       continue
     }
+    if (user.deletedAt) {
+      errors.push({ row: rowNum, message: `${email} is an inactive user` })
+      continue
+    }
+    const userId = user.id
 
     if (memberUserIds.has(userId)) {
       alreadyMember.push(email)
@@ -208,7 +221,10 @@ export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
   const [cohort, pathway] = await Promise.all([
     prisma.cohort.findUnique({
       where: { id: cohortId },
-      select: { name: true, users: { select: { userId: true, user: { select: { name: true, email: true } } } } },
+      select: {
+        name: true,
+        users: { where: { user: { deletedAt: null } }, select: { userId: true, user: { select: { name: true, email: true } } } },
+      },
     }),
     prisma.pathway.findUnique({ where: { id: pathwayId }, select: { name: true } }),
   ])

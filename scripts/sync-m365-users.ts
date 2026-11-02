@@ -1,21 +1,22 @@
-// Syncs Ascend `User` rows with the M365 (Entra ID) tenant directory:
-//  - creates users for enabled members holding a qualifying M365 license who aren't
-//    in Ascend yet, so staff can sign in via Azure AD without an admin registering
-//    them first;
-//  - deactivates (soft-deletes via `deletedAt`) personal @ycp.com accounts that no
-//    longer hold a qualifying license (how resignees are offboarded — their M365
-//    account may be kept and sign-in may or may not be blocked) or that were
+// Syncs Ascend `User` rows with the M365 (Entra ID) tenant directory. A user is active
+// exactly when their directory account holds one of QUALIFYING_SKUS — the licenses
+// that let them sign in with our SSO — whatever their email domain, and even if their
+// sign-in is blocked (leavers stay active until their license is removed). So the sync:
+//  - creates users for members holding a qualifying license who aren't in Ascend yet,
+//    so staff can sign in via Azure AD without an admin registering them first;
+//  - deactivates (soft-deletes via `deletedAt`) Ascend users whose directory account
+//    no longer holds a qualifying license (how resignees are offboarded), or was
 //    recently deleted from the directory. Their progress, points and enrollments are
 //    kept, so they still count in reports and analytics.
 //
-// Never touched: external/guest users, non-@ycp.com emails, and @ycp.com emails
-// that aren't a directory user at all (dummy users on distribution-list addresses,
-// or accounts deleted long ago) — those are listed for an admin to handle manually.
+// Never touched: Ascend users whose email isn't a directory member at all (external
+// users, guests, dummy users on distribution-list addresses, or accounts deleted long
+// ago) — those are listed for an admin to handle manually.
 // Existing users only get their job title updated when M365 names a different
 // recognised one (a blank or unrecognised M365 title leaves it alone); their other
-// details are never updated, and deactivated users are never
-// reactivated here — an admin re-adds them from Admin → Users (which restores the
-// account with its history).
+// details are never updated, and deactivated users are never reactivated here — an
+// admin reactivates them from Admin → Users (which restores the account with its
+// history). Deactivated users who hold a qualifying license again are listed.
 //
 // If more than MAX_DEACTIVATIONS_RATIO of active users would be deactivated in one
 // run, the deactivation step is skipped (pass --force to override) — that usually
@@ -37,19 +38,17 @@ const prisma = new PrismaClient({
 const DRY_RUN = process.argv.includes("--dry-run")
 const FORCE = process.argv.includes("--force")
 const MAX_DEACTIVATIONS_RATIO = 0.1
-const PERSONAL_DOMAIN = "ycp.com"
 
-// Licenses that count as "has an M365 seat". Free/add-on SKUs (Power Automate Free,
-// Power BI, Copilot, Visio, …) don't. SKU IDs are the same in every tenant; see
+// Licenses that let a user sign in with our SSO, i.e. that make them an active Ascend
+// user. Free/add-on SKUs (Power Automate Free, Fabric Free, Power BI, Copilot, Visio, …)
+// don't. SKU IDs are the same in every tenant; see
 // https://learn.microsoft.com/entra/identity/users/licensing-service-plan-reference
 const QUALIFYING_SKUS = new Set([
-  "c7df2760-2c81-4ef7-b578-5b5392b571df", // ENTERPRISEPREMIUM — Office 365 E5
-  "06ebc4ee-1bb5-47dd-8120-11324bc54e06", // SPE_E5 — Microsoft 365 E5
-  "6fd2c87f-b296-42f0-b197-1e91e994b900", // ENTERPRISEPACK — Office 365 E3
-  "05e9a617-0261-4cee-bb44-138d3ef5d965", // SPE_E3 — Microsoft 365 E3
-  "cbdc14ab-d96c-4c30-b9f4-6ada7cdc1d46", // SPB — Microsoft 365 Business Premium
+  "6fd2c87f-b296-42f0-b197-1e91e994b900", // ENTERPRISEPACK — Office 365 E3 (shown as "Non-Profit Pricing" in our tenant)
   "f245ecc8-75af-4f8e-b61f-27d8114de5f3", // O365_BUSINESS_PREMIUM — Microsoft 365 Business Standard
   "3b555118-da6a-4418-894f-7df1e2096870", // O365_BUSINESS_ESSENTIALS — Microsoft 365 Business Basic
+  "cbdc14ab-d96c-4c30-b9f4-6ada7cdc1d46", // SPB — Microsoft 365 Business Premium
+  "b05e124f-c7cc-45a0-a6aa-8cf78c946968", // EMSPREMIUM — Enterprise Mobility + Security E5
 ])
 
 type GraphUser = {
@@ -139,10 +138,6 @@ function graphUserEmails(u: GraphUser): string[] {
   return [u.mail, u.userPrincipalName, ...aliases].filter((e): e is string => !!e).map((e) => e.toLowerCase())
 }
 
-function emailDomain(email: string) {
-  return email.slice(email.lastIndexOf("@") + 1).toLowerCase()
-}
-
 function hasQualifyingLicense(u: GraphUser) {
   return (u.assignedLicenses ?? []).some((l) => QUALIFYING_SKUS.has(l.skuId))
 }
@@ -193,11 +188,11 @@ async function main() {
 
   const members = users.filter((u) => u.userType === "Member")
   const memberByEmail = new Map(members.flatMap((u) => graphUserEmails(u).map((e) => [e, u] as const)))
-  const toCreate = members.filter((u) => u.accountEnabled !== false && hasQualifyingLicense(u))
+  // Sign-in blocked doesn't matter: a licensed member is active.
+  const toCreate = members.filter(hasQualifyingLicense)
 
   // Null = leave this Ascend user alone.
   function deactivationReason(email: string): string | null {
-    if (emailDomain(email) !== PERSONAL_DOMAIN) return null
     const member = memberByEmail.get(email)
     if (member) return hasQualifyingLicense(member) ? null : "no M365 license"
     if (deletedEmails.has(email)) return "deleted from directory"
@@ -207,6 +202,7 @@ async function main() {
   let created = 0
   let skippedExisting = 0
   let titlesUpdated = 0
+  const licensedButDeactivated: string[] = []
   let skippedFiltered = 0
 
   for (const graphUser of toCreate) {
@@ -223,6 +219,7 @@ async function main() {
     })
     if (existing) {
       skippedExisting++
+      if (existing.deletedAt) licensedButDeactivated.push(email)
       const title = graphUser.jobTitle?.trim() ? mapJobTitle(graphUser.jobTitle) : undefined
       if (!existing.deletedAt && title && title !== existing.title) {
         console.log(`${DRY_RUN ? "[dry-run] would update" : "Updating"} title of ${email}: ${existing.title} → ${title} (M365: "${graphUser.jobTitle}")`)
@@ -265,11 +262,11 @@ async function main() {
   const toDeactivate = ascendActive
     .map((u) => ({ ...u, reason: deactivationReason(u.email!.toLowerCase()) }))
     .filter((u): u is typeof u & { reason: string } => u.reason !== null)
-  // @ycp.com users with no directory account: distribution-list dummies or accounts
-  // deleted long ago. Can't tell which, so an admin reviews them.
+  // Users with no directory account: external users, guests, distribution-list dummies
+  // or accounts deleted long ago. Can't tell which, so an admin reviews them.
   const unmatched = ascendActive.filter((u) => {
     const email = u.email!.toLowerCase()
-    return emailDomain(email) === PERSONAL_DOMAIN && !memberByEmail.has(email) && !deletedEmails.has(email)
+    return !memberByEmail.has(email) && !deletedEmails.has(email)
   })
 
   let deactivated = 0
@@ -298,15 +295,20 @@ async function main() {
     }
   }
 
+  if (licensedButDeactivated.length > 0) {
+    console.log(`${licensedButDeactivated.length} deactivated users hold a qualifying license (reactivate from Admin → Users if they should be back):`)
+    for (const email of licensedButDeactivated) console.log(`  ${email}`)
+  }
+
   if (unmatched.length > 0) {
-    console.log(`${unmatched.length} active @${PERSONAL_DOMAIN} users have no directory account (left for manual review):`)
+    console.log(`${unmatched.length} active users have no directory account (left for manual review):`)
     for (const u of unmatched) console.log(`  ${u.email} (${u.name ?? "no name"})`)
   }
 
   console.log(
     `M365 sync ${DRY_RUN ? "dry run " : ""}complete: ${users.length} seen, ${toCreate.length} licensed members, ` +
       `${created} created, ${skippedExisting} already existed (${titlesUpdated} title updates), ${skippedFiltered} filtered out, ${deactivated} deactivated, ` +
-      `${unmatched.length} unmatched.`
+      `${unmatched.length} unmatched, ${licensedButDeactivated.length} licensed but deactivated.`
   )
 }
 
