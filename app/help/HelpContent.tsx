@@ -195,7 +195,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: UsersRound,
         steps: [
           "Go to Admin → Cohorts and click Add Cohort to create a group.",
-          "Members — add or remove people, upload members in bulk from Excel, or download the member list. When adding, search by name or email and filter by division, job title or office, then use Select all visible to add everyone shown.",
+          "Members — add or remove people, upload members in bulk from Excel, or download the member list. Search the member list by name or email, and filter it by division, job title, office or status (active or inactive). When adding, search by name or email and filter by division, job title or office, then use Select all visible to add everyone shown.",
           "Pathways — assign pathways to the whole cohort, optionally with a deadline. Every active member of the cohort is enrolled and notified by email; deactivated members are skipped.",
           "People added to the cohort later are enrolled in its pathways automatically (with the same deadline); people removed lose those cohort enrollments.",
           "View Progress — see how the cohort is doing.",

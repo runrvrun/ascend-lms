@@ -16,7 +16,7 @@ type UserOption = {
 
 type MemberRow = {
   id: string
-  user: UserOption
+  user: UserOption & { active: boolean }
 }
 
 function formatEnum(val: string) {
@@ -433,8 +433,31 @@ export function CohortMemberManagement({
   const [bulkUploading, setBulkUploading] = useState(false)
   const [removing, setRemoving] = useState<MemberRow | null>(null)
 
+  const [search, setSearch] = useState("")
+  const [divisionFilter, setDivisionFilter] = useState("")
+  const [titleFilter, setTitleFilter] = useState("")
+  const [officeFilter, setOfficeFilter] = useState("") // office name, or "none"
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "">("")
+
   const memberUserIds = new Set(members.map((m) => m.user.id))
   const availableUsers = allUsers.filter((u) => !memberUserIds.has(u.id))
+
+  const memberOffices = useMemo(
+    () => [...new Set(members.flatMap((m) => (m.user.office ? [m.user.office] : [])))].sort(),
+    [members]
+  )
+
+  const filteredMembers = useMemo(() => {
+    const q = search.toLowerCase()
+    return members.filter(({ user: u }) => {
+      if (q && !u.name?.toLowerCase().includes(q) && !u.email?.toLowerCase().includes(q)) return false
+      if (divisionFilter && u.division !== divisionFilter) return false
+      if (titleFilter && u.title !== titleFilter) return false
+      if (officeFilter && (officeFilter === "none" ? u.office : u.office !== officeFilter)) return false
+      if (statusFilter && (statusFilter === "active") !== u.active) return false
+      return true
+    })
+  }, [members, search, divisionFilter, titleFilter, officeFilter, statusFilter])
 
   return (
     <>
@@ -473,6 +496,53 @@ export function CohortMemberManagement({
           No members yet. Add the first ones above.
         </div>
       ) : (
+        <>
+        <div className="mb-3 flex flex-wrap gap-2">
+          <div className="relative min-w-48 flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or email…"
+              className="w-full rounded-lg border border-slate-200 py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <select
+            value={divisionFilter}
+            onChange={(e) => setDivisionFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Divisions</option>
+            {Object.values(Division).map((d) => <option key={d} value={d}>{d === Division.NA ? "N/A" : d}</option>)}
+          </select>
+          <select
+            value={titleFilter}
+            onChange={(e) => setTitleFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Job Titles</option>
+            {Object.values(JobTitle).map((t) => <option key={t} value={t}>{formatEnum(t)}</option>)}
+          </select>
+          <select
+            value={officeFilter}
+            onChange={(e) => setOfficeFilter(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Offices</option>
+            {memberOffices.map((o) => <option key={o} value={o}>{o}</option>)}
+            <option value="none">No office</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "active" | "inactive" | "")}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <p className="mb-2 text-xs text-slate-500">{filteredMembers.length} of {members.length} members</p>
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -481,11 +551,17 @@ export function CohortMemberManagement({
                 <th className="px-5 py-3">Division</th>
                 <th className="px-5 py-3">Title</th>
                 <th className="px-5 py-3">Office</th>
+                <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {members.map((m) => (
+              {filteredMembers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-slate-400">No members match your filters.</td>
+                </tr>
+              )}
+              {filteredMembers.map((m) => (
                 <tr key={m.id} className="hover:bg-slate-50">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -499,6 +575,13 @@ export function CohortMemberManagement({
                   <td className="px-5 py-3 text-slate-600">{m.user.division}</td>
                   <td className="px-5 py-3 text-slate-600">{formatEnum(m.user.title)}</td>
                   <td className="px-5 py-3 text-slate-500">{m.user.office ?? "—"}</td>
+                  <td className="px-5 py-3">
+                    {m.user.active ? (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Inactive</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <div className="flex justify-end">
                       <button
@@ -514,6 +597,7 @@ export function CohortMemberManagement({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {bulkUploading && (

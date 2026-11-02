@@ -26,6 +26,7 @@ export default async function CohortDetailPage({ params }: { params: Promise<{ i
                 id: true, name: true, email: true,
                 division: true, title: true,
                 office: officeSelect,
+                deletedAt: true,
               },
             },
           },
@@ -49,8 +50,8 @@ export default async function CohortDetailPage({ params }: { params: Promise<{ i
   // Flatten office object → string for the component
   const allUsers = allUsersRaw.map((u) => ({ ...u, office: u.office?.name ?? null }))
   const members = cohort.users.map((m) => ({
-    ...m,
-    user: { ...m.user, office: m.user.office?.name ?? null },
+    id: m.id,
+    user: { ...m.user, office: m.user.office?.name ?? null, active: !m.user.deletedAt },
   }))
 
   return (

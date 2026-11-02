@@ -16,6 +16,7 @@ export const RELEASE_NOTES: ReleaseDay[] = [
       { kind: "improved", text: "Admin → Users now has a Status column and filters for status and email domain (such as @ycp.com). Deactivated users can be listed by choosing Inactive, and brought back with Reactivate. The user export also has a Status column." },
       { kind: "fixed", text: "Only active users can be enrolled in a pathway or added to a cohort. Deactivated users in an Excel upload are listed as errors, and assigning a pathway to a cohort no longer enrolls or emails its deactivated members." },
       { kind: "fixed", text: "Deactivated users no longer receive any emails from Ascend, including emails that were already waiting to be sent when they were deactivated." },
+      { kind: "improved", text: "A cohort's member list can now be searched by name or email and filtered by division, job title, office and status. It also shows whether each member is active or inactive." },
       { kind: "improved", text: "When adding members to a cohort, you can now filter the list by division, job title and office, as well as search by name or email." },
       { kind: "fixed", text: "Job titles now stay in step with Microsoft 365. When someone's title changes there (for example after a promotion), Ascend updates it automatically." },
       { kind: "fixed", text: "Excel downloads (cohort members, user list, templates and reports) no longer produce files that Excel can't open." },
