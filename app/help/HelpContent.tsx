@@ -213,7 +213,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
             heading: "From each pathway's Actions menu:",
             items: [
               "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them. Only published courses can be added.",
-              "Manage Enrollments — enroll people or cohorts (optionally with a deadline), change deadlines, schedule reminder emails, or remove enrollments.",
+              "Manage Enrollments — enroll people or cohorts (optionally with a deadline), change deadlines, schedule reminder emails, or remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
               "Preview — see the pathway as a learner would.",
               "Edit, Duplicate (the copy starts as a draft with no one enrolled), or Delete.",
             ],
@@ -287,7 +287,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Edit your pathway's name, description, tags and visibility, and switch it between Draft and Published.",
           "Manage Courses — add, reorder and remove courses, set points, and add section headings. Only published courses can be added.",
-          "Manage Enrollments — enroll people or cohorts, set or change deadlines, schedule reminder emails, and remove enrollments.",
+          "Manage Enrollments — enroll people or cohorts, set or change deadlines, schedule reminder emails, and remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
           "Preview the pathway as a learner would.",
           "Only admins can add a new pathway, change owners, feature, duplicate or delete a pathway, or edit the courses themselves.",
         ],

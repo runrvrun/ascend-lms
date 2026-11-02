@@ -10,8 +10,18 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-02",
+    changes: [
+      { kind: "new", text: "On a pathway's Enrollments page, admins and pathway owners can see how many enrolled people haven't started the pathway yet, and click Resend Email to send them the enrollment email again. Only active users who haven't finished a lesson or taken a test yet are emailed." },
+      { kind: "improved", text: "On the Pathways page, each card now has its buttons on one line at the bottom: Enroll or Go to Pathway on the left, and Share with Preview or Unenroll on the right. Preview only shows on pathways you haven't joined or requested yet. While a request is awaiting approval, the button to withdraw it now says Cancel." },
+    ],
+  },
+  {
     date: "2026-10-30",
     changes: [
+      { kind: "fixed", text: "Emails from Ascend (enrollment updates, reminders, shared pathways and so on) are being delivered again." },
+      { kind: "improved", text: "Ascend emails now come from a new sender address. If you filter or search your inbox for Ascend emails, update it to the new address." },
+      { kind: "improved", text: "Emails that fail to send are now retried automatically, and large batches go out gradually so they don't get blocked." },
       { kind: "new", text: "Admins have a new Email Log page (Admin → Email Log). It lists every email Ascend sends, shows whether it was sent, is waiting in the queue or failed, and lets you open any email to see what was sent. Failed emails can be resent one at a time or all at once." },
       { kind: "improved", text: "Each day in the Release Notes now has a Copy button that copies that day's changes as plain text, ready to paste into a chat." },
       { kind: "new", text: "Analytics now has Users, Pathways and Courses tabs. See how many people are in each pathway and course, how far along they are (from not started to completed), who is overdue, test scores, ratings and assignments to grade. Click any pathway or course for more detail." },

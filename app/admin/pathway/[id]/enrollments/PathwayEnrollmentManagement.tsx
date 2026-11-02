@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from "react"
 import {
   Plus, Trash2, X, UserCircle2, Search,
-  CheckSquare, Square, Users, UsersRound, Bell, Pencil, Check,
+  CheckSquare, Square, Users, UsersRound, Bell, Pencil, Check, Mail,
 } from "lucide-react"
 import {
   adminEnrollUsers,
@@ -12,6 +12,7 @@ import {
   adminRemoveCohortFromPathway,
   adminUpdateEnrollmentDeadline,
   adminUpdateCohortDeadline,
+  adminResendEnrollmentEmails,
 } from "../../actions"
 import { DEADLINE_GRACE_DAYS, isDeadlineLocked, isDeadlinePassed, toDeadlineInput } from "../../../../lib/pathwayDeadline"
 import { ReminderModal, ReminderItem } from "./ReminderModal"
@@ -441,6 +442,58 @@ function RemoveConfirm({
   )
 }
 
+// ── Resend Email Confirm ─────────────────────────────────────────────────────
+
+function ResendEmailConfirm({
+  pathwayId,
+  count,
+  onClose,
+}: {
+  pathwayId: string
+  count: number
+  onClose: () => void
+}) {
+  const [pending, startTransition] = useTransition()
+  const [sent, setSent] = useState<number | null>(null)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <h2 className="text-lg font-semibold text-slate-900">Resend Email</h2>
+        {sent === null ? (
+          <p className="mt-2 text-sm text-slate-500">
+            This will resend the enrollment email to all enrolled active users who have not started the pathway
+            yet ({count} user{count !== 1 ? "s" : ""}).
+          </p>
+        ) : (
+          <p className="mt-2 text-sm text-slate-500">
+            {sent} email{sent !== 1 ? "s" : ""} queued. You can follow their delivery in Admin → Email Log.
+          </p>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          {sent === null ? (
+            <>
+              <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button
+                disabled={pending}
+                onClick={() => startTransition(async () => { setSent((await adminResendEnrollmentEmails(pathwayId)).sent) })}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {pending ? "Sending…" : "Resend Email"}
+              </button>
+            </>
+          ) : (
+            <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              Close
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function PathwayEnrollmentManagement({
@@ -449,17 +502,20 @@ export function PathwayEnrollmentManagement({
   cohortAssignments,
   availableUsers,
   availableCohorts,
+  notStartedCount,
 }: {
   pathwayId: string
   individualEnrollments: IndividualEnrollment[]
   cohortAssignments: CohortAssignment[]
   availableUsers: UserOption[]
   availableCohorts: CohortOption[]
+  notStartedCount: number
 }) {
   const [addingUsers, setAddingUsers] = useState(false)
   const [assigningCohort, setAssigningCohort] = useState(false)
   const [removingEnrollment, setRemovingEnrollment] = useState<IndividualEnrollment | null>(null)
   const [removingCohort, setRemovingCohort] = useState<CohortAssignment | null>(null)
+  const [resendingEmail, setResendingEmail] = useState(false)
   const [remindingEnrollmentId, setRemindingEnrollmentId] = useState<string | null>(null)
   const [remindingCohortId, setRemindingCohortId] = useState<string | null>(null)
   // Derived (not just captured at click-time) so the modal reflects fresh
@@ -486,6 +542,22 @@ export function PathwayEnrollmentManagement({
           <p className="text-3xl font-bold text-blue-700">{total}</p>
           <p className="mt-1 text-xs text-blue-500">Total enrolled users</p>
         </div>
+      </div>
+
+      {/* Not started yet */}
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <p className="text-sm text-slate-600">
+          <span className="font-semibold text-slate-900">{notStartedCount}</span> enrolled active user{notStartedCount !== 1 ? "s have" : " has"} not
+          started this pathway yet.
+        </p>
+        <button
+          disabled={notStartedCount === 0}
+          onClick={() => setResendingEmail(true)}
+          className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          <Mail size={14} />
+          Resend Email
+        </button>
       </div>
 
       {/* Individual Enrollments */}
@@ -682,6 +754,9 @@ export function PathwayEnrollmentManagement({
           onCancel={() => setRemovingCohort(null)}
           onConfirm={() => adminRemoveCohortFromPathway(removingCohort.id, pathwayId)}
         />
+      )}
+      {resendingEmail && (
+        <ResendEmailConfirm pathwayId={pathwayId} count={notStartedCount} onClose={() => setResendingEmail(false)} />
       )}
       {remindingEnrollment && (
         <ReminderModal

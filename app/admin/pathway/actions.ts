@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "../../lib/prisma"
-import { pathwayAssignedEmail } from "../../lib/email"
+import { enrollmentApprovedEmail, pathwayAssignedEmail } from "../../lib/email"
+import { notStartedEnrollments } from "../../lib/notStartedEnrollments"
 import { sendEmails } from "../../lib/sendEmail"
 import { parseDeadlineInput } from "../../lib/pathwayDeadline"
 import { PathwayVisibility } from "@prisma/client"
@@ -251,6 +252,27 @@ export async function adminEnrollUsers(pathwayId: string, userIds: string[], dea
   }
 
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
+}
+
+// Resends the original enrollment email (assigned, or request approved) to everyone
+// enrolled who hasn't started the pathway yet. Returns how many emails were queued.
+export async function adminResendEnrollmentEmails(pathwayId: string): Promise<{ sent: number }> {
+  await requirePathwayManager(pathwayId)
+  const [pathway, enrollments] = await Promise.all([
+    prisma.pathway.findFirst({ where: { id: pathwayId, deletedAt: null }, select: { name: true } }),
+    notStartedEnrollments(pathwayId),
+  ])
+  if (!pathway) return { sent: 0 }
+
+  const messages = enrollments.map(({ type, deadline, cohort, user }) => {
+    const email = user.email as string
+    const name = user.name ?? email
+    return type === "ASSIGNED"
+      ? pathwayAssignedEmail(email, name, pathway.name, pathwayId, cohort?.name, deadline)
+      : enrollmentApprovedEmail(email, name, pathway.name)
+  })
+  await sendEmails(messages, { bulk: true })
+  return { sent: messages.length }
 }
 
 export async function adminRemoveEnrollment(enrollmentId: string, pathwayId: string) {

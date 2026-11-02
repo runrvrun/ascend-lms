@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { prisma } from "../../../../lib/prisma"
+import { notStartedEnrollments } from "../../../../lib/notStartedEnrollments"
 import { PathwayEnrollmentManagement } from "./PathwayEnrollmentManagement"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -13,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function PathwayEnrollmentsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [pathway, allUsers, allCohorts, allEnrolledUserIds] = await Promise.all([
+  const [pathway, allUsers, allCohorts, allEnrolledUserIds, notStarted] = await Promise.all([
     prisma.pathway.findFirst({
       where: { id, deletedAt: null },
       select: {
@@ -69,6 +70,7 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
       where: { pathwayId: id },
       select: { userId: true },
     }),
+    notStartedEnrollments(id),
   ])
 
   if (!pathway) notFound()
@@ -106,6 +108,7 @@ export default async function PathwayEnrollmentsPage({ params }: { params: Promi
         cohortAssignments={pathway.cohortPathways}
         availableUsers={availableUsers}
         availableCohorts={availableCohorts}
+        notStartedCount={notStarted.length}
       />
     </main>
   )
