@@ -87,7 +87,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const buf: Uint8Array = xlsx.write(wb, { type: "buffer", bookType: "xlsx" })
   const safeName = cohort.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()
 
-  return new NextResponse(buf.buffer as ArrayBuffer, {
+  return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${safeName}-members.xlsx"`,
