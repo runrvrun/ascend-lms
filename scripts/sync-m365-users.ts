@@ -11,7 +11,9 @@
 // Never touched: external/guest users, non-@ycp.com emails, and @ycp.com emails
 // that aren't a directory user at all (dummy users on distribution-list addresses,
 // or accounts deleted long ago) — those are listed for an admin to handle manually.
-// Existing users' details are never updated, and deactivated users are never
+// Existing users only get their job title updated when M365 names a different
+// recognised one (a blank or unrecognised M365 title leaves it alone); their other
+// details are never updated, and deactivated users are never
 // reactivated here — an admin re-adds them from Admin → Users (which restores the
 // account with its history).
 //
@@ -204,6 +206,7 @@ async function main() {
 
   let created = 0
   let skippedExisting = 0
+  let titlesUpdated = 0
   let skippedFiltered = 0
 
   for (const graphUser of toCreate) {
@@ -216,10 +219,16 @@ async function main() {
 
     const existing = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true },
+      select: { id: true, title: true, deletedAt: true },
     })
     if (existing) {
       skippedExisting++
+      const title = graphUser.jobTitle?.trim() ? mapJobTitle(graphUser.jobTitle) : undefined
+      if (!existing.deletedAt && title && title !== existing.title) {
+        console.log(`${DRY_RUN ? "[dry-run] would update" : "Updating"} title of ${email}: ${existing.title} → ${title} (M365: "${graphUser.jobTitle}")`)
+        if (!DRY_RUN) await prisma.user.update({ where: { id: existing.id }, data: { title } })
+        titlesUpdated++
+      }
       continue
     }
 
@@ -296,7 +305,7 @@ async function main() {
 
   console.log(
     `M365 sync ${DRY_RUN ? "dry run " : ""}complete: ${users.length} seen, ${toCreate.length} licensed members, ` +
-      `${created} created, ${skippedExisting} already existed, ${skippedFiltered} filtered out, ${deactivated} deactivated, ` +
+      `${created} created, ${skippedExisting} already existed (${titlesUpdated} title updates), ${skippedFiltered} filtered out, ${deactivated} deactivated, ` +
       `${unmatched.length} unmatched.`
   )
 }

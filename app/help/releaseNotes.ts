@@ -13,6 +13,7 @@ export const RELEASE_NOTES: ReleaseDay[] = [
     date: "2026-11-02",
     changes: [
       { kind: "new", text: "On a pathway's Enrollments page, admins and pathway owners can see how many enrolled people haven't started the pathway yet, and click Resend Email to send them the enrollment email again. Only active users who haven't finished a lesson or taken a test yet are emailed." },
+      { kind: "fixed", text: "Job titles now stay in step with Microsoft 365. When someone's title changes there (for example after a promotion), Ascend updates it automatically." },
       { kind: "improved", text: "On the Pathways page, each card now has its buttons on one line at the bottom: Enroll or Go to Pathway on the left, and Share with Preview or Unenroll on the right. Preview only shows on pathways you haven't joined or requested yet. While a request is awaiting approval, the button to withdraw it now says Cancel." },
     ],
   },
