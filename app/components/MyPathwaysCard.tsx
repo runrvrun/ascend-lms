@@ -2,7 +2,7 @@ import { Map } from "lucide-react"
 import type { LearnerPathway } from "../lib/learnerPathways"
 import { LearnerPathwayRow } from "./LearnerPathwayParts"
 
-const PREVIEW_COUNT = 5
+const PREVIEW_COUNT = 3
 
 // `pathways` comes from getLearnerPathways(), already sorted: in progress (most
 // recently active first), not started, awaiting approval, completed.
