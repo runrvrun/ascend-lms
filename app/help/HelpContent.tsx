@@ -38,7 +38,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Home,
         steps: [
           "After signing in, you land on the Home page.",
-          "My Pathways shows the pathways you are still working on, with a progress bar for each. When there are more than fit, click View all to open the full list.",
+          "My Pathways shows your pathways with a label (In Progress, Not Started, Awaiting Approval or Completed) and a progress bar. Pathways in progress come first, with the one you worked on most recently at the top. Click Go to Pathway to continue, or View all pathways at the bottom to open your Learning History.",
           "You can see your points, your learning streak (how many days in a row you have learned) and recent points earned. Click View full history to open your Learning History.",
           "The Leaderboards show the top learners by points and by streak. The top 3 get gold, silver and bronze medals.",
           "Use the menu button at the top of the left menu to hide or show it. On a phone, the menu opens on top of the page.",
@@ -66,9 +66,9 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "My Pathways & Learning History",
         icon: History,
         steps: [
-          "The My Pathways page (View all on the Home page) lists all your pathways. Click Open to continue one, or Review to look back at a completed one.",
-          "To leave a pathway you haven't finished, click the unenroll icon next to it on My Pathways.",
-          "Learning History lists everything you have completed and the points you earned. Completed pathways have a View Certificate link.",
+          "Learning History (View all pathways on the Home page) lists all your pathways in three groups: In Progress, Not Started and Completed. Click Go to Pathway to continue one.",
+          "In Progress pathways show the courses you have finished so far. Completed pathways list every course with its date and test score, and have a View Certificate link.",
+          "To leave a pathway you haven't finished, click the unenroll icon next to it on the Home page or in Learning History.",
         ],
       },
       {

@@ -9,6 +9,7 @@ import { SidebarWithStats } from "../components/SidebarWithStats"
 import { MyPathwaysCard } from "../components/MyPathwaysCard"
 import { MyPointsCard } from "../components/MyPointsCard"
 import { Leaderboard } from "../components/Leaderboard"
+import { getLearnerPathways } from "../lib/learnerPathways"
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
@@ -16,16 +17,8 @@ export default async function DashboardPage() {
 
   const userId = (session.user as any).id as string
 
-  const [enrollments, totalAgg, recentPoints, courseProgressRecords, pathwayCourseCounts, pointsGrouped, allContentProgress] = await Promise.all([
-    prisma.pathwayEnrollment.findMany({
-      where: { userId, status: { not: "REJECTED" }, pathway: { deletedAt: null, status: "PUBLISHED" } },
-      include: {
-        pathway: { select: { name: true, description: true } },
-        cohort: { select: { name: true } },
-        approver: { select: { name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
+  const [learnerPathways, totalAgg, recentPoints, pointsGrouped, allContentProgress] = await Promise.all([
+    getLearnerPathways(userId),
 
     prisma.userPoint.aggregate({
       where: { userId },
@@ -36,18 +29,6 @@ export default async function DashboardPage() {
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: 3,
-    }),
-
-    // Completed courses per pathway for this user
-    prisma.courseProgress.findMany({
-      where: { userId, completed: true },
-      select: { pathwayId: true },
-    }),
-
-    // Total published course count per pathway
-    prisma.pathwayCourse.findMany({
-      where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true },
     }),
 
     // Points leaderboard: sum per user, top 10
@@ -63,25 +44,6 @@ export default async function DashboardPage() {
       select: { userId: true, completedAt: true },
     }),
   ])
-
-  // Build completion map: pathwayId → { completed, total }
-  const completedByPathway: Record<string, number> = {}
-  for (const cp of courseProgressRecords) {
-    completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
-  }
-  const totalByPathway: Record<string, number> = {}
-  for (const pc of pathwayCourseCounts) {
-    totalByPathway[pc.pathwayId] = (totalByPathway[pc.pathwayId] ?? 0) + 1
-  }
-
-  const enrollmentsWithCompletion = enrollments.map((e) => {
-    const total = totalByPathway[e.pathwayId] ?? 0
-    const completed = completedByPathway[e.pathwayId] ?? 0
-    return { ...e, isCompleted: total > 0 && completed >= total }
-  })
-
-  // Dashboard widget only shows ongoing pathways — completed ones live on /my-pathways
-  const ongoingEnrollments = enrollmentsWithCompletion.filter((e) => !e.isCompleted)
 
   // Parse courseId:pathwayId from referenceId and resolve names in one batch
   const completionRefs = recentPoints
@@ -188,7 +150,7 @@ export default async function DashboardPage() {
         <h1 className="mb-6 text-2xl font-bold text-slate-900">Dashboard</h1>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <MyPathwaysCard enrollments={ongoingEnrollments} />
+          <MyPathwaysCard pathways={learnerPathways} />
           <MyPointsCard total={totalAgg._sum.points ?? 0} recent={pointItems} />
         </div>
 
