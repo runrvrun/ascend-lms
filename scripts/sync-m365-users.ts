@@ -230,9 +230,9 @@ async function main() {
     }
 
     const officeId = graphUser.officeLocation ? officeNameToId.get(graphUser.officeLocation.trim().toLowerCase()) ?? null : null
-    // Blank in M365 → NA; set but unrecognised → schema defaults (MSD / ANALYST).
-    const division = mapDivision(graphUser.department)
-    const title = mapJobTitle(graphUser.jobTitle)
+    // Blank or unrecognised in M365 → NA, so an admin can spot and fix it.
+    const division = mapDivision(graphUser.department) ?? Division.NA
+    const title = mapJobTitle(graphUser.jobTitle) ?? JobTitle.NA
 
     if (DRY_RUN) {
       console.log(`[dry-run] would create ${email}`)
