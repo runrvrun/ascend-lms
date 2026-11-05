@@ -10,6 +10,13 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-05",
+    changes: [
+      { kind: "improved", text: "The My Pathways card on the Home page now labels each pathway In Progress, Not Started, Awaiting Approval or Completed, and shows a progress bar. Pathways you're working on come first, with the one you worked on most recently at the top. Each has a Go to Pathway button, and View all pathways at the bottom opens your Learning History." },
+      { kind: "improved", text: "Learning History now shows all your pathways, grouped into In Progress, Not Started and Completed, not just the courses you've finished." },
+    ],
+  },
+  {
     date: "2026-11-02",
     changes: [
       { kind: "new", text: "On a pathway's Enrollments page, admins and pathway owners can see how many enrolled people haven't started the pathway yet, and click Resend Email to send them the enrollment email again. Only active users who haven't finished a lesson or taken a test yet are emailed." },
