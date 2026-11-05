@@ -9,9 +9,9 @@ import { SidebarWithStats } from "../components/SidebarWithStats"
 import { CheckCircle2, BookOpen, Map as MapIcon, Star, Award, PlayCircle, Circle } from "lucide-react"
 import type { ReactNode } from "react"
 import { getLearnerPathways } from "../lib/learnerPathways"
+import { enrollmentLabel } from "../lib/learnerPathwayLabels"
 import {
   StateBadge,
-  enrollmentLabel,
   DeadlineChip,
   ProgressBar,
   GoToPathwayButton,

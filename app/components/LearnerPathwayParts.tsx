@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { ArrowRight, LogOut } from "lucide-react"
 import { unenrollPathway } from "../pathways/actions"
 import type { LearnerPathway, LearnerPathwayState } from "../lib/learnerPathways"
+import { enrollmentLabel, formatShortDate } from "../lib/learnerPathwayLabels"
 
 const STATE_BADGE: Record<LearnerPathwayState, { label: string; cls: string }> = {
   IN_PROGRESS: { label: "In Progress", cls: "bg-blue-100 text-blue-700" },
@@ -15,17 +16,6 @@ const STATE_BADGE: Record<LearnerPathwayState, { label: string; cls: string }> =
 export function StateBadge({ state }: { state: LearnerPathwayState }) {
   const { label, cls } = STATE_BADGE[state]
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
-}
-
-export function enrollmentLabel(item: Pick<LearnerPathway, "cohortName" | "type" | "approverName">): string {
-  if (item.cohortName) return `From cohort: ${item.cohortName}`
-  if (item.type === "ASSIGNED") return item.approverName ? `Assigned by ${item.approverName}` : "Assigned"
-  if (item.type === "USER_REQUEST") return "Self-requested"
-  return "Self-enrolled"
-}
-
-export function formatShortDate(date: Date | string): string {
-  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
 export function DeadlineChip({ deadline }: { deadline: Date | string | null }) {
