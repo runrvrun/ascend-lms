@@ -6,7 +6,6 @@ import type { EnrollmentStatus, Language, PathwayVisibility } from "@prisma/clie
 import { LANGUAGES } from "../lib/languages"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
 import { SharePathwayModal } from "./SharePathwayModal"
-import { RecommendationCarousel } from "./RecommendationCarousel"
 import type { Recommendation, RecommendationKind } from "../lib/pathwayRecommendations"
 
 const RECOMMENDATION_ICON: Record<RecommendationKind, React.ReactNode> = {
@@ -122,12 +121,12 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
   const enrollmentStatus = enrollment?.status
   const isEnrolled = enrollmentStatus === "APPROVED" || enrollmentStatus === "PENDING"
 
-  function ActionButton() {
+  function actionButton() {
     if (enrollmentStatus === "APPROVED") {
       return (
         <a
           href={`/pathways/${pathway.id}`}
-          className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+          className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-green-700"
         >
           Go to Pathway
           <ArrowRight size={14} />
@@ -137,7 +136,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
 
     if (enrollmentStatus === "PENDING") {
       return (
-        <button disabled className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-400 cursor-not-allowed">
+        <button disabled className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3.5 py-1.5 text-sm font-medium text-slate-400 cursor-not-allowed">
           <Clock size={14} />
           Awaiting Approval
         </button>
@@ -148,7 +147,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
       return (
         <button
           onClick={() => setRequesting(true)}
-          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
         >
           Request Enrollment
         </button>
@@ -159,101 +158,99 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
       <button
         onClick={handleEnroll}
         disabled={pending}
-        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+        className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
       >
         {pending ? "Enrolling…" : "Enroll"}
       </button>
     )
   }
 
+  const featured = !!pathway.recommendation
+  const percent = pathway.totalCourses > 0 ? Math.round((pathway.completedCourses / pathway.totalCourses) * 100) : 0
+
+  // One compact row per pathway: details on the left, buttons on the right
+  // (below the details on phones). Featured pathways get an amber tint and badge.
   return (
     <>
-      <div className={`flex flex-col rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow ${pathway.recommendation ? "border-amber-200 bg-amber-50/30" : "border-slate-200 bg-white"}`}>
-        {pathway.recommendation && (
-          <div className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-amber-600">
-            {RECOMMENDATION_ICON[pathway.recommendation.kind]}
-            <span className="min-w-0 truncate" title={pathway.recommendation.label}>{pathway.recommendation.label}</span>
-          </div>
-        )}
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${pathway.recommendation ? "bg-amber-100" : "bg-blue-50"}`}>
-              <BookOpen size={17} className={pathway.recommendation ? "text-amber-600" : "text-blue-600"} />
+      <div className={`rounded-xl border px-4 py-3.5 shadow-sm transition-shadow hover:shadow-md sm:px-5 ${featured ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"}`}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+          <div className="flex min-w-0 flex-1 gap-3">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${featured ? "bg-amber-100" : "bg-blue-50"}`}>
+              <BookOpen size={17} className={featured ? "text-amber-600" : "text-blue-600"} />
             </div>
-            <h3 className="font-semibold text-slate-900 leading-snug">{pathway.name}</h3>
-          </div>
-          {pathway.visibility === "PUBLIC_APPROVAL" ? (
-            <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Approval required</span>
-          ) : (
-            <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Free enroll</span>
-          )}
-        </div>
 
-        {pathway.description && (
-          <p className="mb-3 text-sm text-slate-500 line-clamp-2">{pathway.description}</p>
-        )}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h3 className="font-semibold leading-snug text-slate-900">{pathway.name}</h3>
+                {pathway.recommendation && (
+                  <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                    {RECOMMENDATION_ICON[pathway.recommendation.kind]}
+                    {pathway.recommendation.label}
+                  </span>
+                )}
+                {pathway.visibility === "PUBLIC_APPROVAL" ? (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Approval required</span>
+                ) : (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Free enroll</span>
+                )}
+                {pathway.isCompleted && (
+                  <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                    <CheckCircle2 size={11} />
+                    Completed
+                  </span>
+                )}
+              </div>
 
-        {pathway.tags.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {pathway.tags.map((tag) => (
-              <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{tag}</span>
-            ))}
-          </div>
-        )}
+              {pathway.description && (
+                <p className="mt-0.5 line-clamp-1 text-sm text-slate-500" title={pathway.description}>{pathway.description}</p>
+              )}
 
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <p>{pathway._count.courses} course{pathway._count.courses !== 1 ? "s" : ""}</p>
-          {pathway.isCompleted && (
-            <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
-              <CheckCircle2 size={11} />
-              Completed
-            </span>
-          )}
-        </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-400">
+                <span>{pathway._count.courses} course{pathway._count.courses !== 1 ? "s" : ""}</span>
+                {/* Progress — only for approved, in-progress enrollments */}
+                {enrollment?.status === "APPROVED" && !pathway.isCompleted && pathway.totalCourses > 0 && (
+                  <span className="flex items-center gap-2 text-slate-500">
+                    <span className="h-1.5 w-20 rounded-full bg-slate-200">
+                      <span className="block h-1.5 rounded-full bg-blue-500" style={{ width: `${percent}%` }} />
+                    </span>
+                    {pathway.completedCourses}/{pathway.totalCourses} done
+                  </span>
+                )}
+                {pathway.tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">{tag}</span>
+                ))}
+              </div>
 
-        {/* Progress bar — only for approved, in-progress enrollments */}
-        {enrollment?.status === "APPROVED" && !pathway.isCompleted && pathway.totalCourses > 0 && (
-          <div className="mt-3 mb-1">
-            <div className="mb-1 flex justify-between text-xs text-slate-500">
-              <span>{pathway.completedCourses}/{pathway.totalCourses} courses done</span>
-              <span>{Math.round((pathway.completedCourses / pathway.totalCourses) * 100)}%</span>
+              {enrollmentStatus === "REJECTED" && enrollment?.rejectionReason && (
+                <div className="mt-2 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                  <XCircle size={13} className="mt-0.5 shrink-0" />
+                  <span><span className="font-semibold">Rejected:</span> {enrollment.rejectionReason}</span>
+                </div>
+              )}
             </div>
-            <div className="h-1.5 rounded-full bg-slate-100">
-              <div
-                className="h-1.5 rounded-full bg-blue-500"
-                style={{ width: `${Math.round((pathway.completedCourses / pathway.totalCourses) * 100)}%` }}
-              />
-            </div>
           </div>
-        )}
 
-        <div className="mb-1" />
+          {/* Main button first on phones, last (rightmost) from md up; then Share, then Preview, Unenroll or Cancel. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:pl-12 md:pl-0">
+            <div className="md:order-last">{actionButton()}</div>
 
-        {enrollmentStatus === "REJECTED" && enrollment?.rejectionReason && (
-          <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs text-red-700">
-            <XCircle size={13} className="mt-0.5 shrink-0" />
-            <span><span className="font-semibold">Rejected:</span> {enrollment.rejectionReason}</span>
-          </div>
-        )}
-
-        {/* Main button on the left; Share, then Preview, Unenroll or Cancel, on the right. */}
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-3">
-          <ActionButton />
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* Icon-only on phones so the buttons stay on one line. */}
             <button
               onClick={() => setSharing(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              aria-label="Share"
+              title="Share"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:px-3"
             >
-              <Share2 size={12} />
-              Share
+              <Share2 size={14} className="sm:hidden" />
+              <Share2 size={12} className="hidden sm:block" />
+              <span className="hidden sm:inline">Share</span>
             </button>
 
             {/* Only for pathways the learner hasn't joined or requested yet. */}
             {!isEnrolled && (
               <a
                 href={`/pathways/${pathway.id}/preview`}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
               >
                 <Eye size={12} />
                 Preview
@@ -262,18 +259,18 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
 
             {isEnrolled && (
               unenrollConfirming ? (
-                <div className="flex items-center gap-1.5 text-sm">
+                <div className="flex items-center gap-1 text-xs">
                   <span className="text-slate-500">{enrollmentStatus === "PENDING" ? "Cancel request?" : "Unenroll?"}</span>
                   <button
                     disabled={unenrollPending}
                     onClick={handleUnenroll}
-                    className="rounded-lg px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-lg px-2 py-1 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
                   >
                     {unenrollPending ? "…" : "Yes"}
                   </button>
                   <button
                     onClick={() => setUnenrollConfirming(false)}
-                    className="rounded-lg px-2.5 py-1 text-xs text-slate-400 hover:bg-slate-100"
+                    className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
                   >
                     No
                   </button>
@@ -281,7 +278,7 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
               ) : (
                 <button
                   onClick={() => setUnenrollConfirming(true)}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                 >
                   {enrollmentStatus === "PENDING" ? <X size={12} /> : <LogOut size={12} />}
                   {enrollmentStatus === "PENDING" ? "Cancel" : "Unenroll"}
@@ -440,11 +437,16 @@ export function PathwayList({
         (lengths.length === 0 || lengths.includes(lengthOf(p)))
     )
     const byName = (a: PathwayCard, b: PathwayCard) => a.name.localeCompare(b.name)
+    // With the default sort, featured pathways (in their featured order) lead the list.
+    const featuredRank = (p: PathwayCard) => {
+      const i = recommendedOrder.indexOf(p.id)
+      return i === -1 ? Infinity : i
+    }
     if (sort === "newest") list.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || byName(a, b))
     else if (sort === "popular") list.sort((a, b) => b.enrollmentCount - a.enrollmentCount || byName(a, b))
-    else list.sort(byName)
+    else list.sort((a, b) => featuredRank(a) - featuredRank(b) || byName(a, b))
     return list
-  }, [pathways, q, topicIds, languages, visibilities, statuses, lengths, sort])
+  }, [pathways, recommendedOrder, q, topicIds, languages, visibilities, statuses, lengths, sort])
 
   // Static counts over all listed pathways (not narrowed by other filters).
   const counts = useMemo(() => {
@@ -464,11 +466,6 @@ export function PathwayList({
     ? topics
     : topics.filter((t, i) => i < TOPICS_SHOWN || topicIds.includes(t.id))
   const languageOptions = LANGUAGES.filter((l) => counts.language[l.value])
-
-  // Featured pathways only while automated recommendations are switched off (see page.tsx).
-  const recommendations = recommendedOrder
-    .map((id) => pathways.find((p) => p.id === id))
-    .filter((p): p is PathwayCard => !!p)
 
   const chips: { key: string; label: string; remove: () => void }[] = [
     ...topicIds.map((id) => ({ key: `t-${id}`, label: topics.find((t) => t.id === id)?.name ?? "Topic", remove: () => setTopicIds((v) => v.filter((x) => x !== id)) })),
@@ -601,21 +598,6 @@ export function PathwayList({
       )}
 
       <div className="min-w-0">
-        {!narrowing && recommendations.length > 0 && (
-          <section className="mb-8">
-            <div className="mb-3 flex items-center gap-2">
-              <Sparkles size={16} className="text-amber-500" />
-              <h2 className="text-sm font-semibold text-slate-700">Recommended for You</h2>
-            </div>
-            <RecommendationCarousel>
-              {recommendations.map((p) => (
-                <PathwayCardItem key={p.id} pathway={p} />
-              ))}
-            </RecommendationCarousel>
-            <div className="mt-6 border-t border-slate-200" />
-          </section>
-        )}
-
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <p className="mr-1 text-sm text-slate-500">
             {filtered.length} pathway{filtered.length !== 1 ? "s" : ""}
@@ -643,7 +625,7 @@ export function PathwayList({
             {pathways.length === 0 ? "No pathways available yet." : "No pathways match your search or filters."}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-3">
             {filtered.map((p) => (
               <PathwayCardItem key={p.id} pathway={p} />
             ))}

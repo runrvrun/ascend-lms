@@ -216,7 +216,7 @@ model Pathway {
   tags              String[]      @default([])
   status            PublishStatus @default(PUBLISHED)
   // Set when an admin features the pathway (max MAX_FEATURED_PATHWAYS at once);
-  // featured pathways take the "Recommended for you" slots on /pathways.
+  // featured pathways are badged and listed first on /pathways.
   featuredAt        DateTime?
 
   courses            PathwayCourse[]

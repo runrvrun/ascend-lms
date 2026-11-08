@@ -62,7 +62,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
             ],
           },
           "You can pick several options. The filters you've picked are shown above the list; click one to remove it, or Clear all to start again. On a phone, tap Filters next to the search box to show them.",
-          "Recommended for You, above the list, shows the pathways featured by the Learning team. It is hidden when nothing is featured or while you are searching or filtering.",
+          "Pathways featured by the Learning team are marked Featured and listed first (unless you sort by Newest first or Most popular).",
           "Click Preview on a pathway to see its courses, trainers and first lesson before enrolling.",
           "Click Share to send a pathway to a colleague. They get a notification and an email with a link — sharing does not enroll them.",
           {
@@ -220,7 +220,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Go to Admin → Pathways and click Add Pathway.",
           "Fill in the name, description and tags, and pick the owners (optional).",
           "Choose who can see it: Public — free enroll, Public — needs approval (the learner's manager must approve), or Hidden — assigned only.",
-          "Use the status button to switch between Draft and Published, and the star to feature it. Up to 2 pathways can be featured; they appear under Recommended for You on the Pathways page.",
+          "Use the status button to switch between Draft and Published, and the star to feature it. Up to 2 pathways can be featured; they are marked Featured and listed first on the Pathways page.",
           {
             heading: "From each pathway's Actions menu:",
             items: [

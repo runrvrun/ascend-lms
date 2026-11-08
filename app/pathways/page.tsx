@@ -100,8 +100,8 @@ export default async function PathwaysPage() {
   })
 
   // Automated recommendations (buildRecommendations in app/lib/pathwayRecommendations.ts)
-  // are switched off at HR's request: the section shows the admin-featured pathways to
-  // everyone (enrolled or not), oldest-featured first, and is hidden when there are none.
+  // are switched off at HR's request: the admin-featured pathways are badged "Featured"
+  // for everyone (enrolled or not) and, with the default sort, lead the list oldest-featured first.
   const featuredIds = pathwayCards
     .filter((p) => p.featuredAt)
     .sort((a, b) => a.featuredAt!.getTime() - b.featuredAt!.getTime())
