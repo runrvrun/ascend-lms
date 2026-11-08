@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
-import { Search, BookOpen, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles, Eye, Share2, Star, Users, SlidersHorizontal, Check } from "lucide-react"
+import { Search, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles, Eye, Share2, Star, Users, SlidersHorizontal, Check } from "lucide-react"
 import type { EnrollmentStatus, Language, PathwayVisibility } from "@prisma/client"
 import { LANGUAGES } from "../lib/languages"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
@@ -167,125 +167,119 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
 
   const featured = !!pathway.recommendation
   const percent = pathway.totalCourses > 0 ? Math.round((pathway.completedCourses / pathway.totalCourses) * 100) : 0
+  const secondaryButton = "flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium"
 
-  // One compact row per pathway: details on the left, buttons on the right
-  // (below the details on phones). Featured pathways get an amber tint and badge.
+  const secondaryButtons = (
+    <>
+      {/* Icon-only on phones so the bottom row fits on one line. */}
+      <button onClick={() => setSharing(true)} aria-label="Share" title="Share" className={`${secondaryButton} text-slate-600 hover:bg-slate-50`}>
+        <Share2 size={12} />
+        <span className="hidden sm:inline">Share</span>
+      </button>
+
+      {/* Only for pathways the learner hasn't joined or requested yet. */}
+      {!isEnrolled && (
+        <a href={`/pathways/${pathway.id}/preview`} className={`${secondaryButton} text-slate-600 hover:bg-slate-50`}>
+          <Eye size={12} />
+          Preview
+        </a>
+      )}
+
+      {isEnrolled && (
+        unenrollConfirming ? (
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-slate-500">{enrollmentStatus === "PENDING" ? "Cancel request?" : "Unenroll?"}</span>
+            <button
+              disabled={unenrollPending}
+              onClick={handleUnenroll}
+              className="rounded-lg px-2 py-1 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              {unenrollPending ? "…" : "Yes"}
+            </button>
+            <button
+              onClick={() => setUnenrollConfirming(false)}
+              className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
+            >
+              No
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setUnenrollConfirming(true)}
+            className={`${secondaryButton} text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600`}
+          >
+            {enrollmentStatus === "PENDING" ? <X size={12} /> : <LogOut size={12} />}
+            {enrollmentStatus === "PENDING" ? "Cancel" : "Unenroll"}
+          </button>
+        )
+      )}
+    </>
+  )
+
+  // Same three rows on every card:
+  //   name (full width)
+  //   badges + tags ............................ Share, Preview / Unenroll / Cancel
+  //   course count + progress .................. Enroll / Go to Pathway
+  // On phones all the buttons move to one row at the bottom instead.
   return (
     <>
-      <div className={`rounded-xl border px-4 py-3.5 shadow-sm transition-shadow hover:shadow-md sm:px-5 ${featured ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"}`}>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-          <div className="flex min-w-0 flex-1 gap-3">
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${featured ? "bg-amber-100" : "bg-blue-50"}`}>
-              <BookOpen size={17} className={featured ? "text-amber-600" : "text-blue-600"} />
-            </div>
+      <div className={`rounded-xl border px-4 py-3 shadow-sm transition-shadow hover:shadow-md sm:px-5 ${featured ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"}`}>
+        <h3 className="font-semibold leading-snug text-slate-900" title={pathway.description ?? undefined}>{pathway.name}</h3>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="font-semibold leading-snug text-slate-900">{pathway.name}</h3>
-                {pathway.recommendation && (
-                  <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                    {RECOMMENDATION_ICON[pathway.recommendation.kind]}
-                    {pathway.recommendation.label}
-                  </span>
-                )}
-                {pathway.visibility === "PUBLIC_APPROVAL" ? (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Approval required</span>
-                ) : (
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Free enroll</span>
-                )}
-                {pathway.isCompleted && (
-                  <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                    <CheckCircle2 size={11} />
-                    Completed
-                  </span>
-                )}
-              </div>
-
-              {pathway.description && (
-                <p className="mt-0.5 line-clamp-1 text-sm text-slate-500" title={pathway.description}>{pathway.description}</p>
-              )}
-
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-400">
-                <span>{pathway._count.courses} course{pathway._count.courses !== 1 ? "s" : ""}</span>
-                {/* Progress — only for approved, in-progress enrollments */}
-                {enrollment?.status === "APPROVED" && !pathway.isCompleted && pathway.totalCourses > 0 && (
-                  <span className="flex items-center gap-2 text-slate-500">
-                    <span className="h-1.5 w-20 rounded-full bg-slate-200">
-                      <span className="block h-1.5 rounded-full bg-blue-500" style={{ width: `${percent}%` }} />
-                    </span>
-                    {pathway.completedCourses}/{pathway.totalCourses} done
-                  </span>
-                )}
-                {pathway.tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">{tag}</span>
-                ))}
-              </div>
-
-              {enrollmentStatus === "REJECTED" && enrollment?.rejectionReason && (
-                <div className="mt-2 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-                  <XCircle size={13} className="mt-0.5 shrink-0" />
-                  <span><span className="font-semibold">Rejected:</span> {enrollment.rejectionReason}</span>
-                </div>
-              )}
-            </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs">
+            {pathway.recommendation && (
+              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">
+                {RECOMMENDATION_ICON[pathway.recommendation.kind]}
+                {pathway.recommendation.label}
+              </span>
+            )}
+            {pathway.visibility === "PUBLIC_APPROVAL" ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-700">Approval required</span>
+            ) : (
+              <span className="rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">Free enroll</span>
+            )}
+            {pathway.tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">{tag}</span>
+            ))}
           </div>
 
-          {/* Main button first on phones, last (rightmost) from md up; then Share, then Preview, Unenroll or Cancel. */}
-          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:pl-12 md:pl-0">
-            <div className="md:order-last">{actionButton()}</div>
+          <div className="ml-auto hidden shrink-0 items-center gap-2 sm:flex">{secondaryButtons}</div>
+        </div>
 
-            {/* Icon-only on phones so the buttons stay on one line. */}
-            <button
-              onClick={() => setSharing(true)}
-              aria-label="Share"
-              title="Share"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 sm:px-3"
-            >
-              <Share2 size={14} className="sm:hidden" />
-              <Share2 size={12} className="hidden sm:block" />
-              <span className="hidden sm:inline">Share</span>
-            </button>
-
-            {/* Only for pathways the learner hasn't joined or requested yet. */}
-            {!isEnrolled && (
-              <a
-                href={`/pathways/${pathway.id}/preview`}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                <Eye size={12} />
-                Preview
-              </a>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <span>{pathway._count.courses} course{pathway._count.courses !== 1 ? "s" : ""}</span>
+            {/* Progress — only for approved, in-progress enrollments */}
+            {enrollment?.status === "APPROVED" && !pathway.isCompleted && pathway.totalCourses > 0 && (
+              <span className="flex items-center gap-2">
+                <span className="h-1.5 w-24 rounded-full bg-slate-200">
+                  <span className="block h-1.5 rounded-full bg-blue-500" style={{ width: `${percent}%` }} />
+                </span>
+                {pathway.completedCourses}/{pathway.totalCourses} courses done
+              </span>
             )}
-
-            {isEnrolled && (
-              unenrollConfirming ? (
-                <div className="flex items-center gap-1 text-xs">
-                  <span className="text-slate-500">{enrollmentStatus === "PENDING" ? "Cancel request?" : "Unenroll?"}</span>
-                  <button
-                    disabled={unenrollPending}
-                    onClick={handleUnenroll}
-                    className="rounded-lg px-2 py-1 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    {unenrollPending ? "…" : "Yes"}
-                  </button>
-                  <button
-                    onClick={() => setUnenrollConfirming(false)}
-                    className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
-                  >
-                    No
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setUnenrollConfirming(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                >
-                  {enrollmentStatus === "PENDING" ? <X size={12} /> : <LogOut size={12} />}
-                  {enrollmentStatus === "PENDING" ? "Cancel" : "Unenroll"}
-                </button>
-              )
+            {pathway.isCompleted && (
+              <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
+                <CheckCircle2 size={11} />
+                Completed
+              </span>
             )}
           </div>
+
+          <div className="ml-auto hidden shrink-0 sm:block">{actionButton()}</div>
+        </div>
+
+        {enrollmentStatus === "REJECTED" && enrollment?.rejectionReason && (
+          <div className="mt-2 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+            <XCircle size={13} className="mt-0.5 shrink-0" />
+            <span><span className="font-semibold">Rejected:</span> {enrollment.rejectionReason}</span>
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 sm:hidden">
+          {actionButton()}
+          {secondaryButtons}
         </div>
       </div>
 
