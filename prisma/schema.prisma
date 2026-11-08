@@ -271,6 +271,8 @@ model Course {
   status          PublishStatus @default(PUBLISHED)
   feedbackEnabled Boolean       @default(true)
   topicId         String?
+  // Language the course is taught in; pathways list the languages of their courses.
+  language        Language      @default(EN)
   tests      Test[]
   assignment Assignment?
 
@@ -284,6 +286,11 @@ model Course {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   deletedAt DateTime?
+}
+
+enum Language {
+  EN
+  JP
 }
 
 model Topic {

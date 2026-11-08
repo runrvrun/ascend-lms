@@ -70,6 +70,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       status: course.status,
       feedbackEnabled: course.feedbackEnabled,
       topicName: course.topic?.name ?? null,
+      language: course.language,
     },
     contents: course.contents.map((c) => ({
       title: c.title,

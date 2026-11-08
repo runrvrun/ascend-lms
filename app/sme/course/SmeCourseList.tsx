@@ -4,6 +4,8 @@ import { useState, useTransition } from "react"
 import { GraduationCap, FileText, ClipboardList, ClipboardCheck, Plus, X } from "lucide-react"
 import { createCourse, setCourseTrainers } from "../../admin/course/actions"
 import { SearchableMultiSelect } from "../../components/SearchableSelect"
+import { LANGUAGES } from "../../lib/languages"
+import type { Language } from "@prisma/client"
 
 type CourseItem = {
   id: string
@@ -34,6 +36,7 @@ function NewCourseModal({
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [topicId, setTopicId] = useState(topics[0]?.id ?? "")
+  const [language, setLanguage] = useState<Language>("EN")
   const [trainerIds, setTrainerIds] = useState<string[]>([])
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
@@ -43,7 +46,7 @@ function NewCourseModal({
     setError("")
     startTransition(async () => {
       try {
-        const courseId = await createCourse({ name, description, topicId: topicId || null })
+        const courseId = await createCourse({ name, description, topicId: topicId || null, language })
         await setCourseTrainers(courseId, trainerIds)
         onClose()
       } catch {
@@ -90,6 +93,18 @@ function NewCourseModal({
             >
               {topics.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Language</label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as Language)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>{l.label}</option>
               ))}
             </select>
           </div>

@@ -6,6 +6,8 @@ import { useCourseStatusToggle } from "./[id]/CourseStatusToggle"
 import { createCourse, updateCourse, deleteCourse, setCourseTrainers, duplicateCourse, importCourse, CourseFormData } from "./actions"
 import { SearchableSelect, SearchableMultiSelect } from "../../components/SearchableSelect"
 import { ActionsMenu } from "../../components/ActionsMenu"
+import { LANGUAGES } from "../../lib/languages"
+import type { Language } from "@prisma/client"
 
 type TrainerUser = { id: string; name: string | null }
 type TopicOption = { id: string; name: string }
@@ -17,6 +19,7 @@ type CourseRow = {
   status: "DRAFT" | "PUBLISHED"
   topicId: string | null
   topic: TopicOption | null
+  language: Language
   _count: { contents: number; pathways: number }
   trainers: { user: TrainerUser }[]
 }
@@ -119,6 +122,18 @@ function CourseFormModal({
               <option value="">— No topic —</option>
               {topics.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Language</label>
+            <select
+              value={form.language}
+              onChange={(e) => setForm((f) => ({ ...f, language: e.target.value as Language }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>{l.label}</option>
               ))}
             </select>
           </div>
@@ -287,6 +302,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
               <th className="px-5 py-3 min-w-[220px]">Name</th>
               <th className="px-5 py-3 min-w-[220px]">Trainer</th>
               <th className="px-5 py-3 min-w-[180px]">Topic</th>
+              <th className="px-5 py-3 text-center min-w-[100px]">Language</th>
               <th className="px-5 py-3 text-center min-w-[120px]">Status</th>
               <th className="px-5 py-3 text-center min-w-[90px]">Contents</th>
               <th className="px-5 py-3 text-center min-w-[100px]">In Pathways</th>
@@ -295,7 +311,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
+              <tr><td colSpan={8} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
             )}
             {filtered.map((c) => (
               <tr key={c.id} className="group hover:bg-slate-50">
@@ -317,6 +333,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
                       ? <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">{c.topic.name}</span>
                       : <span className="text-xs italic text-slate-300">—</span>}
                   </td>
+                  <td className="px-5 py-3 text-center text-xs font-medium text-slate-600">{c.language}</td>
                   <td className="px-5 py-3 text-center">
                     <StatusToggle id={c.id} status={c.status} />
                   </td>
@@ -342,7 +359,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
       {creating && (
         <CourseFormModal
           title="Add Course"
-          initial={{ name: "", description: "", topicId: null }}
+          initial={{ name: "", description: "", topicId: null, language: "EN" }}
           trainerUsers={trainerUsers}
           topics={topics}
           onClose={() => setCreating(false)}
@@ -352,7 +369,7 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
       {editing && (
         <CourseFormModal
           title="Edit Course"
-          initial={{ name: editing.name, description: editing.description ?? "", topicId: editing.topicId }}
+          initial={{ name: editing.name, description: editing.description ?? "", topicId: editing.topicId, language: editing.language }}
           initialTrainerIds={editing.trainers.map((t) => t.user.id)}
           courseId={editing.id}
           trainerUsers={trainerUsers}

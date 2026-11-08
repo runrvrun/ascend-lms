@@ -15,12 +15,14 @@ import {
   requireCourseTrainerManager,
 } from "../../lib/permissions"
 import { deleteContentImage, isContentImageKey, saveContentImage } from "../../lib/contentImages"
-import { ContentType, QuestionType, Prisma } from "@prisma/client"
+import { ContentType, QuestionType, Prisma, Language } from "@prisma/client"
+import { isLanguage } from "../../lib/languages"
 
 export type CourseFormData = {
   name: string
   description: string
   topicId: string | null
+  language: Language
 }
 
 export type ContentFormData = {
@@ -65,7 +67,13 @@ export async function createCourse(data: CourseFormData): Promise<string> {
   if (!allowed) throw new Error("Unauthorized")
   await releaseDeletedCourseName(data.name)
   const course = await prisma.course.create({
-    data: { name: data.name, description: data.description || null, status: "DRAFT", topicId: data.topicId || null },
+    data: {
+      name: data.name,
+      description: data.description || null,
+      status: "DRAFT",
+      topicId: data.topicId || null,
+      language: isLanguage(data.language) ? data.language : "EN",
+    },
   })
   revalidatePath("/admin/course")
   revalidatePath("/sme/course")
@@ -123,7 +131,12 @@ export async function updateCourse(id: string, data: CourseFormData) {
   await releaseDeletedCourseName(data.name)
   await prisma.course.update({
     where: { id },
-    data: { name: data.name, description: data.description || null, topicId: data.topicId || null },
+    data: {
+      name: data.name,
+      description: data.description || null,
+      topicId: data.topicId || null,
+      ...(isLanguage(data.language) && { language: data.language }),
+    },
   })
   revalidatePath("/admin/course")
   revalidatePath(`/admin/course/${id}`)
@@ -174,6 +187,7 @@ export async function duplicateCourse(id: string): Promise<string> {
       description: source.description,
       status: "DRAFT",
       topicId: source.topicId,
+      language: source.language,
       feedbackEnabled: source.feedbackEnabled,
     },
   })
@@ -254,6 +268,7 @@ type CourseExport = {
     status?: "DRAFT" | "PUBLISHED"
     feedbackEnabled?: boolean
     topicName?: string | null
+    language?: string | null
   }
   contents?: {
     title: string
@@ -321,6 +336,7 @@ export async function importCourse(formData: FormData): Promise<string> {
         status: data.course.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
         feedbackEnabled: data.course.feedbackEnabled ?? true,
         topicId,
+        language: isLanguage(data.course.language) ? data.course.language : "EN",
       },
     })
 

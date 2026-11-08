@@ -49,8 +49,20 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Map,
         steps: [
           "Click Pathways in the left menu.",
-          "Use the search box at the top to find pathways by name or tag. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
-          "Recommended for You, below the search box, shows the pathways featured by the Learning team. It is hidden when nothing is featured or while you are searching.",
+          "Use the search box on the left to find pathways by name or tag. Some pathways are hidden and only appear once an admin or manager assigns you to them.",
+          {
+            heading: "Below the search box you can sort and filter the list. Click an option to apply it straight away, and click it again to remove it:",
+            items: [
+              "Sort by — Alphabetical, Newest first, or Most popular (most people enrolled).",
+              "Topic — the topics of the pathway's courses, with the number of pathways in each. The most popular topics are listed first; click Show all to see every topic.",
+              "Language — the language the pathway's courses are taught in.",
+              "Enrollment type — Free enroll or Approval required.",
+              "My status — Not enrolled, Awaiting approval, In progress or Completed.",
+              "Length — how many courses the pathway has.",
+            ],
+          },
+          "You can pick several options. The filters you've picked are shown above the list; click one to remove it, or Clear all to start again. On a phone, tap Filters next to the search box to show them.",
+          "Recommended for You, above the list, shows the pathways featured by the Learning team. It is hidden when nothing is featured or while you are searching or filtering.",
           "Click Preview on a pathway to see its courses, trainers and first lesson before enrolling.",
           "Click Share to send a pathway to a colleague. They get a notification and an email with a link — sharing does not enroll them.",
           {
@@ -224,7 +236,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Managing Courses",
         icon: BookOpen,
         steps: [
-          "Go to Admin → Courses and click Add Course. Set the name, description, topic and one or more trainers.",
+          "Go to Admin → Courses and click Add Course. Set the name, description, topic, language (English or Japanese) and one or more trainers. Learners can filter pathways by topic and language, so set both.",
           {
             heading: "From each course's Actions menu:",
             items: [
@@ -434,7 +446,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Go to Subject Matter Expert → My Topics to see your topics and their courses.",
           "Each course card shows its content, tests, assignment, trainers and status.",
-          "Click New Course to create a course in your topic, optionally with trainers.",
+          "Click New Course to create a course in your topic, choose its language, and optionally add trainers.",
           "Click a course card to manage it, or Preview to see it as learners will.",
         ],
       },
