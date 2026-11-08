@@ -10,6 +10,14 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-08",
+    changes: [
+      { kind: "improved", text: "The Pathways page has a new panel on the left with the search box, sorting and filters. Sort pathways alphabetically, newest first or by popularity, and filter by topic, language, enrollment type (free or approval required), your status (not enrolled, awaiting approval, in progress or completed) and number of courses. Click an option to filter straight away. On a phone, tap Filters next to the search box." },
+      { kind: "improved", text: "Pathways are now shown as one compact list, one pathway per row, so you see more at a glance. Featured pathways are marked Featured and listed first, replacing the separate Recommended for You section." },
+      { kind: "new", text: "Courses now have a language, English or Japanese. Admins choose it when adding or editing a course, and Subject Matter Experts when creating one. Existing courses are set to English." },
+    ],
+  },
+  {
     date: "2026-11-05",
     changes: [
       { kind: "improved", text: "The My Pathways card on the Home page now labels each pathway In Progress, Not Started, Awaiting Approval or Completed, and shows a progress bar. Pathways you're working on come first, with the one you worked on most recently at the top. Each has a Go to Pathway button, and View all pathways at the bottom opens your Learning History." },
