@@ -139,7 +139,6 @@ export default async function PathwaysPage() {
       <main className="mx-auto min-h-screen w-full max-w-7xl p-6 md:p-10">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Pathways</h1>
-          <p className="mt-1 text-sm text-slate-500">Browse and enroll in learning pathways</p>
         </div>
 
         <PathwayList pathways={pathwayCardsWithRec} recommendedOrder={recommendedOrder} topics={topics} />
