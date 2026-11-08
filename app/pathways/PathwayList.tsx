@@ -545,7 +545,7 @@ export function PathwayList({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search pathways…"
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm shadow-sm focus:border-slate-300 focus:outline-none"
             />
           </div>
           <button
