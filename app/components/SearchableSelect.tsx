@@ -1,9 +1,60 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useLayoutEffect } from "react"
+import { createPortal } from "react-dom"
 import { ChevronDown, X, Check } from "lucide-react"
 
 type Option = { value: string; label: string }
+
+const PANEL_MAX_HEIGHT = 280 // filter box + max-h-52 list, roughly
+const GAP = 4
+
+// The dropdown panel is portaled to <body> with fixed positioning so a scrolling
+// modal body (overflow-y-auto) or its footer can't clip or cover it. It sits under
+// the trigger, or above it when there isn't room below, and follows the trigger
+// when anything scrolls or the window resizes.
+function useDropdownPosition(anchorRef: React.RefObject<HTMLDivElement | null>, open: boolean) {
+  const [style, setStyle] = useState<React.CSSProperties | null>(null)
+
+  useLayoutEffect(() => {
+    if (!open) return
+    function place() {
+      const el = anchorRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const below = window.innerHeight - r.bottom - GAP
+      const above = r.top - GAP
+      const up = below < PANEL_MAX_HEIGHT && above > below
+      setStyle({
+        position: "fixed",
+        left: r.left,
+        width: r.width,
+        ...(up ? { bottom: window.innerHeight - r.top + GAP } : { top: r.bottom + GAP }),
+      })
+    }
+    place()
+    window.addEventListener("scroll", place, true)
+    window.addEventListener("resize", place)
+    return () => {
+      window.removeEventListener("scroll", place, true)
+      window.removeEventListener("resize", place)
+    }
+  }, [open, anchorRef])
+
+  // Layout effects run before paint, so a reopened panel never shows its old position.
+  return open ? style : null
+}
+
+// Closes on a mousedown outside both the trigger and the (portaled) panel.
+function useOutsideClose(refs: React.RefObject<HTMLElement | null>[], onClose: () => void) {
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (refs.every((r) => !r.current?.contains(e.target as Node))) onClose()
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  })
+}
 
 export function SearchableSelect({
   options,
@@ -29,16 +80,12 @@ export function SearchableSelect({
     ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
     : options
 
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-        setQuery("")
-      }
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
+  const panelRef = useRef<HTMLDivElement>(null)
+  const panelStyle = useDropdownPosition(ref, open)
+  useOutsideClose([ref, panelRef], () => {
+    setOpen(false)
+    setQuery("")
+  })
 
   function handleOpen() {
     setOpen(true)
@@ -78,8 +125,8 @@ export function SearchableSelect({
         </div>
       </button>
 
-      {open && (
-        <div className="absolute z-[9999] mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
+      {open && panelStyle && createPortal(
+        <div ref={panelRef} style={panelStyle} className="z-[9999] rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 p-2">
             <input
               ref={inputRef}
@@ -117,7 +164,8 @@ export function SearchableSelect({
               ))
             )}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -144,16 +192,12 @@ export function SearchableMultiSelect({
     ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
     : options
 
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-        setQuery("")
-      }
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
+  const panelRef = useRef<HTMLDivElement>(null)
+  const panelStyle = useDropdownPosition(ref, open)
+  useOutsideClose([ref, panelRef], () => {
+    setOpen(false)
+    setQuery("")
+  })
 
   function handleOpen() {
     setOpen(true)
@@ -193,8 +237,8 @@ export function SearchableMultiSelect({
         <ChevronDown size={14} className={`ml-auto shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </div>
 
-      {open && (
-        <div className="absolute z-[9999] mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
+      {open && panelStyle && createPortal(
+        <div ref={panelRef} style={panelStyle} className="z-[9999] rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="border-b border-slate-100 p-2">
             <input
               ref={inputRef}
@@ -225,7 +269,8 @@ export function SearchableMultiSelect({
               })
             )}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
