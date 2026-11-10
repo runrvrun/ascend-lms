@@ -1081,7 +1081,9 @@ function WithFooter({ footer, children }: { footer?: React.ReactNode; children: 
   )
 }
 
-type NavItem = { key: string; title: string; selection: Selection }
+type NavItem = { key: string; title: string; selection: Selection; courseId: string; courseName: string }
+// A step for the Previous/Next buttons: another item in the same course, or a jump to the start of an adjacent course.
+type NavStep = { item: NavItem; toCourse: boolean }
 
 function selectionKey(sel: Selection | null) {
   if (!sel) return null
@@ -1107,6 +1109,8 @@ function buildNavItems(courses: CourseEntry[]): NavItem[] {
     return items.map((sel) => ({
       key: selectionKey(sel)!,
       selection: sel,
+      courseId: course.id,
+      courseName: course.name,
       title:
         sel.kind === "content" ? sel.content.title
         : sel.kind === "test" ? sel.test.title
@@ -1116,30 +1120,48 @@ function buildNavItems(courses: CourseEntry[]): NavItem[] {
   })
 }
 
-function LessonNav({ prev, next, onSelect }: { prev: NavItem | null; next: NavItem | null; onSelect: (sel: Selection) => void }) {
+// Previous/next steps for the item at `index`. At a course's first or last item the step leaves
+// the course: Previous Course goes to the start of the course before, Next Course to the start
+// of the course after (empty courses have no items, so they're skipped).
+function navSteps(items: NavItem[], index: number): { prev: NavStep | null; next: NavStep | null } {
+  if (index < 0) return { prev: null, next: null }
+  const current = items[index]
+  const before = items[index - 1]
+  const after = items[index + 1]
+  let prev: NavStep | null = null
+  if (before) {
+    prev = before.courseId === current.courseId
+      ? { item: before, toCourse: false }
+      : { item: items.find((i) => i.courseId === before.courseId)!, toCourse: true }
+  }
+  const next: NavStep | null = after ? { item: after, toCourse: after.courseId !== current.courseId } : null
+  return { prev, next }
+}
+
+function LessonNav({ prev, next, onSelect }: { prev: NavStep | null; next: NavStep | null; onSelect: (sel: Selection) => void }) {
   if (!prev && !next) return null
   return (
     <div className="mt-4 flex w-full items-stretch justify-between gap-2">
       {prev ? (
         <button
-          onClick={() => onSelect(prev.selection)}
+          onClick={() => onSelect(prev.item.selection)}
           className="flex min-w-0 max-w-[48%] items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-600 hover:bg-slate-50"
         >
           <ChevronLeft size={15} className="shrink-0" />
           <span className="min-w-0">
-            <span className="block">Previous Lesson</span>
-            <span className="block truncate text-xs font-normal text-slate-400">{prev.title}</span>
+            <span className="block">{prev.toCourse ? "Previous Course" : "Previous Lesson"}</span>
+            <span className="block truncate text-xs font-normal text-slate-400">{prev.toCourse ? prev.item.courseName : prev.item.title}</span>
           </span>
         </button>
       ) : <span />}
       {next && (
         <button
-          onClick={() => onSelect(next.selection)}
+          onClick={() => onSelect(next.item.selection)}
           className="flex min-w-0 max-w-[48%] items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-right text-sm font-medium text-slate-600 hover:bg-slate-50"
         >
           <span className="min-w-0">
-            <span className="block">Next Lesson</span>
-            <span className="block truncate text-xs font-normal text-slate-400">{next.title}</span>
+            <span className="block">{next.toCourse ? "Next Course" : "Next Lesson"}</span>
+            <span className="block truncate text-xs font-normal text-slate-400">{next.toCourse ? next.item.courseName : next.item.title}</span>
           </span>
           <ChevronRight size={15} className="shrink-0" />
         </button>
@@ -1924,8 +1946,7 @@ export function PathwayViewer({
 
   const navItems = buildNavItems(pathway.courses)
   const navIndex = navItems.findIndex((i) => i.key === selectedId)
-  const prevItem = navIndex > 0 ? navItems[navIndex - 1] : null
-  const nextItem = navIndex >= 0 && navIndex < navItems.length - 1 ? navItems[navIndex + 1] : null
+  const { prev: prevStep, next: nextStep } = navSteps(navItems, navIndex)
 
   function select(sel: Selection) {
     setSelected(sel)
@@ -2090,7 +2111,7 @@ export function PathwayViewer({
               feedbackByCourseId={feedbackByCourseId}
               isPreview={isPreview}
               isLocked={isLocked}
-              footer={<LessonNav prev={prevItem} next={nextItem} onSelect={select} />}
+              footer={<LessonNav prev={prevStep} next={nextStep} onSelect={select} />}
             />
           )}
         </main>
