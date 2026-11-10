@@ -52,9 +52,10 @@ export default async function CoursePreviewPage({ params }: { params: Promise<{ 
           },
         },
       },
-      assignment: {
+      assignments: {
         where: { deletedAt: null },
-        select: { id: true, description: true, submitUrl: true },
+        orderBy: { order: "asc" },
+        select: { id: true, title: true, order: true, description: true, submitUrl: true },
       },
     },
   })
@@ -74,7 +75,7 @@ export default async function CoursePreviewPage({ params }: { params: Promise<{ 
           name: course.name,
           contents: course.contents,
           tests: course.tests.map((t) => ({ ...t, order: t.order! })),
-          assignment: course.assignment,
+          assignments: course.assignments.map((a) => ({ ...a, order: a.order! })),
           feedbackEnabled: course.feedbackEnabled,
         },
       },
@@ -90,7 +91,7 @@ export default async function CoursePreviewPage({ params }: { params: Promise<{ 
       currentUserId={userId}
       latestSubmissionByAssignmentId={{}}
       testStatusByTestId={{}}
-      assignmentStatusByCourseId={{}}
+      assignmentStatusById={{}}
       feedbackByCourseId={{}}
       allGrowthPlans={[]}
       isPreview

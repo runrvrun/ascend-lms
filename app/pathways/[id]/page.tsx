@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
+import { statusByAssignment } from "../../lib/assignmentStatus"
 import { prisma } from "../../lib/prisma"
 import { isPathwayOwner } from "../../lib/permissions"
 import { SidebarWithStats } from "../../components/SidebarWithStats"
@@ -77,9 +78,10 @@ export default async function PathwayDetailPage({
                     },
                   },
                 },
-                assignment: {
+                assignments: {
                   where: { deletedAt: null },
-                  select: { id: true, description: true, submitUrl: true },
+                  orderBy: { order: "asc" },
+                  select: { id: true, title: true, order: true, description: true, submitUrl: true },
                 },
               },
             },
@@ -142,25 +144,25 @@ export default async function PathwayDetailPage({
   const completedContentIds = new Set((completedRecords as { contentId: string }[]).map((r) => r.contentId))
   const completedCourseIds = new Set((courseProgressRecords as { courseId: string; completed: boolean }[]).filter((r) => r.completed).map((r) => r.courseId))
   const testStatusByTestId: Record<string, "PASSED" | "FAILED"> = {}
-  const assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED"> = {}
   for (const r of testProgressRecords as { testId: string; status: string }[]) {
     testStatusByTestId[r.testId] = r.status as "PASSED" | "FAILED"
   }
-  for (const r of courseProgressRecords as { courseId: string; assignmentStatus: string | null }[]) {
-    if (r.assignmentStatus) assignmentStatusByCourseId[r.courseId] = r.assignmentStatus as "PASSED" | "FAILED"
+  // Per assignment: PASSED once any submission passed, otherwise the latest submission's verdict.
+  const assignmentStatusById: Record<string, "PASSED" | "FAILED"> = {}
+  for (const [assignmentId, status] of statusByAssignment([...assignmentSubmissions].reverse())) {
+    if (status !== "SUBMITTED") assignmentStatusById[assignmentId] = status
   }
 
   // A course can look finished but still be marked incomplete, e.g. when the one item the
   // learner hadn't done was deleted before the delete-time re-check existed. Re-check those.
   if (!isPreviewMode && enrollment?.status === "APPROVED") {
-    const passedAssignmentIds = new Set(assignmentSubmissions.filter((s) => s.status === "PASSED").map((s) => s.assignmentId))
     const looksDone = pathway.courses.filter(
       ({ course }) =>
         !completedCourseIds.has(course.id) &&
         course.contents.length + course.tests.length > 0 &&
         course.contents.every((c) => completedContentIds.has(c.id)) &&
         course.tests.every((t) => testStatusByTestId[t.id] === "PASSED") &&
-        (!course.assignment || passedAssignmentIds.has(course.assignment.id))
+        course.assignments.every((a) => assignmentStatusById[a.id] === "PASSED")
     )
     for (const { course } of looksDone) {
       if (await evaluateCourseCompletion(userId, course.id, id)) completedCourseIds.add(course.id)
@@ -176,7 +178,11 @@ export default async function PathwayDetailPage({
     ...pathway,
     courses: pathway.courses.map((entry) => ({
       ...entry,
-      course: { ...entry.course, tests: entry.course.tests.map((t) => ({ ...t, order: t.order! })) },
+      course: {
+        ...entry.course,
+        tests: entry.course.tests.map((t) => ({ ...t, order: t.order! })),
+        assignments: entry.course.assignments.map((a) => ({ ...a, order: a.order! })),
+      },
     })),
   }
 
@@ -203,7 +209,7 @@ export default async function PathwayDetailPage({
         currentUserId={userId}
         latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
         testStatusByTestId={testStatusByTestId}
-        assignmentStatusByCourseId={assignmentStatusByCourseId}
+        assignmentStatusById={assignmentStatusById}
         feedbackByCourseId={feedbackByCourseId}
         allGrowthPlans={allGrowthPlanRecords.map((g) => ({
           id: g.id,

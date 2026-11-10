@@ -306,7 +306,7 @@ export async function submitAssignment(formData: FormData): Promise<{ error?: st
       data: assignment.course.trainers.map((t) => ({
         userId: t.userId,
         type: NotificationType.ASSIGNMENT_SUBMITTED,
-        message: `${userName} submitted an assignment for "${assignment.course.name}".`,
+        message: `${userName} submitted "${assignment.title}" for "${assignment.course.name}".`,
       })),
     })
     revalidatePath("/notifications")

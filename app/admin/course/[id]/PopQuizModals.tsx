@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, HelpCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, X } from "lucide-react"
 import { createPopQuiz, updatePopQuiz, deletePopQuiz, type PopQuizFormData, type PopQuizOptionDraft } from "../actions"
+import { ConfirmDelete } from "./ConfirmDelete"
 
 type PopQuizOptionRow = {
   id: string
@@ -11,7 +12,7 @@ type PopQuizOptionRow = {
   order: number
 }
 
-type PopQuizRow = {
+export type PopQuizRow = {
   id: string
   contentId: string
   time: number
@@ -19,12 +20,12 @@ type PopQuizRow = {
   options: PopQuizOptionRow[]
 }
 
-type YoutubeContent = {
+type YoutubeLesson = {
   id: string
   title: string
 }
 
-function formatTime(totalSeconds: number): string {
+export function formatTime(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600)
   const m = Math.floor((totalSeconds % 3600) / 60)
   const s = totalSeconds % 60
@@ -90,19 +91,14 @@ function PopQuizOptionsEditor({ options, onChange }: { options: PopQuizOptionDra
 function PopQuizModal({
   title,
   initial,
-  courseId,
-  youtubeContents,
   onClose,
   onSubmit,
 }: {
   title: string
   initial: PopQuizFormData
-  courseId: string
-  youtubeContents: YoutubeContent[]
   onClose: () => void
   onSubmit: (data: PopQuizFormData) => Promise<void>
 }) {
-  const [contentId, setContentId] = useState(initial.contentId)
   const [hours, setHours] = useState(Math.floor(initial.time / 3600))
   const [minutes, setMinutes] = useState(Math.floor((initial.time % 3600) / 60))
   const [seconds, setSeconds] = useState(initial.time % 60)
@@ -121,7 +117,7 @@ function PopQuizModal({
     const time = hours * 3600 + minutes * 60 + seconds
     startTransition(async () => {
       try {
-        await onSubmit({ contentId, time, question, options })
+        await onSubmit({ contentId: initial.contentId, time, question, options })
         onClose()
       } catch (err) {
         setError(err instanceof Error ? err.message : "This video already has a pop quiz at that time. Choose a different time.")
@@ -138,21 +134,6 @@ function PopQuizModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">YouTube Video <span className="text-red-500">*</span></label>
-            <select
-              required
-              value={contentId}
-              onChange={(e) => setContentId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="" disabled>Select a video…</option>
-              {youtubeContents.map((c) => (
-                <option key={c.id} value={c.id}>{c.title}</option>
-              ))}
-            </select>
-          </div>
-
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
               Time <span className="text-red-500">*</span> <span className="font-normal text-slate-400">(when playback should pause)</span>
@@ -191,6 +172,7 @@ function PopQuizModal({
               required
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
+              autoFocus
               placeholder="e.g. What did we just cover?"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -215,118 +197,81 @@ function PopQuizModal({
   )
 }
 
-// ── Delete confirm ───────────────────────────────────────────────────────────
+// ── Pop quizzes popup (one YouTube lesson) ─────────────────────────────────
 
-function DeleteConfirm({ label, onCancel, onConfirm }: { label: string; onCancel: () => void; onConfirm: () => Promise<void> }) {
-  const [pending, startTransition] = useTransition()
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">Delete pop quiz?</h2>
-        <p className="mt-2 text-sm text-slate-500"><span className="font-medium text-slate-700">{label}</span> will be permanently removed.</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button disabled={pending} onClick={() => startTransition(async () => { await onConfirm(); onCancel() })}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-            {pending ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Main component ───────────────────────────────────────────────────────────
-
-export function PopQuizManagement({
+export function PopQuizzesModal({
   courseId,
-  youtubeContents,
+  video,
   popQuizzes,
+  onClose,
 }: {
   courseId: string
-  youtubeContents: YoutubeContent[]
+  video: YoutubeLesson
   popQuizzes: PopQuizRow[]
+  onClose: () => void
 }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<PopQuizRow | null>(null)
   const [deleting, setDeleting] = useState<PopQuizRow | null>(null)
-
-  const titleById = Object.fromEntries(youtubeContents.map((c) => [c.id, c.title]))
-  const rows = popQuizzes.slice().sort((a, b) => {
-    const t = (titleById[a.contentId] ?? "").localeCompare(titleById[b.contentId] ?? "")
-    return t !== 0 ? t : a.time - b.time
-  })
+  const rows = popQuizzes.slice().sort((a, b) => a.time - b.time)
 
   return (
-    <>
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <HelpCircle size={18} className="text-slate-500" />
-            <h2 className="text-lg font-semibold text-slate-900">Pop Quiz</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-900">Pop quizzes</h2>
+            <p className="truncate text-xs text-slate-500" title={video.title}>{video.title}</p>
           </div>
-          {youtubeContents.length > 0 && (
-            <button
-              onClick={() => setAdding(true)}
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              <Plus size={14} /> Add Pop Quiz
-            </button>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100" aria-label="Close"><X size={18} /></button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <p className="mb-3 text-xs text-slate-500">The video pauses at each time and asks the question.</p>
+          {rows.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 px-5 py-10 text-center text-sm text-slate-400">
+              No pop quizzes on this video yet.
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+              {rows.map((q) => (
+                <li key={q.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="w-14 shrink-0 font-mono text-xs text-slate-500">{formatTime(q.time)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900" title={q.question}>{q.question}</p>
+                    <p className="text-xs text-slate-400">{q.options.length} options</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <button onClick={() => setEditing(q)} title="Edit"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={14} /></button>
+                    <button onClick={() => setDeleting(q)} title="Delete"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
 
-        {youtubeContents.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center text-sm text-slate-400">
-            Add a YouTube Video content item first to attach a pop quiz.
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-10 text-center text-sm text-slate-400">
-            No pop quizzes yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Video</th>
-                  <th className="px-5 py-3">Time</th>
-                  <th className="px-5 py-3">Question</th>
-                  <th className="px-5 py-3 text-center">Options</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((q) => (
-                  <tr key={q.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 text-slate-600">{titleById[q.contentId] ?? "—"}</td>
-                    <td className="px-5 py-3 font-mono text-slate-500">{formatTime(q.time)}</td>
-                    <td className="px-5 py-3 font-medium text-slate-900 max-w-xs truncate">{q.question}</td>
-                    <td className="px-5 py-3 text-center text-slate-500">{q.options.length}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditing(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={13} /></button>
-                        <button onClick={() => setDeleting(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-6 py-4">
+          <button onClick={() => setAdding(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
+            <Plus size={14} /> Add Pop Quiz
+          </button>
+          <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            Done
+          </button>
+        </div>
       </div>
 
       {adding && (
         <PopQuizModal
           title="Add Pop Quiz"
-          initial={{ contentId: youtubeContents[0]?.id ?? "", time: 0, question: "", options: defaultOptions() }}
-          courseId={courseId}
-          youtubeContents={youtubeContents}
+          initial={{ contentId: video.id, time: 0, question: "", options: defaultOptions() }}
           onClose={() => setAdding(false)}
           onSubmit={(d) => createPopQuiz(courseId, d)}
         />
       )}
-
       {editing && (
         <PopQuizModal
           title="Edit Pop Quiz"
@@ -336,20 +281,18 @@ export function PopQuizManagement({
             question: editing.question,
             options: editing.options.slice().sort((a, b) => a.order - b.order).map((o) => ({ text: o.text, isCorrect: o.isCorrect })),
           }}
-          courseId={courseId}
-          youtubeContents={youtubeContents}
           onClose={() => setEditing(null)}
           onSubmit={(d) => updatePopQuiz(editing.id, courseId, d)}
         />
       )}
-
       {deleting && (
-        <DeleteConfirm
-          label={`"${deleting.question}" at ${formatTime(deleting.time)}`}
+        <ConfirmDelete
+          heading="Delete pop quiz?"
+          message={<><span className="font-medium text-slate-700">{deleting.question}</span> at {formatTime(deleting.time)} will be permanently removed.</>}
           onCancel={() => setDeleting(null)}
           onConfirm={() => deletePopQuiz(deleting.id, courseId)}
         />
       )}
-    </>
+    </div>
   )
 }

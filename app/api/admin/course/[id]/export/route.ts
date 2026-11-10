@@ -39,7 +39,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           },
         },
       },
-      assignment: { where: { deletedAt: null }, select: { description: true, submitUrl: true } },
+      assignments: {
+        where: { deletedAt: null },
+        orderBy: { order: "asc" },
+        select: { title: true, order: true, description: true, submitUrl: true },
+      },
     },
   })
   if (!course) {
@@ -96,9 +100,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         options: q.options.map((o) => ({ text: o.text, isCorrect: o.isCorrect, matchKey: o.matchKey, order: o.order })),
       })),
     })),
-    assignment: course.assignment
-      ? { description: course.assignment.description, submitUrl: course.assignment.submitUrl }
-      : null,
+    assignments: course.assignments,
   }
 
   const safeName = course.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()

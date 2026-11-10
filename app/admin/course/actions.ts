@@ -5,7 +5,7 @@ import { after } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
-import { evaluateCourseCompletion, recheckCourseCompletionAfterRemoval } from "../../lib/courseCompletion"
+import { courseAssignmentStatus, evaluateCourseCompletion, recheckCourseCompletionAfterRemoval } from "../../lib/courseCompletion"
 import {
   canEditCourse,
   getSessionUser,
@@ -167,7 +167,7 @@ export async function duplicateCourse(id: string): Promise<string> {
           },
         },
       },
-      assignment: true,
+      assignments: { where: { deletedAt: null }, orderBy: { order: "asc" } },
     },
   })
   if (!source) throw new Error("Course not found")
@@ -236,13 +236,15 @@ export async function duplicateCourse(id: string): Promise<string> {
     }
   }
 
-  if (source.assignment && !source.assignment.deletedAt) {
-    await prisma.assignment.create({
-      data: {
+  if (source.assignments.length > 0) {
+    await prisma.assignment.createMany({
+      data: source.assignments.map((a) => ({
         courseId: newCourse.id,
-        description: source.assignment.description,
-        submitUrl: source.assignment.submitUrl,
-      },
+        title: a.title,
+        order: a.order,
+        description: a.description,
+        submitUrl: a.submitUrl,
+      })),
     })
   }
 
@@ -295,6 +297,8 @@ type CourseExport = {
       options: { text: string; isCorrect?: boolean | null; matchKey?: string | null; order?: number | null }[]
     }[]
   }[]
+  assignments?: { title: string; order: number | null; description: string; submitUrl: string | null }[]
+  // Older exports carry a single assignment and no position; it's placed at the end.
   assignment?: { description: string; submitUrl: string | null } | null
 }
 
@@ -394,9 +398,26 @@ export async function importCourse(formData: FormData): Promise<string> {
       }
     }
 
-    if (data.assignment) {
+    for (const a of data.assignments ?? []) {
       await tx.assignment.create({
-        data: { courseId: newCourse.id, description: data.assignment.description, submitUrl: data.assignment.submitUrl },
+        data: {
+          courseId: newCourse.id,
+          title: a.title || "Assignment",
+          order: a.order,
+          description: a.description,
+          submitUrl: a.submitUrl ?? null,
+        },
+      })
+    }
+    if (!data.assignments && data.assignment) {
+      const orders = [...(data.contents ?? []).map((c) => c.order ?? 0), ...(data.tests ?? []).map((t) => t.order ?? 0)]
+      await tx.assignment.create({
+        data: {
+          courseId: newCourse.id,
+          description: data.assignment.description,
+          submitUrl: data.assignment.submitUrl,
+          order: Math.max(0, ...orders) + 1,
+        },
       })
     }
 
@@ -412,48 +433,51 @@ const touchCourse = (courseId: string) =>
   prisma.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
 
 // ── Shared course-item ordering ────────────────────────────────────────────────
-// Content and Test share one order sequence per course so they can be freely
-// interleaved. Both tables enforce their own @@unique([courseId, order]), so
-// shifting is done per-table (never cross-table collisions), but the two shifts
-// are always issued together so the merged sequence stays contiguous.
+// Content, Test and Assignment share one order sequence per course so they can be
+// freely interleaved. Each table enforces its own @@unique([courseId, order]), so
+// shifting is done per-table (never cross-table collisions), but the shifts are
+// always issued together so the merged sequence stays contiguous.
+
+export type CourseItemKind = "CONTENT" | "TEST" | "ASSIGNMENT"
+
+function courseItemTable(tx: Prisma.TransactionClient, kind: CourseItemKind) {
+  // The three delegates share the shape used here; the cast keeps TS from unioning their signatures.
+  return (kind === "CONTENT" ? tx.content : kind === "TEST" ? tx.test : tx.assignment) as unknown as {
+    findMany(args: object): Promise<{ id: string; order: number | null }[]>
+    findUnique(args: object): Promise<{ order: number | null } | null>
+    update(args: object): Promise<unknown>
+  }
+}
+const COURSE_ITEM_KINDS: CourseItemKind[] = ["CONTENT", "TEST", "ASSIGNMENT"]
 
 async function shiftCourseItemsUpFrom(tx: Prisma.TransactionClient, courseId: string, fromOrderInclusive: number) {
-  const [contents, tests] = await Promise.all([
-    tx.content.findMany({
+  for (const kind of COURSE_ITEM_KINDS) {
+    const table = courseItemTable(tx, kind)
+    const rows = await table.findMany({
       where: { courseId, deletedAt: null, order: { gte: fromOrderInclusive } },
       orderBy: { order: "desc" },
       select: { id: true, order: true },
-    }),
-    tx.test.findMany({
-      where: { courseId, deletedAt: null, order: { gte: fromOrderInclusive } },
-      orderBy: { order: "desc" },
-      select: { id: true, order: true },
-    }),
-  ])
-  for (const c of contents) await tx.content.update({ where: { id: c.id }, data: { order: c.order! + 1 } })
-  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order! + 1 } })
+    })
+    for (const r of rows) await table.update({ where: { id: r.id }, data: { order: r.order! + 1 } })
+  }
 }
 
 async function shiftCourseItemsDownAfter(tx: Prisma.TransactionClient, courseId: string, removedOrder: number) {
-  const [contents, tests] = await Promise.all([
-    tx.content.findMany({
+  for (const kind of COURSE_ITEM_KINDS) {
+    const table = courseItemTable(tx, kind)
+    const rows = await table.findMany({
       where: { courseId, deletedAt: null, order: { gt: removedOrder } },
       orderBy: { order: "asc" },
       select: { id: true, order: true },
-    }),
-    tx.test.findMany({
-      where: { courseId, deletedAt: null, order: { gt: removedOrder } },
-      orderBy: { order: "asc" },
-      select: { id: true, order: true },
-    }),
-  ])
-  for (const c of contents) await tx.content.update({ where: { id: c.id }, data: { order: c.order! - 1 } })
-  for (const t of tests) await tx.test.update({ where: { id: t.id }, data: { order: t.order! - 1 } })
+    })
+    for (const r of rows) await table.update({ where: { id: r.id }, data: { order: r.order! - 1 } })
+  }
 }
 
-export type CourseItemKind = "CONTENT" | "TEST"
+const setCourseItemOrder = (tx: Prisma.TransactionClient, kind: CourseItemKind, id: string, order: number) =>
+  courseItemTable(tx, kind).update({ where: { id }, data: { order } })
 
-// Moves an existing Content/Test to sit right after the item currently at
+// Moves an existing item to sit right after the item currently at
 // `insertAfterOrder` (0 = beginning), closing the gap it leaves behind and
 // opening one at the new spot. No-op if it's already there.
 async function moveCourseItemInTx(
@@ -462,14 +486,7 @@ async function moveCourseItemInTx(
   item: { kind: CourseItemKind; id: string },
   insertAfterOrder: number,
 ) {
-  const getOrder = (kind: CourseItemKind, id: string) =>
-    kind === "CONTENT"
-      ? tx.content.findUnique({ where: { id }, select: { order: true } })
-      : tx.test.findUnique({ where: { id }, select: { order: true } })
-  const setOrder = (kind: CourseItemKind, id: string, order: number) =>
-    kind === "CONTENT" ? tx.content.update({ where: { id }, data: { order } }) : tx.test.update({ where: { id }, data: { order } })
-
-  const current = await getOrder(item.kind, item.id)
+  const current = await courseItemTable(tx, item.kind).findUnique({ where: { id: item.id }, select: { order: true } })
   if (!current || current.order === null) return
   const oldOrder = current.order
   const target = insertAfterOrder + 1
@@ -477,11 +494,11 @@ async function moveCourseItemInTx(
 
   // Park it out of the way so the shifts below don't touch it, close the gap
   // it leaves, then open a gap at the (possibly shifted) target and drop it in.
-  await setOrder(item.kind, item.id, -1)
+  await setCourseItemOrder(tx, item.kind, item.id, -1)
   await shiftCourseItemsDownAfter(tx, courseId, oldOrder)
   const adjustedTarget = target > oldOrder ? target - 1 : target
   await shiftCourseItemsUpFrom(tx, courseId, adjustedTarget)
-  await setOrder(item.kind, item.id, adjustedTarget)
+  await setCourseItemOrder(tx, item.kind, item.id, adjustedTarget)
 }
 
 // Child rows must belong to the course the caller was authorized for, so an editor of one
@@ -491,9 +508,10 @@ async function assertInCourse(row: Promise<unknown>) {
 }
 
 const courseItemInCourse = (kind: CourseItemKind, id: string, courseId: string) =>
-  kind === "CONTENT"
-    ? prisma.content.findFirst({ where: { id, courseId }, select: { id: true } })
-    : prisma.test.findFirst({ where: { id, courseId }, select: { id: true } })
+  courseItemTable(prisma as unknown as Prisma.TransactionClient, kind).findMany({
+    where: { id, courseId },
+    select: { id: true, order: true },
+  }).then((rows) => rows[0] ?? null)
 
 export async function swapCourseItemOrder(
   item1: { kind: CourseItemKind; id: string; order: number },
@@ -504,21 +522,25 @@ export async function swapCourseItemOrder(
   await assertInCourse(courseItemInCourse(item1.kind, item1.id, courseId))
   await assertInCourse(courseItemInCourse(item2.kind, item2.id, courseId))
   await prisma.$transaction(async (tx) => {
-    const setOrder = (kind: CourseItemKind, id: string, order: number) =>
-      kind === "CONTENT" ? tx.content.update({ where: { id }, data: { order } }) : tx.test.update({ where: { id }, data: { order } })
-
     if (item1.kind === item2.kind) {
       // Same table — go through a temporary value to dodge the unique constraint mid-swap
-      await setOrder(item1.kind, item1.id, -1)
-      await setOrder(item2.kind, item2.id, item1.order)
-      await setOrder(item1.kind, item1.id, item2.order)
+      await setCourseItemOrder(tx, item1.kind, item1.id, -1)
+      await setCourseItemOrder(tx, item2.kind, item2.id, item1.order)
+      await setCourseItemOrder(tx, item1.kind, item1.id, item2.order)
     } else {
-      await setOrder(item1.kind, item1.id, item2.order)
-      await setOrder(item2.kind, item2.id, item1.order)
+      await setCourseItemOrder(tx, item1.kind, item1.id, item2.order)
+      await setCourseItemOrder(tx, item2.kind, item2.id, item1.order)
     }
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
+  revalidateCourse(courseId)
+}
+
+// The course editor lives at three URLs (admin, SME, trainer) built from the same components.
+function revalidateCourse(courseId: string) {
   revalidatePath(`/admin/course/${courseId}`)
+  revalidatePath(`/sme/course/${courseId}`)
+  revalidatePath(`/trainer/course/${courseId}`)
 }
 
 // ── Content ───────────────────────────────────────────────────────────────────
@@ -561,7 +583,7 @@ export async function createContent(courseId: string, data: ContentFormData) {
     })
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 export async function updateContent(id: string, courseId: string, data: ContentEditData) {
@@ -577,7 +599,7 @@ export async function updateContent(id: string, courseId: string, data: ContentE
     touchCourse(courseId),
   ])
   if (previous?.imageKey && previous.imageKey !== imageKey) await deleteUnusedContentImages([previous.imageKey])
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 export async function deleteContent(id: string, courseId: string) {
@@ -595,7 +617,7 @@ export async function deleteContent(id: string, courseId: string) {
   })
   await deleteUnusedContentImages([removedImageKey])
   after(() => recheckCourseCompletionAfterRemoval(courseId))
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 // ── Test ──────────────────────────────────────────────────────────────────────
@@ -615,7 +637,7 @@ export async function createTest(courseId: string, data: TestFormData & { insert
     })
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 export async function updateTest(testId: string, courseId: string, data: TestFormData & { insertAfterOrder: number }) {
@@ -626,7 +648,7 @@ export async function updateTest(testId: string, courseId: string, data: TestFor
     await moveCourseItemInTx(tx, courseId, { kind: "TEST", id: testId }, data.insertAfterOrder)
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 export async function deleteTest(testId: string, courseId: string) {
@@ -641,7 +663,7 @@ export async function deleteTest(testId: string, courseId: string) {
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
   after(() => recheckCourseCompletionAfterRemoval(courseId))
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 // ── Questions ─────────────────────────────────────────────────────────────────
@@ -675,7 +697,7 @@ export async function createQuestion(testId: string, courseId: string, data: Que
     }),
     touchCourse(courseId),
   ])
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 const questionInCourse = (questionId: string, courseId: string) =>
@@ -697,7 +719,7 @@ export async function updateQuestion(questionId: string, courseId: string, data:
     }),
     touchCourse(courseId),
   ])
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 export async function deleteQuestion(questionId: string, courseId: string) {
@@ -707,7 +729,24 @@ export async function deleteQuestion(questionId: string, courseId: string) {
     prisma.question.delete({ where: { id: questionId } }),
     touchCourse(courseId),
   ])
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
+}
+
+// Swaps two questions' positions within one test (order is unique per test, so go via a temp value).
+export async function swapQuestionOrder(questionId1: string, questionId2: string, courseId: string) {
+  await requireCourseEditor(courseId)
+  const [q1, q2] = await Promise.all([
+    prisma.question.findFirst({ where: { id: questionId1, test: { courseId } }, select: { testId: true, order: true } }),
+    prisma.question.findFirst({ where: { id: questionId2, test: { courseId } }, select: { testId: true, order: true } }),
+  ])
+  if (!q1 || !q2 || q1.testId !== q2.testId) throw new Error("Not found in this course.")
+  await prisma.$transaction([
+    prisma.question.update({ where: { id: questionId1 }, data: { order: -1 } }),
+    prisma.question.update({ where: { id: questionId2 }, data: { order: q1.order } }),
+    prisma.question.update({ where: { id: questionId1 }, data: { order: q2.order } }),
+    prisma.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } }),
+  ])
+  revalidateCourse(courseId)
 }
 
 // ── Pop Quizzes ───────────────────────────────────────────────────────────────
@@ -748,9 +787,7 @@ export async function createPopQuiz(courseId: string, data: PopQuizFormData) {
     }),
     touchCourse(courseId),
   ])
-  revalidatePath(`/admin/course/${courseId}`)
-  revalidatePath(`/trainer/course/${courseId}`)
-  revalidatePath(`/sme/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 const popQuizInCourse = (popQuizId: string, courseId: string) =>
@@ -776,9 +813,7 @@ export async function updatePopQuiz(popQuizId: string, courseId: string, data: P
     }),
     touchCourse(courseId),
   ])
-  revalidatePath(`/admin/course/${courseId}`)
-  revalidatePath(`/trainer/course/${courseId}`)
-  revalidatePath(`/sme/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 export async function deletePopQuiz(popQuizId: string, courseId: string) {
@@ -788,9 +823,7 @@ export async function deletePopQuiz(popQuizId: string, courseId: string) {
     prisma.popQuiz.delete({ where: { id: popQuizId } }),
     touchCourse(courseId),
   ])
-  revalidatePath(`/admin/course/${courseId}`)
-  revalidatePath(`/trainer/course/${courseId}`)
-  revalidatePath(`/sme/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 // ── Trainers ──────────────────────────────────────────────────────────────────
@@ -820,46 +853,57 @@ export async function setCourseTrainers(courseId: string, userIds: string[]) {
 // ── Assignment ─────────────────────────────────────────────────────────────────
 
 export type AssignmentFormData = {
+  title: string
   description: string
   submitUrl: string
+  insertAfterOrder: number // 0 = insert at the very beginning
 }
 
 export async function createAssignment(courseId: string, data: AssignmentFormData) {
   await requireCourseEditor(courseId)
-  await Promise.all([
-    prisma.assignment.create({
-      data: { courseId, description: data.description, submitUrl: data.submitUrl.trim() || null },
-    }),
-    touchCourse(courseId),
-  ])
-  revalidatePath(`/admin/course/${courseId}`)
+  await prisma.$transaction(async (tx) => {
+    const target = data.insertAfterOrder + 1
+    await shiftCourseItemsUpFrom(tx, courseId, target)
+    await tx.assignment.create({
+      data: {
+        courseId,
+        title: data.title.trim() || "Assignment",
+        description: data.description,
+        submitUrl: data.submitUrl.trim() || null,
+        order: target,
+      },
+    })
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
+  revalidateCourse(courseId)
 }
-
-const assignmentInCourse = (assignmentId: string, courseId: string) =>
-  prisma.assignment.findFirst({ where: { id: assignmentId, courseId }, select: { id: true } })
 
 export async function updateAssignment(assignmentId: string, courseId: string, data: AssignmentFormData) {
   await requireCourseEditor(courseId)
-  await assertInCourse(assignmentInCourse(assignmentId, courseId))
-  await Promise.all([
-    prisma.assignment.update({
+  await assertInCourse(courseItemInCourse("ASSIGNMENT", assignmentId, courseId))
+  await prisma.$transaction(async (tx) => {
+    await tx.assignment.update({
       where: { id: assignmentId },
-      data: { description: data.description, submitUrl: data.submitUrl.trim() || null },
-    }),
-    touchCourse(courseId),
-  ])
-  revalidatePath(`/admin/course/${courseId}`)
+      data: { title: data.title.trim() || "Assignment", description: data.description, submitUrl: data.submitUrl.trim() || null },
+    })
+    await moveCourseItemInTx(tx, courseId, { kind: "ASSIGNMENT", id: assignmentId }, data.insertAfterOrder)
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
+  revalidateCourse(courseId)
 }
 
 export async function deleteAssignment(assignmentId: string, courseId: string) {
   await requireCourseEditor(courseId)
-  await assertInCourse(assignmentInCourse(assignmentId, courseId))
-  await Promise.all([
-    prisma.assignment.update({ where: { id: assignmentId }, data: { deletedAt: new Date() } }),
-    touchCourse(courseId),
-  ])
+  await assertInCourse(courseItemInCourse("ASSIGNMENT", assignmentId, courseId))
+  await prisma.$transaction(async (tx) => {
+    const assignment = await tx.assignment.findUnique({ where: { id: assignmentId }, select: { order: true } })
+    if (!assignment) return
+    await tx.assignment.update({ where: { id: assignmentId }, data: { deletedAt: new Date(), order: null } })
+    if (assignment.order !== null) await shiftCourseItemsDownAfter(tx, courseId, assignment.order)
+    await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
+  })
   after(() => recheckCourseCompletionAfterRemoval(courseId))
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
 }
 
 export async function gradeSubmission(
@@ -875,6 +919,7 @@ export async function gradeSubmission(
     include: {
       user: { select: { id: true, name: true } },
       pathway: { select: { id: true, name: true } },
+      assignment: { select: { title: true } },
     },
   })
   if (!submission) throw new Error("Submission not found")
@@ -884,8 +929,9 @@ export async function gradeSubmission(
     data: { status, adminNote, gradedAt: new Date(), gradedById },
   })
 
-  // Mirror assignment verdict into CourseProgress so sidebar can reflect it
-  // If failed, also revert course completion
+  // Mirror the combined verdict over all the course's assignments into CourseProgress
+  // for reports. A failed assignment also reverts course completion.
+  const assignmentStatus = await courseAssignmentStatus(submission.userId, courseId, submission.pathwayId)
   await prisma.courseProgress.upsert({
     where: {
       userId_courseId_pathwayId: {
@@ -894,17 +940,17 @@ export async function gradeSubmission(
         pathwayId: submission.pathwayId,
       },
     },
-    create: { userId: submission.userId, courseId, pathwayId: submission.pathwayId, assignmentStatus: status },
+    create: { userId: submission.userId, courseId, pathwayId: submission.pathwayId, assignmentStatus },
     update: status === "FAILED"
-      ? { assignmentStatus: "FAILED", completed: false, completedAt: null }
-      : { assignmentStatus: "PASSED" },
+      ? { assignmentStatus, completed: false, completedAt: null }
+      : { assignmentStatus },
   })
 
   // Notify user
   const courseName = await prisma.course.findUnique({ where: { id: courseId }, select: { name: true } })
   const message = status === "PASSED"
-    ? `Your assignment for "${courseName?.name}" in "${submission.pathway.name}" has been marked as passed!`
-    : `Your assignment for "${courseName?.name}" in "${submission.pathway.name}" has been marked as failed. Please resubmit.${adminNote ? ` Feedback: ${adminNote}` : ""}`
+    ? `Your assignment "${submission.assignment.title}" for "${courseName?.name}" in "${submission.pathway.name}" has been marked as passed!`
+    : `Your assignment "${submission.assignment.title}" for "${courseName?.name}" in "${submission.pathway.name}" has been marked as failed. Please resubmit.${adminNote ? ` Feedback: ${adminNote}` : ""}`
 
   await prisma.notification.create({
     data: {
@@ -920,7 +966,7 @@ export async function gradeSubmission(
     await evaluateCourseCompletion(submission.userId, courseId, submission.pathwayId)
   }
 
-  revalidatePath(`/admin/course/${courseId}`)
+  revalidateCourse(courseId)
   revalidatePath(`/pathways/${submission.pathwayId}`)
   revalidatePath("/notifications")
 }

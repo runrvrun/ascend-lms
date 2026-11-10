@@ -201,7 +201,6 @@ export async function loadAnalytics({
         status: true,
         contents: { where: { deletedAt: null }, select: { id: true, title: true, order: true } },
         tests: { where: { deletedAt: null }, select: { id: true, title: true, order: true } },
-        assignment: { select: { id: true } },
         pathways: { select: { pathwayId: true } },
       },
     }),

@@ -143,9 +143,11 @@ type TestItem = {
 
 type AssignmentItem = {
   id: string
+  title: string
+  order: number
   description: string
   submitUrl: string | null
-} | null
+}
 
 type SubmissionItem = {
   id: string
@@ -167,7 +169,7 @@ type CourseEntry = {
     name: string
     contents: ContentItem[]
     tests: TestItem[]
-    assignment: AssignmentItem
+    assignments: AssignmentItem[]
     feedbackEnabled: boolean
   }
 }
@@ -182,7 +184,7 @@ type PathwayData = {
 export type Selection =
   | { kind: "content"; content: ContentItem; courseId: string }
   | { kind: "test"; test: TestItem; courseId: string; courseName: string }
-  | { kind: "assignment"; assignment: NonNullable<AssignmentItem>; courseId: string; courseName: string }
+  | { kind: "assignment"; assignment: AssignmentItem; courseId: string; courseName: string }
   | { kind: "feedback"; courseId: string; courseName: string }
   | { kind: "growth-plan" }
 
@@ -732,7 +734,7 @@ function AssignmentViewer({
   isPreview,
   isLocked,
 }: {
-  assignment: NonNullable<AssignmentItem>
+  assignment: AssignmentItem
   courseId: string
   pathwayId: string
   courseName: string
@@ -777,7 +779,7 @@ function AssignmentViewer({
   return (
     <div className="h-full overflow-y-auto p-6 md:p-8">
       <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{courseName}</div>
-      <h2 className="mb-6 text-xl font-bold text-slate-900">Assignment</h2>
+      <h2 className="mb-6 text-xl font-bold text-slate-900">{assignment.title}</h2>
 
       {/* Description */}
       <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -824,14 +826,14 @@ function AssignmentViewer({
       {isAlreadyPassed && (
         <div className="mb-6 flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm font-semibold text-green-700">
           <CheckCircle2 size={16} />
-          Assignment passed — course completed!
+          Assignment passed!
         </div>
       )}
 
       {!isAlreadyPassed && status === "PASSED" && (
         <div className="mb-6 flex items-center gap-2 rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-sm font-semibold text-green-700">
           <CheckCircle2 size={16} />
-          Assignment passed — course completed!
+          Assignment passed!
         </div>
       )}
 
@@ -1090,17 +1092,17 @@ function selectionKey(sel: Selection | null) {
   return "growth-plan"
 }
 
-// Every selectable item in sidebar order: per course, content and tests interleaved
-// by their shared `order`, then the assignment, then feedback.
+// Every selectable item in sidebar order: per course, content, tests and assignments
+// interleaved by their shared `order`, then feedback.
 function buildNavItems(courses: CourseEntry[]): NavItem[] {
   return courses.flatMap(({ course }) => {
     const items: Selection[] = [
       ...course.contents.map((c) => ({ order: c.order ?? 0, sel: { kind: "content", content: c, courseId: course.id } as Selection })),
       ...course.tests.map((t) => ({ order: t.order, sel: { kind: "test", test: t, courseId: course.id, courseName: course.name } as Selection })),
+      ...course.assignments.map((a) => ({ order: a.order, sel: { kind: "assignment", assignment: a, courseId: course.id, courseName: course.name } as Selection })),
     ]
       .sort((a, b) => a.order - b.order)
       .map((i) => i.sel)
-    if (course.assignment) items.push({ kind: "assignment", assignment: course.assignment, courseId: course.id, courseName: course.name })
     if (course.feedbackEnabled) items.push({ kind: "feedback", courseId: course.id, courseName: course.name })
     return items.map((sel) => ({
       key: selectionKey(sel)!,
@@ -1108,7 +1110,7 @@ function buildNavItems(courses: CourseEntry[]): NavItem[] {
       title:
         sel.kind === "content" ? sel.content.title
         : sel.kind === "test" ? sel.test.title
-        : sel.kind === "assignment" ? `${course.name} — Assignment`
+        : sel.kind === "assignment" ? sel.assignment.title
         : `${course.name} — Feedback`,
     }))
   })
@@ -1156,7 +1158,7 @@ export function ContentViewer({
   currentUserId,
   latestSubmissionByAssignmentId,
   testStatusByTestId,
-  assignmentStatusByCourseId,
+  assignmentStatusById,
   feedbackByCourseId,
   isPreview,
   isLocked,
@@ -1170,7 +1172,7 @@ export function ContentViewer({
   currentUserId: string
   latestSubmissionByAssignmentId: Record<string, SubmissionItem>
   testStatusByTestId: Record<string, "PASSED" | "FAILED">
-  assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  assignmentStatusById: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   isPreview?: boolean
   isLocked?: boolean
@@ -1275,7 +1277,7 @@ export function ContentViewer({
           pathwayId={pathwayId}
           courseName={selection.courseName}
           submission={latestSubmissionByAssignmentId[selection.assignment.id] ?? null}
-          isAlreadyPassed={assignmentStatusByCourseId[selection.courseId] === "PASSED"}
+          isAlreadyPassed={assignmentStatusById[selection.assignment.id] === "PASSED"}
           isPreview={isPreview}
           isLocked={isLocked}
         />
@@ -1483,7 +1485,7 @@ function CourseSection({
   completedContentIds,
   completedCourseIds,
   testStatusByTestId,
-  assignmentStatusByCourseId,
+  assignmentStatusById,
   feedbackByCourseId,
   onSelect,
 }: {
@@ -1492,7 +1494,7 @@ function CourseSection({
   completedContentIds: Set<string>
   completedCourseIds: Set<string>
   testStatusByTestId: Record<string, "PASSED" | "FAILED">
-  assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  assignmentStatusById: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   onSelect: (sel: Selection) => void
 }) {
@@ -1526,6 +1528,7 @@ function CourseSection({
           {[
             ...course.contents.map((c) => ({ kind: "content" as const, order: c.order ?? 0, data: c })),
             ...course.tests.map((t) => ({ kind: "test" as const, order: t.order, data: t })),
+            ...course.assignments.map((a) => ({ kind: "assignment" as const, order: a.order, data: a })),
           ]
             .sort((a, b) => a.order - b.order)
             .map((item) => {
@@ -1551,6 +1554,29 @@ function CourseSection({
                       </span>
                     )}
                     <span className="line-clamp-2 min-w-0 flex-1">{c.title}</span>
+                  </button>
+                )
+              }
+
+              if (item.kind === "assignment") {
+                const a = item.data
+                const active = selectedId === `assignment-${a.id}`
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => onSelect({ kind: "assignment", assignment: a, courseId: course.id, courseName: course.name })}
+                    className={`flex w-full items-start gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
+                      active ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {assignmentStatusById[a.id] === "PASSED" ? (
+                      <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-green-500" />
+                    ) : (
+                      <span className={`mt-0.5 shrink-0 ${active ? "text-blue-500" : "text-slate-400"}`}>
+                        <ClipboardCheck size={13} />
+                      </span>
+                    )}
+                    <span className="line-clamp-2 min-w-0 flex-1">{a.title}</span>
                   </button>
                 )
               }
@@ -1583,37 +1609,6 @@ function CourseSection({
                 </button>
               )
             })}
-
-          {course.assignment && (
-            <button
-              onClick={() =>
-                onSelect({
-                  kind: "assignment",
-                  assignment: course.assignment!,
-                  courseId: course.id,
-                  courseName: course.name,
-                })
-              }
-              className={`flex w-full items-center gap-2 pl-9 pr-4 py-2 text-left text-sm transition-colors ${
-                selectedId === `assignment-${course.assignment.id}`
-                  ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {assignmentStatusByCourseId[course.id] === "PASSED" ? (
-                <CheckCircle2 size={13} className="shrink-0 text-green-500" />
-              ) : (
-                <span
-                  className={
-                    selectedId === `assignment-${course.assignment.id}` ? "text-blue-500" : "text-slate-400"
-                  }
-                >
-                  <ClipboardCheck size={13} />
-                </span>
-              )}
-              <span className="truncate">Assignment</span>
-            </button>
-          )}
 
           {course.feedbackEnabled && (
             <button
@@ -1887,7 +1882,7 @@ export function PathwayViewer({
   currentUserId,
   latestSubmissionByAssignmentId,
   testStatusByTestId,
-  assignmentStatusByCourseId,
+  assignmentStatusById,
   feedbackByCourseId,
   allGrowthPlans,
   deadline,
@@ -1904,7 +1899,7 @@ export function PathwayViewer({
   currentUserId: string
   latestSubmissionByAssignmentId: Record<string, SubmissionItem>
   testStatusByTestId: Record<string, "PASSED" | "FAILED">
-  assignmentStatusByCourseId: Record<string, "PASSED" | "FAILED">
+  assignmentStatusById: Record<string, "PASSED" | "FAILED">
   feedbackByCourseId: Record<string, { rating: number; comment: string | null }>
   allGrowthPlans: GrowthPlanItem[]
   deadline?: string | null // "YYYY-MM-DD"
@@ -1958,7 +1953,7 @@ export function PathwayViewer({
             completedContentIds={completedContentIds}
             completedCourseIds={completedCourseIds}
             testStatusByTestId={testStatusByTestId}
-            assignmentStatusByCourseId={assignmentStatusByCourseId}
+            assignmentStatusById={assignmentStatusById}
             feedbackByCourseId={feedbackByCourseId}
             onSelect={select}
           />
@@ -2091,7 +2086,7 @@ export function PathwayViewer({
               currentUserId={currentUserId}
               latestSubmissionByAssignmentId={latestSubmissionByAssignmentId}
               testStatusByTestId={testStatusByTestId}
-              assignmentStatusByCourseId={assignmentStatusByCourseId}
+              assignmentStatusById={assignmentStatusById}
               feedbackByCourseId={feedbackByCourseId}
               isPreview={isPreview}
               isLocked={isLocked}

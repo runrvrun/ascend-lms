@@ -1,5 +1,6 @@
 import { prisma } from "./prisma"
 import type { CourseDetail } from "./userLearningProgress"
+import { combinedAssignmentStatus, statusByAssignment } from "./assignmentStatus"
 
 export async function getCourseReportData(courseId: string) {
   const course = await prisma.course.findFirst({
@@ -9,7 +10,7 @@ export async function getCourseReportData(courseId: string) {
       trainers: { include: { user: { select: { name: true } } } },
       contents: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, type: true } },
       tests: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, passThreshold: true } },
-      assignment: { where: { deletedAt: null }, select: { id: true } },
+      assignments: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true } },
       pathways: { include: { pathway: { select: { id: true, name: true, deletedAt: true } } } },
     },
   })
@@ -51,11 +52,11 @@ export async function getCourseReportData(courseId: string) {
           select: { userId: true, testId: true, score: true, status: true },
         })
       : [],
-    course.assignment
+    course.assignments.length
       ? prisma.assignmentSubmission.findMany({
-          where: { assignmentId: course.assignment.id },
+          where: { assignmentId: { in: course.assignments.map((a) => a.id) } },
           orderBy: { createdAt: "asc" },
-          select: { userId: true, status: true },
+          select: { userId: true, assignmentId: true, status: true },
         })
       : [],
     prisma.courseFeedback.findMany({
@@ -81,7 +82,13 @@ export async function getCourseReportData(courseId: string) {
 
   // Latest submission per user (resubmits override), so an ungraded submission
   // shows as awaiting review instead of untouched.
-  const latestSubmissionStatus = new Map(submissions.map((s) => [s.userId, s.status]))
+  // Combined status over all the course's assignments, per user (across pathways).
+  const assignmentIds = course.assignments.map((a) => a.id)
+  const submissionsByUser = new Map<string, typeof submissions>()
+  for (const s of submissions) submissionsByUser.set(s.userId, [...(submissionsByUser.get(s.userId) ?? []), s])
+  const latestSubmissionStatus = new Map(
+    [...submissionsByUser].map(([userId, subs]) => [userId, combinedAssignmentStatus(assignmentIds, statusByAssignment(subs))]),
+  )
 
   const feedbackByUserId = new Map(
     feedbacks.map((f) => [f.userId, { rating: f.rating, comment: f.comment, date: f.createdAt }])
@@ -161,9 +168,9 @@ export async function getCourseReportData(courseId: string) {
         completed,
         completedAt: completedAt ? completedAt.toISOString() : null,
         tests,
-        hasAssignment: !!course.assignment,
+        hasAssignment: course.assignments.length > 0,
         assignmentStatus:
-          (prog?.assignmentStatus as CourseDetail["assignmentStatus"]) ?? latestSubmissionStatus.get(userId) ?? null,
+          latestSubmissionStatus.get(userId) ?? (prog?.assignmentStatus as CourseDetail["assignmentStatus"]) ?? null,
         totalContents: contents.length,
         completedContents: contents.filter((c) => c.completed).length,
         contents,
@@ -211,7 +218,8 @@ export async function getCourseReportData(courseId: string) {
   // Submission history is the source of truth for who submitted/passed — CourseProgress.assignmentStatus
   // is derived state and isn't consistently populated by the current submission flow.
   const submitterIds = new Set(submissions.map((s) => s.userId))
-  const passedSubmitterIds = new Set(submissions.filter((s) => s.status === "PASSED").map((s) => s.userId))
+  // Passed = every assignment in the course passed.
+  const passedSubmitterIds = new Set([...latestSubmissionStatus].filter(([, st]) => st === "PASSED").map(([userId]) => userId))
 
   const avgFeedbackRating = feedbacks.length
     ? Math.round((feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length) * 10) / 10
@@ -227,7 +235,7 @@ export async function getCourseReportData(courseId: string) {
       trainers: course.trainers.map((t) => t.user.name ?? "Unknown"),
       contentCount: course.contents.length,
       tests: course.tests.map((t) => ({ id: t.id, title: t.title, passThreshold: t.passThreshold })),
-      hasAssignment: !!course.assignment,
+      hasAssignment: course.assignments.length > 0,
       pathwayCount: pathwayIds.length,
     },
     stats: {

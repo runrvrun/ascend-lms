@@ -1,14 +1,10 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, ExternalLink, Download, ClipboardCheck, CheckCircle2, XCircle, Clock } from "lucide-react"
-import {
-  createAssignment,
-  updateAssignment,
-  deleteAssignment,
-  gradeSubmission,
-  AssignmentFormData,
-} from "../actions"
+import { X, ExternalLink, Download } from "lucide-react"
+import { gradeSubmission } from "../actions"
+import { PositionSelect } from "./PositionSelect"
+import type { OutlineItem } from "./courseOutline"
 
 type SubmissionRow = {
   id: string
@@ -25,12 +21,16 @@ type SubmissionRow = {
   gradedBy: { name: string | null } | null
 }
 
-type AssignmentRow = {
+export type AssignmentRow = {
   id: string
+  title: string
+  order: number
   description: string
   submitUrl: string | null
   submissions: SubmissionRow[]
-} | null
+}
+
+export type AssignmentDraft = { title: string; description: string; submitUrl: string }
 
 const STATUS_STYLES = {
   SUBMITTED: "bg-yellow-100 text-yellow-700",
@@ -66,20 +66,23 @@ function SubmissionLink({ submission, label }: { submission: SubmissionRow; labe
 
 // ─── Assignment Form Modal ────────────────────────────────────────────────────
 
-function AssignmentFormModal({
+export function AssignmentFormModal({
   title,
   initial,
-  courseId,
+  outline,
+  initialInsertAfterOrder,
   onClose,
   onSubmit,
 }: {
   title: string
-  initial: AssignmentFormData
-  courseId: string
+  initial: AssignmentDraft
+  outline: OutlineItem[]
+  initialInsertAfterOrder: number
   onClose: () => void
-  onSubmit: (data: AssignmentFormData) => Promise<void>
+  onSubmit: (data: AssignmentDraft, insertAfterOrder: number) => Promise<void>
 }) {
-  const [form, setForm] = useState<AssignmentFormData>(initial)
+  const [form, setForm] = useState<AssignmentDraft>(initial)
+  const [insertAfterOrder, setInsertAfterOrder] = useState(initialInsertAfterOrder)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
@@ -88,7 +91,7 @@ function AssignmentFormModal({
     setError("")
     startTransition(async () => {
       try {
-        await onSubmit(form)
+        await onSubmit(form, insertAfterOrder)
         onClose()
       } catch {
         setError("Failed to save. Please try again.")
@@ -97,7 +100,7 @@ function AssignmentFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
@@ -105,6 +108,20 @@ function AssignmentFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Title <span className="text-red-500">*</span></label>
+            <input
+              required
+              autoFocus
+              value={form.title}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Case study write-up"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <PositionSelect outline={outline} value={insertAfterOrder} onChange={setInsertAfterOrder} />
+
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
               Description <span className="text-red-500">*</span>
@@ -173,7 +190,7 @@ function GradeModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Review Submission</h2>
@@ -243,153 +260,62 @@ function GradeModal({
   )
 }
 
-// ─── Delete Confirm ───────────────────────────────────────────────────────────
-
-function DeleteConfirm({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
-  const [pending, startTransition] = useTransition()
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">Delete assignment?</h2>
-        <p className="mt-2 text-sm text-slate-500">This will remove the assignment and all its submissions.</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button
-            disabled={pending}
-            onClick={() => startTransition(async () => { await onConfirm(); onCancel() })}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {pending ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Assignment config (create / edit / delete) ───────────────────────────────
-
-export function AssignmentManagement({
-  courseId,
-  assignment,
-}: {
-  courseId: string
-  assignment: AssignmentRow
-}) {
-  const [creating, setCreating] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-
-  return (
-    <>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Assignment</h2>
-        {!assignment && (
-          <button
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            <Plus size={14} />
-            Add Assignment
-          </button>
-        )}
-      </div>
-
-      {!assignment ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
-          No assignment yet. Add one above.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-start justify-between gap-4 p-5">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <ClipboardCheck size={16} className="text-orange-500" />
-                <span className="text-sm font-semibold text-slate-800">Assignment</span>
-              </div>
-              <p className="text-sm text-slate-600 whitespace-pre-wrap">{assignment.description}</p>
-              {assignment.submitUrl && (
-                <a
-                  href={assignment.submitUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                >
-                  Submission folder <ExternalLink size={11} />
-                </a>
-              )}
-            </div>
-            <div className="flex gap-1">
-              <button onClick={() => setEditing(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                <Pencil size={13} />
-              </button>
-              <button onClick={() => setDeleting(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                <Trash2 size={13} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {creating && (
-        <AssignmentFormModal
-          title="Add Assignment"
-          initial={{ description: "", submitUrl: "" }}
-          courseId={courseId}
-          onClose={() => setCreating(false)}
-          onSubmit={(d) => createAssignment(courseId, d)}
-        />
-      )}
-      {editing && assignment && (
-        <AssignmentFormModal
-          title="Edit Assignment"
-          initial={{ description: assignment.description, submitUrl: assignment.submitUrl ?? "" }}
-          courseId={courseId}
-          onClose={() => setEditing(false)}
-          onSubmit={(d) => updateAssignment(assignment.id, courseId, d)}
-        />
-      )}
-      {deleting && assignment && (
-        <DeleteConfirm
-          onCancel={() => setDeleting(false)}
-          onConfirm={() => deleteAssignment(assignment.id, courseId)}
-        />
-      )}
-    </>
-  )
-}
-
-// ─── Submissions panel (separate tab) ────────────────────────────────────────
+// ─── Submissions panel (Assignment Submissions tab) ──────────────────────────
 
 export function SubmissionsPanel({
   courseId,
-  assignment,
+  assignments,
 }: {
   courseId: string
-  assignment: AssignmentRow
+  assignments: AssignmentRow[] // in course order
 }) {
   const [grading, setGrading] = useState<SubmissionRow | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  if (!assignment) {
+  if (assignments.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-16 text-center text-sm text-slate-400">
-        No assignment configured for this course yet.
+        This course has no assignments yet. Add one from the Contents tab.
       </div>
     )
   }
 
+  // Default to the first assignment; fall back to it if the selected one was deleted.
+  const assignment = assignments.find((a) => a.id === selectedId) ?? assignments[0]
+  const pendingCount = (a: AssignmentRow) => a.submissions.filter((s) => s.status === "SUBMITTED").length
+
   return (
     <>
-      <div className="mb-4 flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-slate-900">Submissions</h2>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-          {assignment.submissions.length}
-        </span>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-slate-900">Submissions</h2>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+            {assignment.submissions.length}
+          </span>
+        </div>
+        <label className="flex min-w-0 items-center gap-2 text-sm text-slate-600">
+          <span className="shrink-0 text-xs font-medium text-slate-500">Assignment</span>
+          <select
+            value={assignment.id}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-72 sm:flex-none"
+          >
+            {assignments.map((a) => {
+              const pending = pendingCount(a)
+              return (
+                <option key={a.id} value={a.id}>
+                  {a.title}
+                  {pending > 0 ? ` (${pending} to review)` : ""}
+                </option>
+              )
+            })}
+          </select>
+        </label>
       </div>
 
       {assignment.submissions.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-16 text-center text-sm text-slate-400">
-          No submissions yet.
+          No submissions for this assignment yet.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">

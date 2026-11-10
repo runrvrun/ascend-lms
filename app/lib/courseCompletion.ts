@@ -19,7 +19,7 @@ export async function awardCoursePoints(userId: string, courseId: string, pathwa
   })
 }
 
-// Checks all content done + all tests passed + assignment (if any) passed, and
+// Checks all content done + all tests passed + every assignment passed, and
 // marks the course complete + awards points when so. Safe to call from any of
 // the three trigger points (content toggle, test submit, assignment grade).
 export async function evaluateCourseCompletion(userId: string, courseId: string, pathwayId: string): Promise<boolean> {
@@ -28,7 +28,7 @@ export async function evaluateCourseCompletion(userId: string, courseId: string,
     include: {
       contents: { where: { deletedAt: null }, select: { id: true } },
       tests: { where: { deletedAt: null }, select: { id: true } },
-      assignment: { select: { id: true, deletedAt: true } },
+      assignments: { where: { deletedAt: null }, select: { id: true } },
     },
   })
   if (!course) return false
@@ -45,23 +45,49 @@ export async function evaluateCourseCompletion(userId: string, courseId: string,
       where: { userId, pathwayId, status: "PASSED", testId: { in: course.tests.map((t) => t.id) } },
     })) === course.tests.length
 
-  const activeAssignment = course.assignment && course.assignment.deletedAt === null ? course.assignment : null
-  const assignmentPassed = activeAssignment
-    ? !!(await prisma.assignmentSubmission.findFirst({
-        where: { assignmentId: activeAssignment.id, userId, pathwayId, status: "PASSED" },
-      }))
-    : true
+  const assignmentPassed =
+    course.assignments.length === 0 ||
+    (
+      await prisma.assignmentSubmission.findMany({
+        where: { userId, pathwayId, status: "PASSED", assignmentId: { in: course.assignments.map((a) => a.id) } },
+        distinct: ["assignmentId"],
+        select: { assignmentId: true },
+      })
+    ).length === course.assignments.length
 
   const isComplete = allContentsComplete && allTestsPassed && assignmentPassed
   if (!isComplete) return false
+  const assignmentStatus = course.assignments.length ? ("PASSED" as const) : null
 
   await prisma.courseProgress.upsert({
     where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },
-    create: { userId, courseId, pathwayId, completed: true, completedAt: new Date() },
-    update: { completed: true, completedAt: new Date() },
+    create: { userId, courseId, pathwayId, completed: true, completedAt: new Date(), assignmentStatus },
+    update: { completed: true, completedAt: new Date(), assignmentStatus },
   })
   await awardCoursePoints(userId, courseId, pathwayId)
   return true
+}
+
+// The combined assignment verdict stored on CourseProgress.assignmentStatus (for reports):
+// PASSED once every live assignment has a passed submission, FAILED if any assignment's
+// latest submission failed, otherwise null (nothing graded yet, or still pending).
+export async function courseAssignmentStatus(
+  userId: string,
+  courseId: string,
+  pathwayId: string,
+): Promise<"PASSED" | "FAILED" | null> {
+  const assignments = await prisma.assignment.findMany({ where: { courseId, deletedAt: null }, select: { id: true } })
+  if (!assignments.length) return null
+  const submissions = await prisma.assignmentSubmission.findMany({
+    where: { userId, pathwayId, assignmentId: { in: assignments.map((a) => a.id) } },
+    orderBy: { createdAt: "desc" },
+    select: { assignmentId: true, status: true },
+  })
+  const passed = new Set(submissions.filter((s) => s.status === "PASSED").map((s) => s.assignmentId))
+  if (assignments.every((a) => passed.has(a.id))) return "PASSED"
+  const latest = new Map<string, string>()
+  for (const s of submissions) if (!latest.has(s.assignmentId)) latest.set(s.assignmentId, s.status)
+  return assignments.some((a) => !passed.has(a.id) && latest.get(a.id) === "FAILED") ? "FAILED" : null
 }
 
 // Completion is only evaluated when a learner finishes something, so deleting the one item a

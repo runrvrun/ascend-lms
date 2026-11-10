@@ -23,7 +23,7 @@ export default async function TrainerCoursesPage() {
               tests: { where: { deletedAt: null } },
             },
           },
-          assignment: { where: { deletedAt: null }, select: { id: true } },
+          assignments: { where: { deletedAt: null }, select: { id: true } },
         },
       },
     },
@@ -71,10 +71,10 @@ export default async function TrainerCoursesPage() {
                     {course._count.tests} test{course._count.tests !== 1 ? "s" : ""}
                   </span>
                 )}
-                {course.assignment && (
+                {course.assignments.length > 0 && (
                   <span className="flex items-center gap-1">
                     <ClipboardCheck size={12} />
-                    Assignment
+                    {course.assignments.length} assignment{course.assignments.length !== 1 ? "s" : ""}
                   </span>
                 )}
               </div>

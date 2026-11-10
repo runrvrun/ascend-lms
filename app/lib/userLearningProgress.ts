@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { combinedAssignmentStatus, statusByAssignment } from "./assignmentStatus"
 
 export type ContentDetail = {
   id: string
@@ -75,7 +76,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
             id: true,
             name: true,
             tests: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true } },
-            assignment: { where: { deletedAt: null }, select: { id: true } },
+            assignments: { where: { deletedAt: null }, select: { id: true } },
             contents: {
               where: { deletedAt: null },
               orderBy: { order: "asc" },
@@ -111,10 +112,9 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
     contentProgressRecords.map((cp) => [`${cp.pathwayId}:${cp.contentId}`, cp.completedAt])
   )
 
-  // CourseProgress.assignmentStatus is only set once an admin grades a submission, so a
-  // pending (ungraded) submission would otherwise look identical to "never submitted".
-  // AssignmentSubmission is the source of truth for whether something is awaiting review.
-  const assignmentIds = [...new Set(pathwayCourses.map((pc) => pc.course.assignment?.id).filter((id): id is string => !!id))]
+  // AssignmentSubmission is the source of truth for assignment status: CourseProgress.assignmentStatus
+  // is only set once something is graded, so a pending review would otherwise look untouched.
+  const assignmentIds = [...new Set(pathwayCourses.flatMap((pc) => pc.course.assignments.map((a) => a.id)))]
   const submissionRecords = assignmentIds.length
     ? await prisma.assignmentSubmission.findMany({
         where: { assignmentId: { in: assignmentIds }, userId, pathwayId: { in: pathwayIds } },
@@ -122,9 +122,10 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
         select: { assignmentId: true, pathwayId: true, status: true },
       })
     : []
-  // Later submissions (resubmits) override earlier ones for the same assignment/pathway.
-  const latestSubmissionStatusMap = new Map(
-    submissionRecords.map((s) => [`${s.pathwayId}:${s.assignmentId}`, s.status])
+  const submissionsByPathway = new Map<string, typeof submissionRecords>()
+  for (const s of submissionRecords) submissionsByPathway.set(s.pathwayId, [...(submissionsByPathway.get(s.pathwayId) ?? []), s])
+  const statusByPathwayAssignment = new Map(
+    [...submissionsByPathway].map(([pathwayId, subs]) => [pathwayId, statusByAssignment(subs)])
   )
 
   const coursesByPathway = new Map<string, CourseDetail[]>()
@@ -141,10 +142,10 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       }
     })
 
-    const assignmentId = pc.course.assignment?.id
-    const submissionStatus = assignmentId
-      ? latestSubmissionStatusMap.get(`${pc.pathwayId}:${assignmentId}`) ?? null
-      : null
+    const submissionStatus = combinedAssignmentStatus(
+      pc.course.assignments.map((a) => a.id),
+      statusByPathwayAssignment.get(pc.pathwayId) ?? new Map(),
+    )
 
     const tests: TestDetail[] = pc.course.tests.map((t) => {
       const tp = testProgressMap.get(`${pc.pathwayId}:${t.id}`)
@@ -164,10 +165,9 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       completed: progress?.completed ?? false,
       completedAt: progress?.completedAt ? progress.completedAt.toISOString() : null,
       tests,
-      hasAssignment: !!pc.course.assignment,
-      // Graded verdict (progress.assignmentStatus) wins once set; otherwise fall back to the
-      // raw submission status so a pending review still shows up instead of looking untouched.
-      assignmentStatus: progress?.assignmentStatus ?? submissionStatus,
+      hasAssignment: pc.course.assignments.length > 0,
+      // Combined over all the course's assignments, from the submissions themselves.
+      assignmentStatus: submissionStatus ?? progress?.assignmentStatus ?? null,
       totalContents: contents.length,
       completedContents: contents.filter((c) => c.completed).length,
       contents,

@@ -13,7 +13,7 @@ type CourseItem = {
   description: string | null
   status: "DRAFT" | "PUBLISHED"
   _count: { contents: number; tests: number }
-  assignment: { id: string } | null
+  assignments: { id: string }[]
   trainers: { user: TrainerOption }[]
 }
 type TopicData = {
@@ -199,7 +199,7 @@ export function SmeCourseList({ topics, trainerUsers }: { topics: TopicData[]; t
                               {course._count.tests} test{course._count.tests !== 1 ? "s" : ""}
                             </span>
                           )}
-                          {course.assignment && <span className="flex items-center gap-1"><ClipboardCheck size={12} />Assignment</span>}
+                          {course.assignments.length > 0 && <span className="flex items-center gap-1"><ClipboardCheck size={12} />{course.assignments.length} assignment{course.assignments.length !== 1 ? "s" : ""}</span>}
                         </div>
                         {course.trainers.length > 0 && (
                           <div className="flex flex-wrap items-center gap-1.5">

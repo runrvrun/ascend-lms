@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, ClipboardList, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
+import { Plus, Pencil, Trash2, X, GripVertical, ChevronUp, ChevronDown } from "lucide-react"
 import { QuestionType } from "@prisma/client"
 import {
-  createTest, updateTest, deleteTest, swapCourseItemOrder,
-  createQuestion, updateQuestion, deleteQuestion,
+  createTest, updateTest,
+  createQuestion, updateQuestion, deleteQuestion, swapQuestionOrder,
   type OptionDraft, type QuestionFormData, type TestFormData,
 } from "../actions"
+import { ConfirmDelete } from "./ConfirmDelete"
 import { PositionSelect } from "./PositionSelect"
 import type { OutlineItem } from "./courseOutline"
 
@@ -19,7 +20,7 @@ type QuestionRow = {
   options: { id: string; text: string; isCorrect: boolean | null; matchKey: string | null; order: number | null }[]
 }
 
-type TestRow = {
+export type TestRow = {
   id: string
   title: string
   order: number
@@ -215,12 +216,10 @@ function MatchingOptions({ options, onChange }: { options: OptionDraft[]; onChan
 // ── Question Modal ─────────────────────────────────────────────────────────
 
 function QuestionModal({
-  title, initial, testId, courseId, onClose, onSubmit,
+  title, initial, onClose, onSubmit,
 }: {
   title: string
   initial: QuestionFormData
-  testId: string
-  courseId: string
   onClose: () => void
   onSubmit: (data: QuestionFormData) => Promise<void>
 }) {
@@ -240,7 +239,7 @@ function QuestionModal({
         await onSubmit(form)
         onClose()
       } catch {
-        setError("Order number already in use. Choose a different one.")
+        setError("Something went wrong. Please try again.")
       }
     })
   }
@@ -269,27 +268,17 @@ function QuestionModal({
             </div>
           </div>
 
-          {/* Question text + order */}
-          <div className="grid grid-cols-4 gap-3">
-            <div className="col-span-3">
-              <label className="mb-1 block text-xs font-medium text-slate-600">Question <span className="text-red-500">*</span></label>
-              <input
-                required
-                value={form.question}
-                onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))}
-                placeholder="e.g. What is the formula for…?"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Order <span className="text-red-500">*</span></label>
-              <input
-                required type="number" min={1}
-                value={form.order}
-                onChange={(e) => setForm((f) => ({ ...f, order: parseInt(e.target.value) || 1 }))}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          {/* Question text */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Question <span className="text-red-500">*</span></label>
+            <input
+              required
+              autoFocus
+              value={form.question}
+              onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))}
+              placeholder="e.g. What is the formula for…?"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           {/* Options */}
@@ -321,7 +310,7 @@ function QuestionModal({
 
 // ── Test Setup Modal ───────────────────────────────────────────────────────
 
-function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfterOrder, onClose }: {
+export function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfterOrder, onClose }: {
   initial: TestFormData; courseId: string; testId?: string
   outline: OutlineItem[]
   initialInsertAfterOrder?: number
@@ -341,10 +330,10 @@ function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfter
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">{testId ? "Edit Test" : "Create Test"}</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{testId ? "Edit Test" : "Add Test"}</h2>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X size={18} /></button>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -354,6 +343,7 @@ function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfter
               required
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              autoFocus
               placeholder="e.g. Module 1 Quiz"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -374,7 +364,7 @@ function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfter
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
             <button type="submit" disabled={pending} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              {pending ? "Saving…" : testId ? "Save" : "Create Test"}
+              {pending ? "Saving…" : testId ? "Save" : "Add Test"}
             </button>
           </div>
         </form>
@@ -383,52 +373,22 @@ function TestSetupModal({ initial, courseId, testId, outline, initialInsertAfter
   )
 }
 
-// ── Delete confirm ─────────────────────────────────────────────────────────
+// ── Questions popup (one test) ─────────────────────────────────────────────
 
-function DeleteConfirm({ label, onCancel, onConfirm }: { label: string; onCancel: () => void; onConfirm: () => Promise<void> }) {
-  const [pending, startTransition] = useTransition()
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">Delete?</h2>
-        <p className="mt-2 text-sm text-slate-500"><span className="font-medium text-slate-700">{label}</span> will be permanently removed.</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button disabled={pending} onClick={() => startTransition(async () => { await onConfirm(); onCancel() })}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-            {pending ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Single test card ────────────────────────────────────────────────────────
-
-function TestCard({
-  test, courseId, outline, reordering, onMove, canMoveUp, canMoveDown,
-}: {
-  test: TestRow
-  courseId: string
-  outline: OutlineItem[]
-  reordering: boolean
-  onMove: (dir: -1 | 1) => void
-  canMoveUp: boolean
-  canMoveDown: boolean
-}) {
-  const [editingTest, setEditingTest] = useState(false)
-  const [deletingTest, setDeletingTest] = useState(false)
-  const [addingQuestion, setAddingQuestion] = useState(false)
-  const [editingQuestion, setEditingQuestion] = useState<QuestionRow | null>(null)
-  const [deletingQuestion, setDeletingQuestion] = useState<QuestionRow | null>(null)
+export function TestQuestionsModal({ test, courseId, onClose }: { test: TestRow; courseId: string; onClose: () => void }) {
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<QuestionRow | null>(null)
+  const [deleting, setDeleting] = useState<QuestionRow | null>(null)
+  const [reordering, startReorder] = useTransition()
 
   const questions = test.questions.slice().sort((a, b) => a.order - b.order)
   const nextOrder = questions.length > 0 ? Math.max(...questions.map((q) => q.order)) + 1 : 1
 
-  const outlineIdx = outline.findIndex((o) => o.kind === "TEST" && o.id === test.id)
-  const outlineExcludingSelf = outline.filter((_, i) => i !== outlineIdx)
-  const currentInsertAfterOrder = outlineIdx > 0 ? outline[outlineIdx - 1].order : 0
+  function move(i: number, dir: -1 | 1) {
+    const other = questions[i + dir]
+    if (!other) return
+    startReorder(() => swapQuestionOrder(questions[i].id, other.id, courseId))
+  }
 
   function optionsFromRow(q: QuestionRow): OptionDraft[] {
     return q.options.map((o) => ({
@@ -440,197 +400,90 @@ function TestCard({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <ClipboardList size={15} className="shrink-0 text-slate-400" />
-          <span className="truncate font-semibold text-slate-900">{test.title}</span>
-          <span className="shrink-0 text-xs text-slate-400">Pass: {test.passThreshold}%</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-slate-900">{test.title}</h2>
+            <p className="text-xs text-slate-500">
+              {questions.length} question{questions.length === 1 ? "" : "s"} · pass mark {test.passThreshold}%
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100" aria-label="Close"><X size={18} /></button>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button onClick={() => onMove(-1)} disabled={reordering || !canMoveUp}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed" title="Move up">
-            <ChevronUp size={13} />
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {questions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 px-5 py-10 text-center text-sm text-slate-400">
+              No questions yet. Add the first one below.
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+              {questions.map((q, i) => (
+                <li key={q.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="w-5 shrink-0 text-center text-xs font-semibold text-slate-400">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900" title={q.question}>{q.question}</p>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${Q_STYLES[q.type]}`}>{Q_LABELS[q.type]}</span>
+                      <span className="text-xs text-slate-400">{q.options.length} option{q.options.length === 1 ? "" : "s"}</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <button onClick={() => move(i, -1)} disabled={reordering || i === 0} title="Move up"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25">
+                      <ChevronUp size={14} />
+                    </button>
+                    <button onClick={() => move(i, 1)} disabled={reordering || i === questions.length - 1} title="Move down"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-25">
+                      <ChevronDown size={14} />
+                    </button>
+                    <button onClick={() => setEditing(q)} title="Edit"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={14} /></button>
+                    <button onClick={() => setDeleting(q)} title="Delete"
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-6 py-4">
+          <button onClick={() => setAdding(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
+            <Plus size={14} /> Add Question
           </button>
-          <button onClick={() => onMove(1)} disabled={reordering || !canMoveDown}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed" title="Move down">
-            <ChevronDown size={13} />
+          <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            Done
           </button>
-          <div className="mx-1 h-4 w-px bg-slate-200" />
-          <button onClick={() => setEditingTest(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={13} /></button>
-          <button onClick={() => setDeletingTest(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
         </div>
       </div>
 
-      <div className="p-5">
-        {questions.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 px-5 py-8 text-center text-sm text-slate-400">
-            No questions yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-2.5 w-10">#</th>
-                  <th className="px-4 py-2.5">Question</th>
-                  <th className="px-4 py-2.5">Type</th>
-                  <th className="px-4 py-2.5 text-center">Options</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {questions.map((q) => (
-                  <tr key={q.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 text-slate-400">{q.order}</td>
-                    <td className="px-4 py-2.5 font-medium text-slate-900 max-w-xs truncate">{q.question}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${Q_STYLES[q.type]}`}>{Q_LABELS[q.type]}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-center text-slate-500">{q.options.length}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditingQuestion(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil size={13} /></button>
-                        <button onClick={() => setDeletingQuestion(q)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <button onClick={() => setAddingQuestion(true)}
-          className="mt-3 flex items-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">
-          <Plus size={14} /> Add Question
-        </button>
-      </div>
-
-      {editingTest && (
-        <TestSetupModal
-          initial={{ title: test.title, passThreshold: test.passThreshold }}
-          courseId={courseId}
-          testId={test.id}
-          outline={outlineExcludingSelf}
-          initialInsertAfterOrder={currentInsertAfterOrder}
-          onClose={() => setEditingTest(false)}
-        />
-      )}
-
-      {deletingTest && (
-        <DeleteConfirm
-          label={`"${test.title}" and all its questions`}
-          onCancel={() => setDeletingTest(false)}
-          onConfirm={() => deleteTest(test.id, courseId)}
-        />
-      )}
-
-      {addingQuestion && (
+      {adding && (
         <QuestionModal
           title="Add Question"
           initial={{ type: "MULTIPLE_CHOICE", question: "", order: nextOrder, options: defaultOptions("MULTIPLE_CHOICE") }}
-          testId={test.id}
-          courseId={courseId}
-          onClose={() => setAddingQuestion(false)}
+          onClose={() => setAdding(false)}
           onSubmit={(d) => createQuestion(test.id, courseId, d)}
         />
       )}
-
-      {editingQuestion && (
+      {editing && (
         <QuestionModal
           title="Edit Question"
-          initial={{ type: editingQuestion.type, question: editingQuestion.question, order: editingQuestion.order, options: optionsFromRow(editingQuestion) }}
-          testId={test.id}
-          courseId={courseId}
-          onClose={() => setEditingQuestion(null)}
-          onSubmit={(d) => updateQuestion(editingQuestion.id, courseId, d)}
+          initial={{ type: editing.type, question: editing.question, order: editing.order, options: optionsFromRow(editing) }}
+          onClose={() => setEditing(null)}
+          onSubmit={(d) => updateQuestion(editing.id, courseId, d)}
         />
       )}
-
-      {deletingQuestion && (
-        <DeleteConfirm
-          label={`Question ${deletingQuestion.order}: ${deletingQuestion.question}`}
-          onCancel={() => setDeletingQuestion(null)}
-          onConfirm={() => deleteQuestion(deletingQuestion.id, courseId)}
+      {deleting && (
+        <ConfirmDelete
+          heading="Delete question?"
+          message={<><span className="font-medium text-slate-700">{deleting.question}</span> will be permanently removed.</>}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => deleteQuestion(deleting.id, courseId)}
         />
       )}
     </div>
-  )
-}
-
-// ── Main component ─────────────────────────────────────────────────────────
-
-export function TestManagement({ courseId, tests, outline }: { courseId: string; tests: TestRow[]; outline: OutlineItem[] }) {
-  const [creating, setCreating] = useState(false)
-  const [reordering, startReorder] = useTransition()
-
-  const sortedTests = tests.slice().sort((a, b) => a.order - b.order)
-  const maxOrder = outline.length > 0 ? Math.max(...outline.map((o) => o.order)) : 0
-
-  function neighbor(test: TestRow, dir: -1 | 1) {
-    const idx = outline.findIndex((o) => o.kind === "TEST" && o.id === test.id)
-    if (idx === -1) return null
-    return outline[idx + dir] ?? null
-  }
-
-  function move(test: TestRow, dir: -1 | 1) {
-    const other = neighbor(test, dir)
-    if (!other) return
-    startReorder(() =>
-      swapCourseItemOrder(
-        { kind: "TEST", id: test.id, order: test.order },
-        { kind: other.kind, id: other.id, order: other.order },
-        courseId
-      )
-    )
-  }
-
-  return (
-    <>
-      <div className="mt-10">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ClipboardList size={18} className="text-slate-500" />
-            <h2 className="text-lg font-semibold text-slate-900">Tests</h2>
-          </div>
-          <button onClick={() => setCreating(true)}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
-            <Plus size={14} /> Add Test
-          </button>
-        </div>
-
-        {sortedTests.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
-            No tests yet. Add one and place it anywhere among the course contents.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {sortedTests.map((t) => (
-              <TestCard
-                key={t.id}
-                test={t}
-                courseId={courseId}
-                outline={outline}
-                reordering={reordering}
-                onMove={(dir) => move(t, dir)}
-                canMoveUp={!!neighbor(t, -1)}
-                canMoveDown={!!neighbor(t, 1)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {creating && (
-        <TestSetupModal
-          initial={{ title: "", passThreshold: 70 }}
-          courseId={courseId}
-          outline={outline}
-          initialInsertAfterOrder={maxOrder}
-          onClose={() => setCreating(false)}
-        />
-      )}
-    </>
   )
 }

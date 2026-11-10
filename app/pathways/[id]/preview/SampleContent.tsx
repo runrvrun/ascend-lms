@@ -26,7 +26,7 @@ export function SampleContent({
       currentUserId={currentUserId}
       latestSubmissionByAssignmentId={{}}
       testStatusByTestId={{}}
-      assignmentStatusByCourseId={{}}
+      assignmentStatusById={{}}
       feedbackByCourseId={{}}
       sample
     />

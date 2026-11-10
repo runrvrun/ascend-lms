@@ -2,15 +2,9 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Eye } from "lucide-react"
 import { prisma } from "../../../lib/prisma"
-import { ContentManagement } from "./ContentManagement"
-import { PopQuizManagement } from "./PopQuizManagement"
-import { TestManagement } from "./TestManagement"
-import { AssignmentManagement, SubmissionsPanel } from "./AssignmentManagement"
+import { CourseEditorTabs } from "./CourseEditorTabs"
 import { TrainerManagement } from "./TrainerManagement"
 import { CourseStatusToggle } from "./CourseStatusToggle"
-import { FeedbackSection } from "./FeedbackSection"
-import { CourseTabLayout } from "./CourseTabLayout"
-import { buildCourseOutline } from "./courseOutline"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -20,35 +14,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [course, tests, trainers, allUsers, assignment, feedbacks] = await Promise.all([
+  const [course, trainers, allUsers] = await Promise.all([
     prisma.course.findFirst({
       where: { id, deletedAt: null },
-      include: {
-        contents: {
-          where: { deletedAt: null },
-          orderBy: { order: "asc" },
-          include: {
-            popQuizzes: {
-              where: { deletedAt: null },
-              orderBy: { time: "asc" },
-              include: { options: { orderBy: { order: "asc" } } },
-            },
-          },
-        },
-      },
-    }),
-    prisma.test.findMany({
-      where: { courseId: id, deletedAt: null },
-      orderBy: { order: "asc" },
-      include: {
-        questions: {
-          where: { deletedAt: null },
-          orderBy: { order: "asc" },
-          include: {
-            options: { orderBy: { order: "asc" } },
-          },
-        },
-      },
     }),
     prisma.courseTrainer.findMany({
       where: { courseId: id },
@@ -59,33 +27,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
-    prisma.assignment.findFirst({
-      where: { course: { id, deletedAt: null }, deletedAt: null },
-      include: {
-        submissions: {
-          orderBy: { createdAt: "desc" },
-          include: {
-            user: { select: { id: true, name: true, email: true } },
-            pathway: { select: { id: true, name: true } },
-            gradedBy: { select: { name: true } },
-          },
-        },
-      },
-    }),
-    prisma.courseFeedback.findMany({
-      where: { courseId: id },
-      orderBy: { createdAt: "desc" },
-      include: { user: { select: { name: true } } },
-    }),
   ])
 
   if (!course) notFound()
-
-  const youtubeContents = course.contents.filter((c) => c.type === "YOUTUBE_VIDEO").map((c) => ({ id: c.id, title: c.title }))
-  const popQuizzes = course.contents.flatMap((c) => c.popQuizzes)
-  // Fetched with deletedAt: null, so order is always populated in practice — only nulled on soft-delete
-  const liveTests = tests.map((t) => ({ ...t, order: t.order! }))
-  const outline = buildCourseOutline(course.contents, liveTests)
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl p-6 md:p-10">
@@ -95,7 +39,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
       </a>
 
       <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{course.name}</h1>
             {course.description && (
@@ -124,18 +68,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
         <TrainerManagement courseId={course.id} trainers={trainers} allUsers={allUsers} />
       </div>
 
-      <CourseTabLayout
-        content={
-          <div className="flex flex-col gap-8">
-            <ContentManagement courseId={course.id} contents={course.contents.map(c => ({ ...c, order: c.order! }))} outline={outline} />
-            <PopQuizManagement courseId={course.id} youtubeContents={youtubeContents} popQuizzes={popQuizzes} />
-            <TestManagement courseId={course.id} tests={liveTests} outline={outline} />
-            <AssignmentManagement courseId={course.id} assignment={assignment} />
-          </div>
-        }
-        submissions={<SubmissionsPanel courseId={course.id} assignment={assignment} />}
-        feedback={<FeedbackSection courseId={course.id} feedbackEnabled={course.feedbackEnabled} feedbacks={feedbacks} />}
-      />
+      <CourseEditorTabs courseId={course.id} feedbackEnabled={course.feedbackEnabled} />
     </main>
   )
 }

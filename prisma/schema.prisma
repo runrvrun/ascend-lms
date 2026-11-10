@@ -274,7 +274,7 @@ model Course {
   // Language the course is taught in; pathways list the languages of their courses.
   language        Language      @default(EN)
   tests      Test[]
-  assignment Assignment?
+  assignments Assignment[]
 
   topic            Topic?          @relation(fields: [topicId], references: [id])
   contents         Content[]
@@ -431,7 +431,7 @@ model Test {
   courseId String
 
   title         String
-  order         Int? // position among this course's Content + Test items; nulled out on soft-delete to free the slot, same as Content.order
+  order         Int? // position among this course's Content + Test + Assignment items; nulled out on soft-delete to free the slot, same as Content.order
   passThreshold Int // percentage (e.g., 70)
 
   questions Question[]
@@ -489,9 +489,13 @@ model QuestionOption {
 
 // ── Assignment ─────────────────────────────────────────────────────────────────
 
+// A course can have any number of assignments, placed among its Content + Test items
+// through the same shared `order` sequence.
 model Assignment {
   id          String  @id @default(dbgenerated("gen_random_uuid()::text"))
-  courseId    String  @unique
+  courseId    String
+  title       String  @default("Assignment")
+  order       Int? // position among this course's Content + Test + Assignment items; nulled out on soft-delete, same as Content.order
   description String
   submitUrl   String? // optional external folder (e.g. SharePoint); learners can also upload directly
 
@@ -501,6 +505,8 @@ model Assignment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
+
+  @@unique([courseId, order])
 }
 
 model AssignmentSubmission {
@@ -620,7 +626,7 @@ model CourseProgress {
   pathwayId String
 
   completed        Boolean     @default(false)
-  assignmentStatus TestStatus?
+  assignmentStatus TestStatus? // combined over all the course's assignments: PASSED once every one is passed, FAILED if any latest submission failed
 
   completedAt DateTime?
 

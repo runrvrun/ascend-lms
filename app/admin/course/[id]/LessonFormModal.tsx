@@ -1,15 +1,14 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, Pencil, Trash2, X, GripVertical, ChevronUp, ChevronDown, ExternalLink } from "lucide-react"
+import { X } from "lucide-react"
 import { ContentType } from "@prisma/client"
-import { createContent, updateContent, deleteContent, discardContentImages, swapCourseItemOrder, ContentFormData, ContentEditData } from "../actions"
+import { discardContentImages } from "../actions"
 import { PositionSelect } from "./PositionSelect"
 import type { OutlineItem } from "./courseOutline"
 import { ContentImageUpload } from "./ContentImageUpload"
-import { contentImageUrl } from "../../../lib/contentImageUrl"
 
-type ContentRow = {
+export type ContentRow = {
   id: string
   title: string
   type: ContentType
@@ -50,7 +49,7 @@ function extractEmbedUrl(raw: string): string {
 
 const TYPE_ORDER: ContentType[] = ["YOUTUBE_VIDEO", "VIDEO", "TEXT", "PDF", "PPT", "IN_PERSON", "LINK", "IMAGE"]
 
-const TYPE_LABELS: Record<ContentType, string> = {
+export const TYPE_LABELS: Record<ContentType, string> = {
   YOUTUBE_VIDEO: "YouTube Video",
   VIDEO: "SharePoint Video",
   TEXT: "Text",
@@ -61,7 +60,7 @@ const TYPE_LABELS: Record<ContentType, string> = {
   IMAGE: "Image",
 }
 
-const TYPE_STYLES: Record<ContentType, string> = {
+export const TYPE_STYLES: Record<ContentType, string> = {
   YOUTUBE_VIDEO: "bg-red-100 text-red-700",
   VIDEO: "bg-purple-100 text-purple-700",
   TEXT: "bg-slate-100 text-slate-600",
@@ -72,9 +71,9 @@ const TYPE_STYLES: Record<ContentType, string> = {
   IMAGE: "bg-teal-100 text-teal-700",
 }
 
-type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null; imageKey: string | null }
+export type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null; imageKey: string | null }
 
-function ContentFormModal({
+export function ContentFormModal({
   courseId,
   title,
   initial,
@@ -148,6 +147,7 @@ function ContentFormModal({
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               placeholder="e.g. Introduction"
+              autoFocus
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -335,187 +335,5 @@ function ContentFormModal({
         </form>
       </div>
     </div>
-  )
-}
-
-function DeleteConfirm({ title, onCancel, onConfirm }: { title: string; onCancel: () => void; onConfirm: () => void }) {
-  const [pending, startTransition] = useTransition()
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">Delete content?</h2>
-        <p className="mt-2 text-sm text-slate-500"><span className="font-medium text-slate-700">{title}</span> will be removed from this course.</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button
-            disabled={pending}
-            onClick={() => startTransition(async () => { await onConfirm(); onCancel() })}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {pending ? "Deleting…" : "Delete"}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export function ContentManagement({ courseId, contents, outline }: { courseId: string; contents: ContentRow[]; outline: OutlineItem[] }) {
-  const [creating, setCreating] = useState(false)
-  const [editing, setEditing] = useState<ContentRow | null>(null)
-  const [deleting, setDeleting] = useState<ContentRow | null>(null)
-  const [reordering, startReorder] = useTransition()
-
-  const maxOrder = outline.length > 0 ? Math.max(...outline.map((o) => o.order)) : 0
-
-  function neighbor(item: ContentRow, dir: -1 | 1) {
-    const idx = outline.findIndex((o) => o.kind === "CONTENT" && o.id === item.id)
-    if (idx === -1) return null
-    return outline[idx + dir] ?? null
-  }
-
-  function move(item: ContentRow, dir: -1 | 1) {
-    const other = neighbor(item, dir)
-    if (!other) return
-    startReorder(() =>
-      swapCourseItemOrder(
-        { kind: "CONTENT", id: item.id, order: item.order },
-        { kind: other.kind, id: other.id, order: other.order },
-        courseId
-      )
-    )
-  }
-
-  return (
-    <>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Contents</h2>
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
-        >
-          <Plus size={14} />
-          Add Content
-        </button>
-      </div>
-
-      {contents.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
-          No contents yet. Add the first one above.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-4 py-3 w-10">#</th>
-                <th className="px-4 py-3">Title</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Value</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {contents.map((c) => (
-                <tr key={c.id} className="group hover:bg-slate-50">
-                  <td className="px-4 py-3 text-slate-400">
-                    <div className="flex items-center gap-1">
-                      <GripVertical size={13} className="text-slate-300" />
-                      {c.order}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{c.title}</td>
-                  <td className="px-4 py-3">
-                    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[c.type]}`}>
-                      {TYPE_LABELS[c.type]}
-                    </span>
-                  </td>
-                  <td className="max-w-[16rem] px-4 py-3 text-slate-500">
-                    <div className="flex items-center gap-2">
-                      {c.imageKey && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={contentImageUrl(c.imageKey)} alt="" className="h-10 w-16 shrink-0 rounded border border-slate-200 object-cover" />
-                      )}
-                      {c.type === "TEXT" || c.type === "IN_PERSON" || c.type === "IMAGE" ? (
-                        c.value && <span className="block min-w-0 truncate italic text-slate-400">{c.value}</span>
-                      ) : (
-                        c.value && (
-                          <a
-                            href={c.value}
-                            target="_blank"
-                            rel="noreferrer"
-                            title={c.value}
-                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
-                          >
-                            <ExternalLink size={13} />
-                            Open
-                          </a>
-                        )
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => move(c, -1)}
-                        disabled={reordering || !neighbor(c, -1)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
-                        title="Move up"
-                      >
-                        <ChevronUp size={13} />
-                      </button>
-                      <button
-                        onClick={() => move(c, 1)}
-                        disabled={reordering || !neighbor(c, 1)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-25 disabled:cursor-not-allowed"
-                        title="Move down"
-                      >
-                        <ChevronDown size={13} />
-                      </button>
-                      <div className="mx-1 h-4 w-px bg-slate-200" />
-                      <button onClick={() => setEditing(c)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => setDeleting(c)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {creating && (
-        <ContentFormModal
-          courseId={courseId}
-          title="Add Content"
-          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null, imageKey: null }}
-          outline={outline}
-          initialInsertAfterOrder={maxOrder}
-          onClose={() => setCreating(false)}
-          onSubmit={(d, insertAfterOrder) => createContent(courseId, { ...d, insertAfterOrder })}
-        />
-      )}
-      {editing && (
-        <ContentFormModal
-          courseId={courseId}
-          title="Edit Content"
-          initial={{ title: editing.title, type: editing.type, value: editing.value, duration: editing.duration, imageKey: editing.imageKey }}
-          outline={null}
-          onClose={() => setEditing(null)}
-          onSubmit={(d) => updateContent(editing.id, courseId, d)}
-        />
-      )}
-      {deleting && (
-        <DeleteConfirm
-          title={deleting.title}
-          onCancel={() => setDeleting(null)}
-          onConfirm={() => deleteContent(deleting.id, courseId)}
-        />
-      )}
-    </>
   )
 }

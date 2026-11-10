@@ -53,7 +53,7 @@ export default async function PathwayPreviewPage({ params }: { params: Promise<{
                 _count: {
                   select: { tests: { where: { deletedAt: null } } },
                 },
-                assignment: { where: { deletedAt: null }, select: { id: true } },
+                assignments: { where: { deletedAt: null }, select: { id: true } },
               },
             },
           },
@@ -163,10 +163,10 @@ export default async function PathwayPreviewPage({ params }: { params: Promise<{
                             {course._count.tests} test{course._count.tests !== 1 ? "s" : ""}
                           </span>
                         )}
-                        {course.assignment && (
+                        {course.assignments.length > 0 && (
                           <span className="flex items-center gap-1">
                             <ClipboardList size={12} />
-                            Assignment
+                            {course.assignments.length} assignment{course.assignments.length !== 1 ? "s" : ""}
                           </span>
                         )}
                         {course.trainers.length > 0 && (

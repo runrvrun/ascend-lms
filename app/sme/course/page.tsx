@@ -27,7 +27,7 @@ export default async function SmeCoursesPage() {
                   tests: { where: { deletedAt: null } },
                 },
               },
-              assignment: { where: { deletedAt: null }, select: { id: true } },
+              assignments: { where: { deletedAt: null }, select: { id: true } },
               trainers: { include: { user: { select: { id: true, name: true } } } },
             },
             orderBy: { name: "asc" },

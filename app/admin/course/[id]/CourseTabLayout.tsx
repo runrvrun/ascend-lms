@@ -3,9 +3,9 @@
 import { useState } from "react"
 
 const TABS = [
-  { key: "content", label: "Content" },
-  { key: "submissions", label: "Submissions" },
-  { key: "feedback", label: "Feedback" },
+  { key: "content", label: "Contents" },
+  { key: "submissions", label: "Assignment Submissions" },
+  { key: "feedback", label: "Feedbacks" },
 ] as const
 
 type TabKey = typeof TABS[number]["key"]
@@ -28,7 +28,7 @@ export function CourseTabLayout({
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-lg px-2 py-2 text-sm font-medium transition-colors sm:px-4 ${
               tab === t.key
                 ? "bg-blue-600 text-white shadow-sm"
                 : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"

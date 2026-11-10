@@ -105,16 +105,16 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Click a test to open it, then click Start Test. Answer all questions — multiple choice, true/false, fill-in-the-blank, ranking, or matching.",
           "Click Submit Test when done. Your score is shown immediately.",
           "If you reach the test's passing score, it is marked as passed. If not, you can retake it.",
-          "A course is complete once all of its lessons are done, every test is passed, and its assignment (if any) is passed.",
+          "A course is complete once all of its lessons are done, every test is passed, and every assignment is passed.",
         ],
       },
       {
         title: "Submitting an Assignment",
         icon: ClipboardList,
         steps: [
-          "Some courses have an assignment. Read the instructions in the course.",
+          "Some courses have one or more assignments. They appear in the course outline wherever the trainer placed them. Open one to read its instructions.",
           "Upload your file directly (up to 20 MB), or paste a link to your work (for example, a SharePoint file).",
-          "Click Submit. Your trainer reviews it and marks it as passed or failed, and you are notified of the result.",
+          "Click Submit. Your trainer reviews it and marks it as passed or failed, and you are notified of the result. Each assignment is graded on its own.",
           "Uploaded files are deleted after 6 months, but your grade is kept.",
         ],
       },
@@ -240,7 +240,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           {
             heading: "From each course's Actions menu:",
             items: [
-              "Manage Contents — add lessons, tests, pop quizzes and an assignment (see the Trainer tab for details).",
+              "Manage Contents — add lessons, tests, pop quizzes and assignments (see the Trainer tab for details).",
               "Preview — see the course as a learner would.",
               "Report — enrollment, completion, test, assignment and feedback results, with an Excel download.",
               "Export — download the course as a file. Use Import on the Courses page to bring it into another Ascend server as a new draft.",
@@ -367,7 +367,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: BookOpen,
         steps: [
           "Go to Trainer → My Courses to see the courses you train.",
-          "Each card shows the number of lessons and tests and whether there is an assignment. Click a card to manage the course.",
+          "Each card shows the number of lessons, tests and assignments. Click a card to manage the course.",
           "Click Preview on the course page to see it exactly as learners will.",
         ],
       },
@@ -375,18 +375,19 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Adding Course Content",
         icon: ImageIcon,
         steps: [
-          "On the Content tab, click Add Content and choose a type:",
-          { heading: "Content types:", items: CONTENT_TYPES },
+          "On the Contents tab, the Lessons list shows the course's lessons, tests and assignments together, in the order learners see them.",
+          "Click Add Lesson and choose a type:",
+          { heading: "Lesson types:", items: CONTENT_TYPES },
           "Use Position to place the new item anywhere in the course.",
           "For SharePoint videos, enter the duration — learners must watch 75% of it before they can mark it complete.",
-          "Use the edit and delete icons to change or remove content, and the up/down arrows to reorder.",
+          "Use the up/down arrows to reorder anything in the list, and each row's Actions menu to edit or delete it.",
         ],
       },
       {
         title: "Pop Quizzes (YouTube videos)",
         icon: ClipboardList,
         steps: [
-          "In the Pop Quiz section, add a multiple-choice question to a YouTube video at a chosen time.",
+          "Open the YouTube lesson's Actions menu and choose Pop quizzes (or click its pop quiz count), then Add Pop Quiz to add a multiple-choice question at a chosen time.",
           "The video pauses at that moment and only continues once the learner answers correctly.",
         ],
       },
@@ -394,17 +395,18 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Creating a Test",
         icon: ClipboardList,
         steps: [
-          "In the Tests section, click Add Test. A course can have any number of tests.",
+          "Click Add Test. A course can have any number of tests.",
           "Give it a title (e.g. \"Module 1 Quiz\"), choose its Position among the lessons, and set the passing score (e.g. 70 means 70% or above passes).",
-          "Click Add Question. Types: Multiple Choice, True/False, Fill in the Blank, Ranking and Matching. Mark the correct answers, order or pairs.",
-          "Edit or delete tests and questions at any time. You can move a test from its Edit Test window or with the up/down arrows.",
+          "Click the test's Questions button to open its questions in a popup. Click Add Question. Types: Multiple Choice, True/False, Fill in the Blank, Ranking and Matching. Mark the correct answers, order or pairs.",
+          "In the same popup, edit, delete or reorder questions with the arrows. Change a test's title, pass mark or position from Edit in its Actions menu.",
         ],
       },
       {
         title: "Creating an Assignment",
         icon: ClipboardList,
         steps: [
-          "In the Assignment section, click Create Assignment and describe what learners need to do.",
+          "Click Add Assignment, give it a title, choose its Position among the lessons, and describe what learners need to do.",
+          "A course can have any number of assignments. Learners must pass every one to complete the course.",
           "Optionally add a SharePoint folder link. Learners can upload a file directly or paste a link to their work.",
         ],
       },
@@ -412,8 +414,8 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Grading Submissions",
         icon: ClipboardList,
         steps: [
-          "Open the Submissions tab to see all submitted assignments.",
-          "Click Grade, open the learner's file or link, choose Passed or Failed, add optional feedback, and click Save.",
+          "Open the Assignment Submissions tab. Pick an assignment from the selector (it starts on the first one); each option shows how many submissions are waiting for review.",
+          "Click Review, open the learner's file or link, choose Passed or Failed, add optional feedback, and click Save.",
           "The learner is notified of the result.",
         ],
       },
@@ -421,7 +423,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Viewing Feedback",
         icon: Star,
         steps: [
-          "Open the Feedback tab to see the average star rating and each learner's comments.",
+          "Open the Feedbacks tab to see the average star rating and each learner's comments. There is one feedback form per course.",
           "Use the toggle at the top to turn feedback collection on or off for the course.",
         ],
       },
@@ -445,7 +447,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Lightbulb,
         steps: [
           "Go to Subject Matter Expert → My Topics to see your topics and their courses.",
-          "Each course card shows its content, tests, assignment, trainers and status.",
+          "Each course card shows its content, tests, assignments, trainers and status.",
           "Click New Course to create a course in your topic, choose its language, and optionally add trainers.",
           "Click a course card to manage it, or Preview to see it as learners will.",
         ],

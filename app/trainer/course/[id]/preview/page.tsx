@@ -57,9 +57,10 @@ export default async function TrainerCoursePreviewPage({ params }: { params: Pro
           },
         },
       },
-      assignment: {
+      assignments: {
         where: { deletedAt: null },
-        select: { id: true, description: true, submitUrl: true },
+        orderBy: { order: "asc" },
+        select: { id: true, title: true, order: true, description: true, submitUrl: true },
       },
     },
   })
@@ -79,7 +80,7 @@ export default async function TrainerCoursePreviewPage({ params }: { params: Pro
           name: course.name,
           contents: course.contents,
           tests: course.tests.map((t) => ({ ...t, order: t.order! })),
-          assignment: course.assignment,
+          assignments: course.assignments.map((a) => ({ ...a, order: a.order! })),
           feedbackEnabled: course.feedbackEnabled,
         },
       },
@@ -95,7 +96,7 @@ export default async function TrainerCoursePreviewPage({ params }: { params: Pro
       currentUserId={userId}
       latestSubmissionByAssignmentId={{}}
       testStatusByTestId={{}}
-      assignmentStatusByCourseId={{}}
+      assignmentStatusById={{}}
       feedbackByCourseId={{}}
       allGrowthPlans={[]}
       isPreview
