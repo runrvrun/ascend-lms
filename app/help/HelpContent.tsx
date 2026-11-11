@@ -113,7 +113,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: ClipboardList,
         steps: [
           "Some courses have one or more assignments. They appear in the course outline wherever the trainer placed them. Open one to read its instructions.",
-          "Upload your file directly (up to 20 MB), or paste a link to your work (for example, a SharePoint file).",
+          "Upload your file directly (up to 3 MB), or paste a link to your work (for example, a SharePoint file).",
           "Click Submit. Your trainer reviews it and marks it as passed or failed, and you are notified of the result. Each assignment is graded on its own.",
           "Uploaded files are deleted after 6 months, but your grade is kept.",
         ],
@@ -424,7 +424,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Star,
         steps: [
           "Open the Feedbacks tab to see the average star rating and each learner's comments. There is one feedback form per course.",
-          "Use the toggle at the top to turn feedback collection on or off for the course.",
+          "Use the toggle at the top to turn feedback collection on or off for the course. New courses start with feedback turned off, so switch it on if you want learners to rate the course.",
         ],
       },
       {

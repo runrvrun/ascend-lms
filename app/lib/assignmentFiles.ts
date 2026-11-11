@@ -4,11 +4,12 @@
 import path from "path"
 import { randomUUID } from "crypto"
 import { loadFile, removeFile, storageLocation, storeFile } from "./fileStorage"
+import { ASSIGNMENT_FILE_TOO_LARGE, MAX_ASSIGNMENT_FILE_BYTES } from "./assignmentFileLimit"
 
 // Shown by the purge script
 export const UPLOAD_DIR = storageLocation("assignments")
 
-export const MAX_ASSIGNMENT_FILE_BYTES = 20 * 1024 * 1024
+export { MAX_ASSIGNMENT_FILE_BYTES }
 export const ASSIGNMENT_FILE_RETENTION_MONTHS = 6
 
 // Extension → Content-Type served on download. Anything not listed is rejected.
@@ -40,7 +41,7 @@ function checkKey(fileKey: string) {
 
 export function validateAssignmentFile(file: File): string | null {
   if (file.size === 0) return "The file is empty."
-  if (file.size > MAX_ASSIGNMENT_FILE_BYTES) return "The file is larger than 20 MB."
+  if (file.size > MAX_ASSIGNMENT_FILE_BYTES) return ASSIGNMENT_FILE_TOO_LARGE
   const ext = path.extname(file.name).toLowerCase()
   if (!MIME_TYPES[ext]) return `File type not allowed. Allowed: ${ALLOWED_ASSIGNMENT_EXTENSIONS.join(", ")}`
   return null

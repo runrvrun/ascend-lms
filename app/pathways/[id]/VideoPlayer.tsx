@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import VimeoPlayer from "@vimeo/player"
 import { checkPopQuizAnswer } from "../actions"
 
@@ -42,6 +43,19 @@ function youtubeId(url: string) { return url.match(YT_REGEX)?.[1] ?? "" }
 function vimeoId(url: string) { return url.match(VIMEO_REGEX)?.[1] ?? "" }
 
 const POLL_INTERVAL_MS = 1000
+
+// The pop quiz is drawn by this page, so it can't show on top of a full-screen
+// YouTube player (only the iframe is visible then). Leave full screen first.
+function exitFullscreenIfActive() {
+  const doc = document as Document & {
+    webkitFullscreenElement?: Element | null
+    webkitExitFullscreen?: () => void
+  }
+  try {
+    if (doc.fullscreenElement) void doc.exitFullscreen().catch(() => {})
+    else if (doc.webkitFullscreenElement) doc.webkitExitFullscreen?.()
+  } catch {}
+}
 
 // ─── Pop quiz types ───────────────────────────────────────────────────────────
 type PopQuizOption = { id: string; text: string }
@@ -136,6 +150,7 @@ export function VideoPlayer({
                 )
                 if (dueQuiz) {
                   player.pauseVideo?.()
+                  exitFullscreenIfActive()
                   setWrongOptionId(null)
                   setActiveQuiz(dueQuiz)
                 }
@@ -210,11 +225,19 @@ export function VideoPlayer({
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
         />
-        {activeQuiz && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+        {/* Rendered over the whole page (not inside the 16:9 video box) so long
+            questions or many options are never cut off; scrolls when taller
+            than the screen. */}
+        {activeQuiz && createPortal(
+          <div className="fixed inset-0 z-[60] flex overflow-y-auto bg-black/70 p-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Pop quiz"
+              className="m-auto w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl"
+            >
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-600">Pop Quiz</p>
-              <p className="mb-4 text-sm font-medium text-slate-900">{activeQuiz.question}</p>
+              <p className="mb-4 whitespace-pre-wrap break-words text-sm font-medium text-slate-900">{activeQuiz.question}</p>
               <div className="flex flex-col gap-2">
                 {activeQuiz.options.map((o) => (
                   <button
@@ -222,7 +245,7 @@ export function VideoPlayer({
                     type="button"
                     disabled={checking}
                     onClick={() => handleAnswer(o.id)}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-60 ${
+                    className={`whitespace-pre-wrap break-words rounded-lg border px-3 py-2 text-left text-sm transition-colors disabled:opacity-60 ${
                       wrongOptionId === o.id
                         ? "border-red-400 bg-red-50 text-red-700"
                         : "border-slate-200 text-slate-700 hover:border-blue-400 hover:bg-blue-50"
@@ -235,7 +258,8 @@ export function VideoPlayer({
               {wrongOptionId && <p className="mt-3 text-xs text-red-500">Not quite — try again.</p>}
               <p className="mt-3 text-xs text-slate-400">Answer correctly to continue watching.</p>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     )

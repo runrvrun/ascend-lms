@@ -284,7 +284,15 @@ export async function submitAssignment(formData: FormData): Promise<{ error?: st
   if (file instanceof File && file.size > 0) {
     const invalid = validateAssignmentFile(file)
     if (invalid) return { error: invalid }
-    const fileKey = await saveAssignmentFile(file)
+    let fileKey: string
+    try {
+      fileKey = await saveAssignmentFile(file)
+    } catch (err) {
+      // Storage misconfigured or unavailable (e.g. no Blob store on Vercel): log it and
+      // tell the learner, instead of failing the whole request with a 500.
+      console.error("Assignment file upload failed:", err)
+      return { error: "The file couldn't be uploaded. Please try again, or paste a link instead." }
+    }
     try {
       await prisma.assignmentSubmission.create({
         data: { assignmentId, userId, pathwayId, fileKey, fileName: file.name, fileSize: file.size, status: "SUBMITTED" },

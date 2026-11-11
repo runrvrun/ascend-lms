@@ -71,6 +71,8 @@ export async function createCourse(data: CourseFormData): Promise<string> {
       name: data.name,
       description: data.description || null,
       status: "DRAFT",
+      // New courses start with feedback collection off; turn it on from the Feedbacks tab.
+      feedbackEnabled: false,
       topicId: data.topicId || null,
       language: isLanguage(data.language) ? data.language : "EN",
     },

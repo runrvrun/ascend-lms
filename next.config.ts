@@ -16,8 +16,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   experimental: {
-    // Assignment uploads go through a server action; files are capped at 20 MB
-    // in app/lib/assignmentFiles.ts; this leaves headroom for multipart overhead.
+    // Assignment uploads are capped at 3 MB (app/lib/assignmentFileLimit.ts); this
+    // larger limit is kept for other big server-action payloads such as course import.
     serverActions: { bodySizeLimit: "21mb" },
   },
   async headers() {

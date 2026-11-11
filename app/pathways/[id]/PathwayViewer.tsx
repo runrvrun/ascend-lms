@@ -41,6 +41,7 @@ import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedba
 import { createGrowthPlan, updateGrowthPlan, deleteGrowthPlan, toggleGrowthPlanComplete } from "../../growth-plan/actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
 import { VideoPlayer } from "./VideoPlayer"
+import { ASSIGNMENT_FILE_TOO_LARGE, MAX_ASSIGNMENT_FILE_BYTES, MAX_ASSIGNMENT_FILE_MB } from "../../lib/assignmentFileLimit"
 import { contentImageUrl } from "../../lib/contentImageUrl"
 
 function isSharePointUrl(url: string) {
@@ -721,7 +722,6 @@ function TestViewer({
 // ─── Assignment viewer ────────────────────────────────────────────────────────
 
 // Keep in sync with app/lib/assignmentFiles.ts (which can't be imported client-side).
-const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 const ASSIGNMENT_ACCEPT = ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.png,.jpg,.jpeg"
 
 function AssignmentViewer({
@@ -753,8 +753,8 @@ function AssignmentViewer({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
-    if (mode === "file" && file && file.size > MAX_UPLOAD_BYTES) {
-      setError("The file is larger than 20 MB.")
+    if (mode === "file" && file && file.size > MAX_ASSIGNMENT_FILE_BYTES) {
+      setError(ASSIGNMENT_FILE_TOO_LARGE)
       return
     }
     const formData = new FormData()
@@ -906,7 +906,7 @@ function AssignmentViewer({
                   />
                 </label>
                 <p className="text-xs text-slate-400">
-                  Max 20 MB. PDF, Word, Excel, PowerPoint, text, CSV, ZIP, or image. Uploaded files are kept for 6 months.
+                  Max {MAX_ASSIGNMENT_FILE_MB} MB. PDF, Word, Excel, PowerPoint, text, CSV, ZIP, or image. Uploaded files are kept for 6 months.
                 </p>
               </>
             ) : (
@@ -962,12 +962,15 @@ function FeedbackViewer({
   courseName,
   courseCompleted,
   existing,
+  footer,
 }: {
   courseId: string
   pathwayId: string
   courseName: string
   courseCompleted: boolean
   existing: { rating: number; comment: string | null } | null
+  // Lesson navigation, shown right under the feedback form / status.
+  footer?: React.ReactNode
 }) {
   const [rating, setRating] = useState(existing?.rating ?? 0)
   const [hovered, setHovered] = useState(0)
@@ -1067,6 +1070,7 @@ function FeedbackViewer({
           </button>
         </form>
       )}
+      {footer && <div className="mt-6">{footer}</div>}
     </div>
   )
 }
@@ -1309,15 +1313,14 @@ export function ContentViewer({
 
   if (selection.kind === "feedback") {
     return (
-      <WithFooter footer={footer}>
-        <FeedbackViewer
-          courseId={selection.courseId}
-          pathwayId={pathwayId}
-          courseName={selection.courseName}
-          courseCompleted={completedCourseIds.has(selection.courseId)}
-          existing={feedbackByCourseId[selection.courseId] ?? null}
-        />
-      </WithFooter>
+      <FeedbackViewer
+        courseId={selection.courseId}
+        pathwayId={pathwayId}
+        courseName={selection.courseName}
+        courseCompleted={completedCourseIds.has(selection.courseId)}
+        existing={feedbackByCourseId[selection.courseId] ?? null}
+        footer={footer}
+      />
     )
   }
 
