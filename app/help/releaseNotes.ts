@@ -10,6 +10,22 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-11",
+    changes: [
+      { kind: "new", text: "A course can now have more than one assignment, each with its own title, placed anywhere among the lessons and tests. Learners must pass every assignment to complete the course. On the Assignment Submissions tab, pick which assignment to review; each shows how many submissions are waiting." },
+      { kind: "improved", text: "The course page has been reorganised into three tabs: Contents, Assignment Submissions and Feedbacks. On Contents, lessons, tests and assignments are shown together in one Lessons list, in the order learners see them, with Add Lesson, Add Test and Add Assignment buttons. Each row has up/down arrows to reorder it and an Actions menu to edit or delete it." },
+      { kind: "improved", text: "A test's questions are now managed in a popup: click the test's Questions button to add, edit, delete or reorder them." },
+      { kind: "improved", text: "Pop quizzes are now added from the YouTube lesson itself: open its Actions menu and choose Pop quizzes." },
+      { kind: "improved", text: "New courses now start with course feedback turned off. Turn it on from the course's Feedbacks tab if you want learners to rate the course." },
+      { kind: "improved", text: "In a pathway, the Next and Previous buttons now say Next Course or Previous Course, with the course name, when they take you into another course. Previous Course opens the start of that course." },
+      { kind: "improved", text: "On a course's Feedback page, the Previous and Next buttons now appear right below Submit Feedback instead of at the very bottom of the page." },
+      { kind: "improved", text: "Assignment files you upload can now be up to 3 MB. For a bigger file, paste a link to it instead (for example, a SharePoint link)." },
+      { kind: "fixed", text: "Pop quizzes in YouTube videos now show the whole question and every answer, even when the question is long or there are four or more answers." },
+      { kind: "fixed", text: "If you're watching a YouTube video full screen when a pop quiz comes up, the video now leaves full screen so you can see and answer the quiz." },
+      { kind: "fixed", text: "Lists you can search and pick from, such as choosing pathway owners or trainers, no longer get hidden behind the bottom of the window they're in. When there isn't room below, the list opens upward." },
+    ],
+  },
+  {
     date: "2026-11-08",
     changes: [
       { kind: "improved", text: "The Pathways page has a new panel on the left with the search box, sorting and filters. Sort pathways alphabetically, newest first or by popularity, and filter by topic, language, enrollment type (free or approval required), your status (not enrolled, awaiting approval, in progress or completed) and number of courses. Click an option to filter straight away. On a phone, tap Filters next to the search box." },
