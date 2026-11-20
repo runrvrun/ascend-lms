@@ -23,4 +23,13 @@ jobs:
             git reset --hard origin/main
             npm ci
             npm run build
-            pm2 restart npm
+            pm2 restart npm --update-env
+            pm2 save
+            # Fail the deploy (so it shows red in Actions) if the app doesn't come back healthy.
+            for i in $(seq 1 30); do
+              if curl -sf --max-time 5 http://127.0.0.1:${PORT:-3000}/api/health > /dev/null; then
+                echo "healthy after ${i} tries"; exit 0
+              fi
+              sleep 2
+            done
+            echo "app not healthy 60s after restart"; pm2 logs npm --lines 50 --nostream; exit 1
