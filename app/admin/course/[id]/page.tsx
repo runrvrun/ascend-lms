@@ -68,7 +68,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
         <TrainerManagement courseId={course.id} trainers={trainers} allUsers={allUsers} />
       </div>
 
-      <CourseEditorTabs courseId={course.id} feedbackEnabled={course.feedbackEnabled} />
+      <CourseEditorTabs courseId={course.id} feedbackEnabled={course.feedbackEnabled} canManageAttendance />
     </main>
   )
 }

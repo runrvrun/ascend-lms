@@ -54,6 +54,8 @@ export default async function PathwayDetailPage({
                 contents: {
                   where: { deletedAt: null },
                   orderBy: { order: "asc" },
+                  // The check-in code is only for the printed QR, not learners' browsers.
+                  omit: { checkInCode: true },
                   include: {
                     popQuizzes: {
                       where: { deletedAt: null },

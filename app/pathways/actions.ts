@@ -50,11 +50,18 @@ export async function toggleContentComplete(contentId: string, pathwayId: string
   const locked = await pathwayLockedReason(userId, pathwayId)
   if (locked) throw new Error(locked)
 
+  // In-person sessions are completed by attendance (app/lib/inPersonAttendance.ts) or,
+  // here, by watching the recording — and a learner can't undo either.
+  const lesson = await prisma.content.findUnique({ where: { id: contentId }, select: { type: true, recordingUrl: true } })
+  const inPerson = lesson?.type === "IN_PERSON"
+  if (inPerson && !completed) throw new Error("An in-person session can't be marked as not completed.")
+  if (inPerson && !lesson?.recordingUrl) throw new Error("Check in at the session, or wait for its recording.")
+
   if (completed) {
     await prisma.contentProgress.upsert({
       where: { userId_contentId_pathwayId: { userId, contentId, pathwayId } },
-      create: { userId, contentId, pathwayId },
-      update: { completedAt: new Date() },
+      create: { userId, contentId, pathwayId, method: inPerson ? "RECORDING" : "SELF" },
+      update: inPerson ? {} : { completedAt: new Date() },
     })
     const content = await prisma.content.findUnique({ where: { id: contentId }, select: { courseId: true } })
     if (content) {

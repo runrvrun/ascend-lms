@@ -5,6 +5,14 @@ import { useState, useTransition, useEffect } from "react"
 import { Eye, EyeOff, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 
+// Where to go after signing in: ?callbackUrl= when it's a path on this site (e.g. a
+// session check-in link from a QR code), otherwise the dashboard.
+function afterSignInUrl() {
+  if (typeof window === "undefined") return "/dashboard"
+  const target = new URLSearchParams(window.location.search).get("callbackUrl")
+  return target && target.startsWith("/") && !target.startsWith("//") ? target : "/dashboard"
+}
+
 function EmailPasswordForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -25,7 +33,7 @@ function EmailPasswordForm() {
       if (res?.error) {
         setError("Incorrect email or password.")
       } else {
-        router.push("/dashboard")
+        router.push(afterSignInUrl())
       }
     })
   }
@@ -34,7 +42,7 @@ function EmailPasswordForm() {
     <div className="flex flex-col gap-4">
       <button
         type="button"
-        onClick={() => signIn("azure-ad", { callbackUrl: "/dashboard" })}
+        onClick={() => signIn("azure-ad", { callbackUrl: afterSignInUrl() })}
         className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm hover:-translate-y-[1px] hover:shadow-md transition-all"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="h-4 w-4 shrink-0">
@@ -110,7 +118,7 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/dashboard")
+    if (status === "authenticated") router.replace(afterSignInUrl())
   }, [status, router])
 
   return (

@@ -31,6 +31,7 @@ export type ContentFormData = {
   value: string
   duration: number | null // seconds, only relevant for VIDEO
   imageKey: string | null // required for IMAGE, optional for LINK
+  recordingUrl: string // IN_PERSON only; "" = none
   insertAfterOrder: number // 0 = insert at the very beginning
 }
 
@@ -40,6 +41,12 @@ export type ContentEditData = {
   value: string
   duration: number | null
   imageKey: string | null
+  recordingUrl: string
+}
+
+// Only IN_PERSON content has a recording.
+function contentRecordingUrl(data: { type: ContentType; recordingUrl: string }) {
+  return data.type === "IN_PERSON" && data.recordingUrl?.trim() ? data.recordingUrl.trim() : null
 }
 
 // Only IMAGE and LINK content carry an image; drop a stale key if the type changed.
@@ -210,6 +217,7 @@ export async function duplicateCourse(id: string): Promise<string> {
         order: c.order,
         duration: c.duration,
         imageKey: c.imageKey, // image files are never deleted, so the copy can share them
+        recordingUrl: c.recordingUrl, // not checkInCode: each session gets its own QR
       })),
     })
   }
@@ -279,6 +287,7 @@ type CourseExport = {
     type: ContentType
     value: string
     duration: number | null
+    recordingUrl?: string | null
     order: number | null
     // Base64 image embedded by the export route so it survives a move between servers
     image?: { data: string } | null
@@ -360,6 +369,7 @@ export async function importCourse(formData: FormData): Promise<string> {
           type: c.type,
           value: c.value,
           duration: c.duration ?? null,
+          recordingUrl: c.type === "IN_PERSON" ? c.recordingUrl ?? null : null,
           order: c.order,
           imageKey,
         },
@@ -581,7 +591,7 @@ export async function createContent(courseId: string, data: ContentFormData) {
     const target = data.insertAfterOrder + 1
     await shiftCourseItemsUpFrom(tx, courseId, target)
     await tx.content.create({
-      data: { courseId, title: data.title, type: data.type, value: data.value, order: target, duration: data.duration, imageKey },
+      data: { courseId, title: data.title, type: data.type, value: data.value, order: target, duration: data.duration, imageKey, recordingUrl: contentRecordingUrl(data) },
     })
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
@@ -596,7 +606,7 @@ export async function updateContent(id: string, courseId: string, data: ContentE
   await Promise.all([
     prisma.content.update({
       where: { id },
-      data: { title: data.title, type: data.type, value: data.value, duration: data.duration, imageKey },
+      data: { title: data.title, type: data.type, value: data.value, duration: data.duration, imageKey, recordingUrl: contentRecordingUrl(data) },
     }),
     touchCourse(courseId),
   ])

@@ -64,7 +64,7 @@ export default async function TrainerCourseDetailPage({ params }: { params: Prom
         </div>
       </div>
 
-      <CourseEditorTabs courseId={course.id} feedbackEnabled={course.feedbackEnabled} />
+      <CourseEditorTabs courseId={course.id} feedbackEnabled={course.feedbackEnabled} canManageAttendance />
     </main>
   )
 }

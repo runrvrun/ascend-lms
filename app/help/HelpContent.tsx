@@ -24,7 +24,7 @@ const CONTENT_TYPES = [
   "SharePoint Video — a video stored in SharePoint (paste its embed link).",
   "Text — written content.",
   "PDF, PPT and Word — a SharePoint PDF, PowerPoint or Word document shown inside the course (open the file in a web browser, then use Embed to copy its link).",
-  "In Person — a face-to-face session, with an optional description.",
+  "In Person — a face-to-face session, with an optional description and, once it's available, a recording. Learners complete it by checking in at the session, by an admin or trainer marking attendance, or by watching the recording.",
   "External Link — a link to another website, with an optional picture that opens the link when clicked.",
   "Image — a picture uploaded from your computer, with an optional caption. Pictures are resized and compressed automatically before upload.",
 ]
@@ -92,6 +92,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Click a lesson to open it. Lessons can be videos, written text, PDFs, slides, Word documents, in-person sessions, links or pictures.",
           "For videos, you must watch at least 75% before you can mark them as complete. YouTube videos may pause for a pop quiz — answer correctly to keep watching.",
           "Click Mark as Completed to record your progress, then use Next Lesson to move on (or Previous Lesson to go back).",
+          "In-person sessions work differently: at the session, scan the QR code handed around the room with your phone camera and tap Check in (or type the code printed under it into the lesson). Your trainer may also mark you as attended. If you couldn't attend, watch the recording in the lesson once it's added, then mark it as completed.",
           "If a SharePoint video, PDF, slide or Word document doesn't load, click Content not loading? below it for tips (usually you need to sign in to Microsoft in the same browser), or use Open in new tab.",
           "Each lesson has a discussion area where you can ask questions and reply to others.",
           "When you finish a course, you can rate it and leave feedback.",
@@ -382,6 +383,16 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Use Position to place the new item anywhere in the course.",
           "For SharePoint videos, enter the duration — learners must watch 75% of it before they can mark it complete.",
           "Use the up/down arrows to reorder anything in the list, and each row's Actions menu to edit or delete it.",
+        ],
+      },
+      {
+        title: "In-Person Sessions & Attendance",
+        icon: ClipboardList,
+        steps: [
+          "Add the session as an In Person lesson. After the session, edit the lesson to add the recording link (and, for a SharePoint video, its length) for people who missed it.",
+          "Before the session, open the lesson's Actions menu and choose Check-in QR code, then Open printable QR code and print it. The code never changes, so one printout works for every run of the session. Learners scan it, sign in and tap Check in; anyone without a camera can type the code shown under the QR into the lesson.",
+          "To mark attendance yourself, choose Attendance from the lesson's Actions menu. Tick the people who attended and click Mark present, or click Paste emails and paste a list of addresses (for example from a Teams attendance report). Mark not attended removes someone's attendance.",
+          "The Attendance list shows how each person completed the session: checked in with the QR code, marked present, or watched the recording. Admins and trainers can mark attendance even after a pathway's deadline has closed it.",
         ],
       },
       {

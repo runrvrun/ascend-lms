@@ -6,8 +6,17 @@ import { FeedbackSection } from "./FeedbackSection"
 import { buildCourseOutline } from "./courseOutline"
 
 // The Contents / Assignment Submissions / Feedbacks tabs of the course editor, shared by
-// the admin, SME and trainer course pages. Loads its own data.
-export async function CourseEditorTabs({ courseId, feedbackEnabled }: { courseId: string; feedbackEnabled: boolean }) {
+// the admin, SME and trainer course pages. Loads its own data. canManageAttendance:
+// in-person attendance and check-in QR (admin and trainer pages, not SME).
+export async function CourseEditorTabs({
+  courseId,
+  feedbackEnabled,
+  canManageAttendance = false,
+}: {
+  courseId: string
+  feedbackEnabled: boolean
+  canManageAttendance?: boolean
+}) {
   const [contents, tests, assignments, feedbacks] = await Promise.all([
     prisma.content.findMany({
       where: { courseId, deletedAt: null },
@@ -67,6 +76,7 @@ export async function CourseEditorTabs({ courseId, feedbackEnabled }: { courseId
           tests={liveTests}
           assignments={liveAssignments.map((a) => ({ id: a.id, title: a.title, order: a.order, description: a.description, submitUrl: a.submitUrl }))}
           outline={outline}
+          canManageAttendance={canManageAttendance}
         />
       }
       submissions={<SubmissionsPanel courseId={courseId} assignments={liveAssignments} />}

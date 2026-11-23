@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, ChevronUp, ChevronDown, ExternalLink, Pencil, Trash2, HelpCircle, ListChecks } from "lucide-react"
+import { Plus, ChevronUp, ChevronDown, ExternalLink, Pencil, Trash2, HelpCircle, ListChecks, ClipboardCheck, QrCode } from "lucide-react"
 import {
   createContent,
   updateContent,
@@ -19,6 +19,7 @@ import { TestSetupModal, TestQuestionsModal, type TestRow } from "./TestModals"
 import { PopQuizzesModal, type PopQuizRow } from "./PopQuizModals"
 import { AssignmentFormModal } from "./AssignmentModals"
 import { ConfirmDelete } from "./ConfirmDelete"
+import { AttendanceModal, CheckInQrModal } from "./AttendanceModals"
 import { ActionsMenu, type ActionsMenuItem } from "../../../components/ActionsMenu"
 import { contentImageUrl } from "../../../lib/contentImageUrl"
 
@@ -38,6 +39,8 @@ type Modal =
   | { type: "delete"; kind: CourseItemKind; id: string }
   | { type: "questions"; id: string }
   | { type: "pop-quizzes"; id: string }
+  | { type: "attendance"; id: string }
+  | { type: "check-in-qr"; id: string }
 
 const KIND_BADGE: Record<"TEST" | "ASSIGNMENT", { label: string; style: string }> = {
   TEST: { label: "Test", style: "bg-indigo-100 text-indigo-700" },
@@ -51,8 +54,11 @@ export function CourseItems({
   tests,
   assignments,
   outline,
+  canManageAttendance = false,
 }: {
   courseId: string
+  // Admins and the course's trainers take in-person attendance (not SMEs).
+  canManageAttendance?: boolean
   contents: LessonRow[]
   tests: TestRow[]
   assignments: AssignmentItemRow[]
@@ -102,6 +108,10 @@ export function CourseItems({
     ]
     if (row.kind === "CONTENT" && row.item.type === "YOUTUBE_VIDEO") {
       items.push({ label: "Pop quizzes", icon: <HelpCircle size={13} />, onClick: () => setModal({ type: "pop-quizzes", id: row.item.id }) })
+    }
+    if (row.kind === "CONTENT" && row.item.type === "IN_PERSON" && canManageAttendance) {
+      items.push({ label: "Attendance", icon: <ClipboardCheck size={13} />, onClick: () => setModal({ type: "attendance", id: row.item.id }) })
+      items.push({ label: "Check-in QR code", icon: <QrCode size={13} />, onClick: () => setModal({ type: "check-in-qr", id: row.item.id }) })
     }
     if (row.kind === "TEST") {
       items.push({ label: "Questions", icon: <ListChecks size={13} />, onClick: () => setModal({ type: "questions", id: row.item.id }) })
@@ -174,6 +184,7 @@ export function CourseItems({
   const deletingRow = deleting ? rows.find((r) => r.kind === deleting.kind && r.item.id === deleting.id) : undefined
   const questionsTest = modal?.type === "questions" ? find("TEST", modal.id)?.item : undefined
   const popQuizVideo = modal?.type === "pop-quizzes" ? find("CONTENT", modal.id)?.item : undefined
+  const attendanceLesson = modal?.type === "attendance" || modal?.type === "check-in-qr" ? find("CONTENT", modal.id)?.item : undefined
 
   return (
     <>
@@ -251,7 +262,7 @@ export function CourseItems({
         <ContentFormModal
           courseId={courseId}
           title="Add Lesson"
-          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null, imageKey: null }}
+          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null, imageKey: null, recordingUrl: "" }}
           outline={outline}
           initialInsertAfterOrder={lastOrder}
           onClose={close}
@@ -284,7 +295,7 @@ export function CourseItems({
           <ContentFormModal
             courseId={courseId}
             title="Edit Lesson"
-            initial={{ title: c.title, type: c.type, value: c.value, duration: c.duration, imageKey: c.imageKey }}
+            initial={{ title: c.title, type: c.type, value: c.value, duration: c.duration, imageKey: c.imageKey, recordingUrl: c.recordingUrl ?? "" }}
             outline={null}
             onClose={close}
             onSubmit={(d) => updateContent(c.id, courseId, d)}
@@ -354,6 +365,12 @@ export function CourseItems({
           popQuizzes={popQuizVideo.popQuizzes}
           onClose={close}
         />
+      )}
+      {modal?.type === "attendance" && attendanceLesson && (
+        <AttendanceModal contentId={attendanceLesson.id} title={attendanceLesson.title} onClose={close} />
+      )}
+      {modal?.type === "check-in-qr" && attendanceLesson && (
+        <CheckInQrModal contentId={attendanceLesson.id} title={attendanceLesson.title} onClose={close} />
       )}
     </>
   )

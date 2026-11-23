@@ -388,6 +388,11 @@ model Content {
   // Uploaded image file key (app/lib/contentImages.ts): required for IMAGE, optional
   // for LINK (shown as a clickable image that opens the link). Null for other types.
   imageKey String?
+  // IN_PERSON only: optional recording for people who missed the session (its length
+  // goes in `duration`, as for VIDEO), and the permanent code behind the session's
+  // printed check-in QR (/check-in/<code>), created the first time it's shown.
+  recordingUrl String?
+  checkInCode  String? @unique
 
   order Int?
 
@@ -691,6 +696,9 @@ model ContentProgress {
   pathwayId String
 
   completedAt DateTime @default(now())
+  // How it was completed; markedById is the admin/trainer who marked an ADMIN one.
+  method      ContentCompletionMethod @default(SELF)
+  markedById  String?
 
   user    User    @relation(fields: [userId], references: [id])
   content Content @relation(fields: [contentId], references: [id])
@@ -699,6 +707,13 @@ model ContentProgress {
   @@unique([userId, contentId, pathwayId])
   @@index([userId, pathwayId])
   @@index([pathwayId])
+}
+
+enum ContentCompletionMethod {
+  SELF      // the learner clicked Mark as Completed
+  ADMIN     // in-person attendance marked by an admin or trainer
+  CHECK_IN  // in-person: the learner checked in with the session's QR code
+  RECORDING // in-person: the learner watched the session recording
 }
 
 model UserPoint {

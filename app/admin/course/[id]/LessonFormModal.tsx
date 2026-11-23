@@ -16,6 +16,29 @@ export type ContentRow = {
   order: number
   duration: number | null
   imageKey: string | null
+  recordingUrl: string | null
+}
+
+// Hours / minutes / seconds inputs for a length in seconds (null = not set).
+function DurationInput({ value, onChange }: { value: number | null; onChange: (seconds: number | null) => void }) {
+  const h = value != null ? Math.floor(value / 3600) : 0
+  const m = value != null ? Math.floor((value % 3600) / 60) : 0
+  const sec = value != null ? value % 60 : 0
+  const set = (hh: number, mm: number, ss: number) => {
+    const total = hh * 3600 + mm * 60 + ss
+    onChange(total > 0 ? total : null)
+  }
+  const box = "w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+  return (
+    <div className="flex items-center gap-2">
+      <input type="number" min={0} value={value != null ? h : ""} onChange={(e) => set(parseInt(e.target.value) || 0, m, sec)} placeholder="0" className={box} />
+      <span className="text-xs text-slate-500">h</span>
+      <input type="number" min={0} max={59} value={value != null ? m : ""} onChange={(e) => set(h, Math.min(59, parseInt(e.target.value) || 0), sec)} placeholder="0" className={box} />
+      <span className="text-xs text-slate-500">m</span>
+      <input type="number" min={0} max={59} value={value != null ? sec : ""} onChange={(e) => set(h, m, Math.min(59, parseInt(e.target.value) || 0))} placeholder="0" className={box} />
+      <span className="text-xs text-slate-500">s</span>
+    </div>
+  )
 }
 
 function extractEmbedUrl(raw: string): string {
@@ -73,7 +96,8 @@ export const TYPE_STYLES: Record<ContentType, string> = {
   IMAGE: "bg-teal-100 text-teal-700",
 }
 
-export type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null; imageKey: string | null }
+// recordingUrl: IN_PERSON only, "" = none.
+export type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null; imageKey: string | null; recordingUrl: string }
 
 export function ContentFormModal({
   courseId,
@@ -263,57 +287,37 @@ export function ContentFormModal({
                       <label className="mb-1 block text-xs font-medium text-slate-600">
                         Video length <span className="text-slate-400">(used to track watch progress of SharePoint videos)</span>
                       </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={0}
-                          value={form.duration != null ? Math.floor(form.duration / 3600) : ""}
-                          onChange={(e) => {
-                            const h = parseInt(e.target.value) || 0
-                            const rest = form.duration != null ? form.duration % 3600 : 0
-                            const total = h * 3600 + rest
-                            setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
-                          }}
-                          placeholder="0"
-                          className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-xs text-slate-500">h</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={59}
-                          value={form.duration != null ? Math.floor((form.duration % 3600) / 60) : ""}
-                          onChange={(e) => {
-                            const m = Math.min(59, parseInt(e.target.value) || 0)
-                            const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
-                            const s = form.duration != null ? form.duration % 60 : 0
-                            const total = h * 3600 + m * 60 + s
-                            setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
-                          }}
-                          placeholder="0"
-                          className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-xs text-slate-500">m</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={59}
-                          value={form.duration != null ? form.duration % 60 : ""}
-                          onChange={(e) => {
-                            const s = Math.min(59, parseInt(e.target.value) || 0)
-                            const h = form.duration != null ? Math.floor(form.duration / 3600) : 0
-                            const m = form.duration != null ? Math.floor((form.duration % 3600) / 60) : 0
-                            const total = h * 3600 + m * 60 + s
-                            setForm((f) => ({ ...f, duration: total > 0 ? total : null }))
-                          }}
-                          placeholder="0"
-                          className="w-16 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-xs text-slate-500">s</span>
-                      </div>
+                      <DurationInput value={form.duration} onChange={(duration) => setForm((f) => ({ ...f, duration }))} />
                     </div>
                   )}
                 </>
+              )}
+            </div>
+          )}
+
+          {form.type === "IN_PERSON" && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-xs text-slate-500">
+                Learners complete this session by checking in with its QR code, by an admin or trainer marking attendance
+                (both from the lesson&apos;s Actions menu), or by watching the recording below.
+              </p>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Recording URL <span className="font-normal text-slate-400">(optional — add it after the session)</span>
+              </label>
+              <input
+                type="url"
+                value={form.recordingUrl}
+                onChange={(e) => setForm((f) => ({ ...f, recordingUrl: extractEmbedUrl(e.target.value) }))}
+                placeholder="YouTube URL, or the SharePoint embed URL / <iframe> snippet"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {form.recordingUrl.trim() && (
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-medium text-slate-600">
+                    Recording length <span className="text-slate-400">(used to track watch progress of SharePoint videos)</span>
+                  </label>
+                  <DurationInput value={form.duration} onChange={(duration) => setForm((f) => ({ ...f, duration }))} />
+                </div>
               )}
             </div>
           )}

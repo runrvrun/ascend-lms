@@ -41,6 +41,7 @@ import { toggleContentComplete, submitTest, submitAssignment, submitCourseFeedba
 import { createGrowthPlan, updateGrowthPlan, deleteGrowthPlan, toggleGrowthPlanComplete } from "../../growth-plan/actions"
 import { ContentDiscussion } from "../../components/ContentDiscussion"
 import { VideoPlayer } from "./VideoPlayer"
+import { InPersonCheckIn } from "./InPersonCheckIn"
 import { ASSIGNMENT_FILE_TOO_LARGE, MAX_ASSIGNMENT_FILE_BYTES, MAX_ASSIGNMENT_FILE_MB } from "../../lib/assignmentFileLimit"
 import { contentImageUrl } from "../../lib/contentImageUrl"
 
@@ -115,6 +116,7 @@ type ContentItem = {
   order: number | null
   duration: number | null
   imageKey: string | null
+  recordingUrl?: string | null // IN_PERSON only
   popQuizzes?: PopQuizItem[]
 }
 
@@ -1415,7 +1417,12 @@ export function ContentViewer({
     )
   }
 
+  // In-person sessions are completed by attendance — checking in with the session's QR
+  // code or code, or an admin/trainer marking it — or by watching the recording.
+  // There's no plain Mark as Completed (app/lib/inPersonAttendance.ts).
   if (content.type === "IN_PERSON") {
+    const done = completedContentIds.has(content.id)
+    const readOnly = sample || isPreview || isLocked
     return (
       <div className="h-full overflow-y-auto p-6 md:p-8">
         <div className="mb-6 flex items-center gap-4">
@@ -1432,7 +1439,37 @@ export function ContentViewer({
             {content.value}
           </div>
         )}
-        <CompleteButton contentId={content.id} />
+        {done ? (
+          <div className="mb-6 flex w-fit items-center gap-2 rounded-xl bg-green-100 px-4 py-2 text-sm font-semibold text-green-700">
+            <CheckCircle2 size={15} />
+            Completed
+          </div>
+        ) : (
+          !sample && (
+            <div className="mb-6">
+              <InPersonCheckIn disabled={readOnly} />
+              {isLocked && <p className="mt-2 text-xs text-slate-400">{LOCKED_NOTICE}</p>}
+            </div>
+          )
+        )}
+        {content.recordingUrl ? (
+          <div className="mb-6">
+            <h3 className="mb-3 text-sm font-semibold text-slate-800">{done ? "Session recording" : "Couldn't attend? Watch the recording"}</h3>
+            <VideoPlayer key={content.id} url={content.recordingUrl} duration={content.duration ?? undefined} onProgress={setVideoProgress} />
+            {content.recordingUrl.includes("sharepoint.com") && (
+              <div className="mt-1.5 flex justify-end">
+                <SharePointHelp noun="video" />
+              </div>
+            )}
+            {!done && (
+              <div className="mt-4">
+                <CompleteButton contentId={content.id} videoGated videoDuration={content.duration ?? undefined} />
+              </div>
+            )}
+          </div>
+        ) : (
+          !done && !sample && <p className="mb-6 text-sm text-slate-400">Couldn&apos;t attend? The recording will appear here once it&apos;s available.</p>
+        )}
         {footer}
         {!sample && <ContentDiscussion contentId={content.id} pathwayId={pathwayId} currentUserId={currentUserId} />}
       </div>

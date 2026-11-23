@@ -81,6 +81,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       type: c.type,
       value: c.value,
       duration: c.duration,
+      recordingUrl: c.recordingUrl,
       order: c.order,
       image: imagesByKey.get(c.imageKey ?? "") ?? null,
       popQuizzes: c.popQuizzes.map((pq) => ({
