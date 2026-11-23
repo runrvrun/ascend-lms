@@ -1,17 +1,16 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getServerSession } from "next-auth"
-import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { NotificationType } from "@prisma/client"
 import { pathwayAssignedEmail } from "../../lib/email"
 import { sendEmails } from "../../lib/sendEmail"
+import { requireManagerOf } from "../../lib/permissions"
 
 export async function assignPathway(userId: string, pathwayId: string, deadline: string | null) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) throw new Error("Not authenticated")
-  const managerId = (session.user as any).id as string
+  const { id: managerId } = await requireManagerOf(userId)
+  const target = await prisma.pathway.findFirst({ where: { id: pathwayId, deletedAt: null }, select: { id: true } })
+  if (!target) throw new Error("Pathway not found")
 
   const [, manager, pathway, user] = await Promise.all([
     prisma.pathwayEnrollment.create({
@@ -47,27 +46,21 @@ export async function assignPathway(userId: string, pathwayId: string, deadline:
 }
 
 export async function confirmGrowthPlan(id: string) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) throw new Error("Not authenticated")
-  const confirmedById = (session.user as any).id as string
-
-  const [item, confirmer] = await Promise.all([
-    prisma.growthPlan.findUnique({
-      where: { id },
-      select: { userId: true, title: true, pathwayId: true },
-    }),
-    prisma.user.findUnique({
-      where: { id: confirmedById },
-      select: { name: true },
-    }),
-  ])
+  const item = await prisma.growthPlan.findUnique({
+    where: { id },
+    select: { userId: true, title: true, pathwayId: true, completedAt: true },
+  })
+  if (!item) throw new Error("Growth plan item not found")
+  const { id: confirmedById } = await requireManagerOf(item.userId)
+  if (!item.completedAt) throw new Error("Only a completed goal can be confirmed.")
+  const confirmer = await prisma.user.findUnique({ where: { id: confirmedById }, select: { name: true } })
 
   await prisma.growthPlan.update({
     where: { id },
     data: { confirmedAt: new Date(), confirmedById },
   })
 
-  if (item) {
+  {
     await prisma.notification.create({
       data: {
         userId: item.userId,
@@ -83,8 +76,9 @@ export async function confirmGrowthPlan(id: string) {
 }
 
 export async function updateDeadline(enrollmentId: string, deadline: string | null) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) throw new Error("Not authenticated")
+  const enrollment = await prisma.pathwayEnrollment.findUnique({ where: { id: enrollmentId }, select: { userId: true } })
+  if (!enrollment) throw new Error("Enrollment not found")
+  await requireManagerOf(enrollment.userId)
   await prisma.pathwayEnrollment.update({
     where: { id: enrollmentId },
     data: { deadline: deadline ? new Date(deadline) : null },

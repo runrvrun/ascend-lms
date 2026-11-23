@@ -19,13 +19,30 @@ async function getSession() {
 
 const LOCKED_MESSAGE = `This pathway closed ${DEADLINE_GRACE_DAYS} days after its deadline. You can still view the content, but progress can no longer be recorded.`
 
-// Null if the learner can still make progress in this pathway, otherwise the reason.
-async function pathwayLockedReason(userId: string, pathwayId: string) {
-  const enrollment = await prisma.pathwayEnrollment.findUnique({
-    where: { userId_pathwayId: { userId, pathwayId } },
-    select: { deadline: true },
-  })
-  return isDeadlineLocked(enrollment?.deadline ?? null) ? LOCKED_MESSAGE : null
+const NOT_ENROLLED_MESSAGE = "You're not enrolled in this pathway, or this item isn't part of it."
+
+// Null if the learner may record progress on this course in this pathway, otherwise the
+// reason: they need an approved enrollment in a live pathway that contains the (live)
+// course, and the pathway must not be locked by its deadline (unless checkLock is false).
+async function learnerAccessError(
+  userId: string,
+  pathwayId: string,
+  courseId: string,
+  { checkLock = true }: { checkLock?: boolean } = {}
+) {
+  const [enrollment, link] = await Promise.all([
+    prisma.pathwayEnrollment.findUnique({
+      where: { userId_pathwayId: { userId, pathwayId } },
+      select: { status: true, deadline: true },
+    }),
+    prisma.pathwayCourse.findFirst({
+      where: { pathwayId, courseId, pathway: { deletedAt: null }, course: { deletedAt: null } },
+      select: { id: true },
+    }),
+  ])
+  if (enrollment?.status !== "APPROVED" || !link) return NOT_ENROLLED_MESSAGE
+  if (checkLock && isDeadlineLocked(enrollment.deadline)) return LOCKED_MESSAGE
+  return null
 }
 
 export async function enrollPathway(pathwayId: string) {
@@ -47,15 +64,19 @@ export async function enrollPathway(pathwayId: string) {
 export async function toggleContentComplete(contentId: string, pathwayId: string, completed: boolean) {
   const session = await getSession()
   const userId = (session.user as any).id as string
-  const locked = await pathwayLockedReason(userId, pathwayId)
-  if (locked) throw new Error(locked)
+  const content = await prisma.content.findFirst({
+    where: { id: contentId, deletedAt: null },
+    select: { courseId: true, type: true, recordingUrl: true },
+  })
+  if (!content) throw new Error("Content not found")
+  const denied = await learnerAccessError(userId, pathwayId, content.courseId)
+  if (denied) throw new Error(denied)
 
   // In-person sessions are completed by attendance (app/lib/inPersonAttendance.ts) or,
   // here, by watching the recording — and a learner can't undo either.
-  const lesson = await prisma.content.findUnique({ where: { id: contentId }, select: { type: true, recordingUrl: true } })
-  const inPerson = lesson?.type === "IN_PERSON"
+  const inPerson = content.type === "IN_PERSON"
   if (inPerson && !completed) throw new Error("An in-person session can't be marked as not completed.")
-  if (inPerson && !lesson?.recordingUrl) throw new Error("Check in at the session, or wait for its recording.")
+  if (inPerson && !content.recordingUrl) throw new Error("Check in at the session, or wait for its recording.")
 
   if (completed) {
     await prisma.contentProgress.upsert({
@@ -63,20 +84,14 @@ export async function toggleContentComplete(contentId: string, pathwayId: string
       create: { userId, contentId, pathwayId, method: inPerson ? "RECORDING" : "SELF" },
       update: inPerson ? {} : { completedAt: new Date() },
     })
-    const content = await prisma.content.findUnique({ where: { id: contentId }, select: { courseId: true } })
-    if (content) {
-      await evaluateCourseCompletion(userId, content.courseId, pathwayId)
-    }
+    await evaluateCourseCompletion(userId, content.courseId, pathwayId)
   } else {
     await prisma.contentProgress.deleteMany({ where: { userId, contentId, pathwayId } })
     // If content is unchecked, un-complete the course so it can be re-evaluated
-    const content = await prisma.content.findUnique({ where: { id: contentId }, select: { courseId: true } })
-    if (content) {
-      await prisma.courseProgress.updateMany({
-        where: { userId, courseId: content.courseId, pathwayId },
-        data: { completed: false, completedAt: null },
-      })
-    }
+    await prisma.courseProgress.updateMany({
+      where: { userId, courseId: content.courseId, pathwayId },
+      data: { completed: false, completedAt: null },
+    })
   }
   revalidatePath(`/pathways/${pathwayId}`)
 }
@@ -98,11 +113,9 @@ export async function submitTest(
 ) {
   const session = await getSession()
   const userId = (session.user as any).id as string
-  const locked = await pathwayLockedReason(userId, pathwayId)
-  if (locked) throw new Error(locked)
 
-  const test = await prisma.test.findUnique({
-    where: { id: testId },
+  const test = await prisma.test.findFirst({
+    where: { id: testId, courseId, deletedAt: null },
     include: {
       questions: {
         where: { deletedAt: null },
@@ -112,6 +125,8 @@ export async function submitTest(
     },
   })
   if (!test) throw new Error("Test not found")
+  const denied = await learnerAccessError(userId, pathwayId, courseId)
+  if (denied) throw new Error(denied)
 
   let correct = 0
   const wrongAnswers: { question: string; userAnswer: string; correctAnswer: string }[] = []
@@ -275,9 +290,6 @@ export async function submitAssignment(formData: FormData): Promise<{ error?: st
   const url = String(formData.get("url") ?? "").trim()
   const file = formData.get("file")
 
-  const locked = await pathwayLockedReason(userId, pathwayId)
-  if (locked) return { error: locked }
-
   const assignment = await prisma.assignment.findFirst({
     where: { id: assignmentId, deletedAt: null },
     include: {
@@ -287,6 +299,8 @@ export async function submitAssignment(formData: FormData): Promise<{ error?: st
     },
   })
   if (!assignment) return { error: "Assignment not found." }
+  const denied = await learnerAccessError(userId, pathwayId, assignment.courseId)
+  if (denied) return { error: denied }
 
   if (file instanceof File && file.size > 0) {
     const invalid = validateAssignmentFile(file)
@@ -334,6 +348,16 @@ export async function submitAssignment(formData: FormData): Promise<{ error?: st
 export async function submitCourseFeedback(courseId: string, pathwayId: string, rating: number, comment: string) {
   const session = await getSession()
   const userId = (session.user as any).id as string
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error("Rating must be 1 to 5 stars.")
+  // Feedback isn't progress, so it stays open after the deadline lock.
+  const denied = await learnerAccessError(userId, pathwayId, courseId, { checkLock: false })
+  if (denied) throw new Error(denied)
+  const [course, progress] = await Promise.all([
+    prisma.course.findUnique({ where: { id: courseId }, select: { feedbackEnabled: true } }),
+    prisma.courseProgress.findFirst({ where: { userId, courseId, pathwayId, completed: true }, select: { id: true } }),
+  ])
+  if (!course?.feedbackEnabled) throw new Error("Feedback is turned off for this course.")
+  if (!progress) throw new Error("Complete the course to leave feedback.")
 
   await prisma.courseFeedback.upsert({
     where: { userId_courseId_pathwayId: { userId, courseId, pathwayId } },

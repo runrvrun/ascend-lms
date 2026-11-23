@@ -83,3 +83,20 @@ export async function requireCourseTrainerManager(courseId: string) {
   if (!course?.topicId || !(await isTopicSme(user.id, course.topicId))) throw new Error("Unauthorized")
   return user
 }
+
+// Manager actions (assign, deadline, approve/reject, confirm goal) may only touch the caller's
+// own active direct reports. Admins may act on anyone.
+export async function managesUser(managerId: string, userId: string) {
+  const link = await prisma.userManager.findFirst({
+    where: { managerId, userId, user: { deletedAt: null } },
+    select: { userId: true },
+  })
+  return !!link
+}
+
+export async function requireManagerOf(userId: string) {
+  const user = await getSessionUser()
+  if (!user) throw new Error("Unauthorized")
+  if (user.roles.includes("ADMIN") || (await managesUser(user.id, userId))) return user
+  throw new Error("Unauthorized")
+}

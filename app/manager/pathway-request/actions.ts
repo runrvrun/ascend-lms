@@ -1,20 +1,24 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { getServerSession } from "next-auth"
-import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
 import { enrollmentApprovedEmail, enrollmentRejectedEmail } from "../../lib/email"
 import { sendEmails } from "../../lib/sendEmail"
+import { requireManagerOf } from "../../lib/permissions"
 
-async function getManagerId() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) throw new Error("Not authenticated")
-  return (session.user as any).id as string
+// The caller must manage the requester (or be an Admin), and the request must still be pending.
+async function getManagerId(enrollmentId: string) {
+  const enrollment = await prisma.pathwayEnrollment.findUnique({
+    where: { id: enrollmentId },
+    select: { userId: true, status: true },
+  })
+  if (!enrollment || enrollment.status !== "PENDING") throw new Error("This request is no longer pending.")
+  const { id } = await requireManagerOf(enrollment.userId)
+  return id
 }
 
 export async function approveRequest(enrollmentId: string) {
-  const managerId = await getManagerId()
+  const managerId = await getManagerId(enrollmentId)
 
   const enrollment = await prisma.pathwayEnrollment.update({
     where: { id: enrollmentId },
@@ -48,7 +52,7 @@ export async function approveRequest(enrollmentId: string) {
 }
 
 export async function rejectRequest(enrollmentId: string, rejectionReason: string) {
-  const managerId = await getManagerId()
+  const managerId = await getManagerId(enrollmentId)
 
   const [enrollment, manager] = await Promise.all([
     prisma.pathwayEnrollment.update({

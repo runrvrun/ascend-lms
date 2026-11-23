@@ -9,6 +9,8 @@ const userSelect = { select: { id: true, name: true, image: true } } as const
 const replyToSelect = { select: { id: true, name: true } } as const
 
 export async function getComments(contentId: string, pathwayId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) throw new Error("Unauthorized")
   return prisma.comment.findMany({
     where: { contentId, pathwayId, parentId: null, deletedAt: null },
     include: {
@@ -37,8 +39,37 @@ export async function postComment(
   if (!session?.user) throw new Error("Unauthorized")
   const userId = (session.user as any).id as string
 
+  // Only learners enrolled in the pathway can comment, on content of a course in it; a reply
+  // must belong to the same thread.
+  const text = body.trim()
+  if (!text) throw new Error("Comment can't be empty.")
+  if (text.length > 5000) throw new Error("Comment is too long (5,000 characters max).")
+  const [content, enrollment] = await Promise.all([
+    prisma.content.findFirst({ where: { id: contentId, deletedAt: null }, select: { courseId: true } }),
+    prisma.pathwayEnrollment.findUnique({
+      where: { userId_pathwayId: { userId, pathwayId } },
+      select: { status: true },
+    }),
+  ])
+  const inPathway =
+    !!content &&
+    !!(await prisma.pathwayCourse.findFirst({
+      where: { pathwayId, courseId: content.courseId, pathway: { deletedAt: null } },
+      select: { id: true },
+    }))
+  if (!inPathway || enrollment?.status !== "APPROVED") {
+    throw new Error("You need to be enrolled in this pathway to comment.")
+  }
+  if (parentId) {
+    const parent = await prisma.comment.findFirst({
+      where: { id: parentId, contentId, pathwayId, deletedAt: null },
+      select: { id: true },
+    })
+    if (!parent) throw new Error("The comment you're replying to no longer exists.")
+  }
+
   const comment = await prisma.comment.create({
-    data: { contentId, pathwayId, userId, parentId, replyToUserId, body },
+    data: { contentId, pathwayId, userId, parentId, replyToUserId, body: text },
   })
 
   // Notifications
@@ -103,6 +134,10 @@ export async function markAllNotificationsRead() {
 }
 
 export async function markNotificationRead(id: string) {
-  await prisma.notification.update({ where: { id }, data: { read: true } })
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return
+  const userId = (session.user as any).id as string
+  // Scoped to the caller, so nobody can mark someone else's notification as read.
+  await prisma.notification.updateMany({ where: { id, userId }, data: { read: true } })
   revalidatePath("/notifications")
 }

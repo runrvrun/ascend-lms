@@ -10,6 +10,34 @@ import { PathwayViewer } from "./PathwayViewer"
 import { isDeadlineLocked, toDeadlineInput } from "../../lib/pathwayDeadline"
 import { evaluateCourseCompletion } from "../../lib/courseCompletion"
 
+function shuffled<T>(items: T[]): T[] {
+  const a = [...items]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// Tests are graded on the server (submitTest), so the browser never needs the answers.
+// Strip which option is correct, the correct ranking order and the matching pairs; a matching
+// question gets just its list of right-hand choices, in random order.
+type LoadedQuestion = {
+  type: string
+  options: { id: string; text: string; matchKey: string | null }[]
+}
+function withoutAnswers<Q extends LoadedQuestion>(q: Q) {
+  const options = q.options.map((o) => ({ id: o.id, text: o.text, isCorrect: null, matchKey: null, order: null }))
+  return {
+    ...q,
+    options: q.type === "RANKING" || q.type === "MATCHING" ? shuffled(options) : options,
+    matchKeys:
+      q.type === "MATCHING"
+        ? shuffled([...new Set(q.options.map((o) => o.matchKey).filter((k): k is string => !!k))])
+        : undefined,
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const pathway = await prisma.pathway.findUnique({ where: { id }, select: { name: true } })
@@ -182,7 +210,7 @@ export default async function PathwayDetailPage({
       ...entry,
       course: {
         ...entry.course,
-        tests: entry.course.tests.map((t) => ({ ...t, order: t.order! })),
+        tests: entry.course.tests.map((t) => ({ ...t, order: t.order!, questions: t.questions.map(withoutAnswers) })),
         assignments: entry.course.assignments.map((a) => ({ ...a, order: a.order! })),
       },
     })),

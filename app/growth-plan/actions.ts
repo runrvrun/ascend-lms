@@ -89,39 +89,3 @@ export async function toggleGrowthPlanComplete(id: string, completed: boolean) {
   revalidatePath("/growth-plan")
   if (item?.pathwayId) revalidatePath(`/pathways/${item.pathwayId}`)
 }
-
-export async function confirmGrowthPlan(id: string) {
-  const session = await getSession()
-  const confirmedById = (session.user as any).id as string
-
-  const [item, confirmer] = await Promise.all([
-    prisma.growthPlan.findUnique({
-      where: { id },
-      select: { userId: true, title: true, pathwayId: true },
-    }),
-    prisma.user.findUnique({
-      where: { id: confirmedById },
-      select: { name: true },
-    }),
-  ])
-
-  await prisma.growthPlan.update({
-    where: { id },
-    data: { confirmedAt: new Date(), confirmedById },
-  })
-
-  // Notify learner that their item was confirmed
-  if (item) {
-    await prisma.notification.create({
-      data: {
-        userId: item.userId,
-        type: NotificationType.GROWTH_PLAN_CONFIRMED,
-        message: `${confirmer?.name ?? "Your manager"} confirmed your growth plan item: "${item.title}".`,
-        pathwayId: item.pathwayId ?? undefined,
-      },
-    })
-  }
-
-  revalidatePath("/growth-plan")
-  if (item?.pathwayId) revalidatePath(`/pathways/${item.pathwayId}`)
-}

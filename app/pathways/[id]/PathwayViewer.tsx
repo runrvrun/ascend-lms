@@ -134,6 +134,8 @@ type Question = {
   question: string
   order: number
   options: QuestionOption[]
+  // Matching questions shown to learners: the right-hand choices, sent without the pairs.
+  matchKeys?: string[]
 }
 
 type TestItem = {
@@ -315,16 +317,19 @@ function shuffle<T>(arr: T[]): T[] {
 
 function MatchingInput({
   options,
+  matchKeys,
   value,
   onChange,
 }: {
   options: QuestionOption[]
+  matchKeys?: string[]
   value: string
   onChange: (val: string) => void
 }) {
   const [shuffledOptions] = useState(() => shuffle(options))
+  // Learners get matchKeys from the server (options carry no pairs); previews still derive them.
   const [shuffledKeys] = useState(() =>
-    shuffle([...new Set(options.map((o) => o.matchKey).filter(Boolean))] as string[])
+    shuffle(matchKeys ?? ([...new Set(options.map((o) => o.matchKey).filter(Boolean))] as string[]))
   )
 
   const current: Record<string, string> = (() => {
@@ -426,6 +431,7 @@ function QuestionCard({
       {question.type === "MATCHING" && (
         <MatchingInput
           options={question.options}
+          matchKeys={question.matchKeys}
           value={typeof answer === "string" ? answer : "{}"}
           onChange={onChange}
         />
