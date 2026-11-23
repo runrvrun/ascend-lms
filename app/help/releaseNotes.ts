@@ -10,6 +10,13 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-23",
+    changes: [
+      { kind: "improved", text: "Admins can now feature any number of pathways (the limit of 2 is gone), and can feature or unfeature a pathway straight from the Pathways page by clicking the star on it." },
+      { kind: "improved", text: "On the admin Pathways list, names have more room so they fit on one line, and the Description and Tags columns are wider, with descriptions wrapping instead of being cut off." },
+    ],
+  },
+  {
     date: "2026-11-11",
     changes: [
       { kind: "new", text: "A course can now have more than one assignment, each with its own title, placed anywhere among the lessons and tests. Learners must pass every assignment to complete the course. On the Assignment Submissions tab, pick which assignment to review; each shows how many submissions are waiting." },
