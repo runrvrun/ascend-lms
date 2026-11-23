@@ -952,6 +952,7 @@ const TYPE_ICON: Record<ContentType, React.ReactNode> = {
   LINK: <Link2 size={13} />,
   PDF: <FileText size={13} />,
   PPT: <FileText size={13} />,
+  WORD: <FileText size={13} />,
   IN_PERSON: <Users size={13} />,
   IMAGE: <ImageIcon size={13} />,
 }
@@ -1380,7 +1381,7 @@ export function ContentViewer({
     )
   }
 
-  if (content.type === "PDF" || content.type === "PPT") {
+  if (content.type === "PDF" || content.type === "PPT" || content.type === "WORD") {
     return (
       <div className="h-full overflow-y-auto p-6 md:p-8">
         <div className="mb-4 flex items-center justify-between gap-4">

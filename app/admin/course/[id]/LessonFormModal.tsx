@@ -47,7 +47,7 @@ function extractEmbedUrl(raw: string): string {
   return url
 }
 
-const TYPE_ORDER: ContentType[] = ["YOUTUBE_VIDEO", "VIDEO", "TEXT", "PDF", "PPT", "IN_PERSON", "LINK", "IMAGE"]
+const TYPE_ORDER: ContentType[] = ["YOUTUBE_VIDEO", "VIDEO", "TEXT", "PDF", "PPT", "WORD", "IN_PERSON", "LINK", "IMAGE"]
 
 export const TYPE_LABELS: Record<ContentType, string> = {
   YOUTUBE_VIDEO: "YouTube Video",
@@ -55,6 +55,7 @@ export const TYPE_LABELS: Record<ContentType, string> = {
   TEXT: "Text",
   PDF: "PDF",
   PPT: "PPT",
+  WORD: "Word",
   IN_PERSON: "In Person",
   LINK: "External Link",
   IMAGE: "Image",
@@ -66,6 +67,7 @@ export const TYPE_STYLES: Record<ContentType, string> = {
   TEXT: "bg-slate-100 text-slate-600",
   PDF: "bg-red-100 text-red-700",
   PPT: "bg-orange-100 text-orange-700",
+  WORD: "bg-sky-100 text-sky-700",
   IN_PERSON: "bg-green-100 text-green-700",
   LINK: "bg-blue-100 text-blue-700",
   IMAGE: "bg-teal-100 text-teal-700",
@@ -225,7 +227,7 @@ export function ContentFormModal({
                     value={form.value}
                     onChange={(e) => setForm((f) => ({ ...f, value: extractEmbedUrl(e.target.value) }))}
                     placeholder={
-                      form.type === "VIDEO" || form.type === "PDF" || form.type === "PPT"
+                      form.type === "VIDEO" || form.type === "PDF" || form.type === "PPT" || form.type === "WORD"
                         ? "Paste the embed URL or the full <iframe> snippet from SharePoint"
                         : form.type === "YOUTUBE_VIDEO"
                         ? "Paste the YouTube video URL (e.g. https://youtu.be/… or https://www.youtube.com/watch?v=…)"
@@ -247,6 +249,12 @@ export function ContentFormModal({
                   {form.type === "PPT" && (
                     <p className="mt-1.5 text-xs text-slate-500">
                       For SharePoint presentations: open the PPT in a web browser (not the desktop app) → click <span className="font-medium text-slate-700">File</span> → <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed this presentation</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The embed URL will be extracted automatically.
+                      <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/Doc.aspx?sourcedoc=&#123;GUID&#125;&amp;action=embedview
+                    </p>
+                  )}
+                  {form.type === "WORD" && (
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      For SharePoint documents: open the Word document in a web browser (not the desktop app) → click <span className="font-medium text-slate-700">File</span> → <span className="font-medium text-slate-700">Share</span> → <span className="font-medium text-slate-700">Embed</span> → paste the entire iframe snippet or just the <span className="font-mono font-medium text-slate-700">src</span> URL. The embed URL will be extracted automatically.
                       <br />Example: https://ycphd.sharepoint.com/sites/…/_layouts/15/Doc.aspx?sourcedoc=&#123;GUID&#125;&amp;action=embedview
                     </p>
                   )}

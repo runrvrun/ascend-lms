@@ -12,6 +12,12 @@
 // Never touched: Ascend users whose email isn't a directory member at all (external
 // users, guests, dummy users on distribution-list addresses, or accounts deleted long
 // ago) — those are listed for an admin to handle manually.
+// New users are also looked up in HUB by email (app/lib/hubEmployees.ts): when found,
+// HUB's job title, division and office replace the M365 ones (each only when it maps to
+// an Ascend value — otherwise the M365 value stays and the mismatch is logged), and
+// region, employment type and join date are stored. Not found in HUB, or HUB
+// unreachable/unauthorised → the user is still created from M365 data alone.
+//
 // Existing users only get their job title updated when M365 names a different
 // recognised one (a blank or unrecognised M365 title leaves it alone); their other
 // details are never updated, and deactivated users are never reactivated here — an
@@ -30,6 +36,8 @@
 // Intended to run on a schedule (cron) against the production DB. Safe to re-run.
 import { PrismaClient, Division, JobTitle } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
+import { fetchHubEmployee, getHubToken, HubAuthError, type HubEmployee } from "../app/lib/hubEmployees"
+import { buildHubOfficeMatcher, mapDivision, mapHubValues, mapJobTitle, officeKeys } from "../app/lib/hubMapping"
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
@@ -93,43 +101,6 @@ async function getGraphToken(): Promise<string> {
 const SELECT_FIELDS =
   "id,displayName,mail,userPrincipalName,userType,accountEnabled,officeLocation,department,jobTitle,assignedLicenses,proxyAddresses"
 
-// M365 `department` values that don't match a Division name as-is.
-const DEPARTMENT_ALIASES: Record<string, Division> = {
-  "TCD/TALENT MANAGEMENT": Division.TCD,
-  "TCD/TM": Division.TCD,
-  FINANCE: Division.FIN,
-}
-
-const VALID_TITLES = new Set<string>(Object.values(JobTitle))
-
-function mapDivision(department: string | null): Division | undefined {
-  const key = department?.trim().toUpperCase()
-  if (!key) return Division.NA
-  if (DEPARTMENT_ALIASES[key]) return DEPARTMENT_ALIASES[key]
-  // Enum values aren't all uppercase (e.g. `Contractor`), so match case-insensitively.
-  return Object.values(Division).find((d) => d.toUpperCase() === key)
-}
-
-// M365 titles are either a plain title ("Team Lead") or a comma-separated list
-// like "Group Officer, Managing Partner, Japan Regional CEO" — take the first
-// part that names a JobTitle.
-function mapJobTitle(jobTitle: string | null): JobTitle | undefined {
-  if (!jobTitle?.trim()) return JobTitle.NA
-  for (const part of jobTitle.split(",")) {
-    const key = part.trim().toUpperCase().replace(/\s+/g, "_")
-    if (VALID_TITLES.has(key)) return key as JobTitle
-  }
-  return undefined
-}
-
-// Ascend office names carry a region prefix ("SEA - YCP Singapore") that M365's
-// officeLocation ("YCP Singapore") doesn't, so index each office under both.
-function officeKeys(name: string): string[] {
-  const full = name.trim().toLowerCase()
-  const unprefixed = full.replace(/^[a-z]+ - /, "")
-  return unprefixed === full ? [full] : [full, unprefixed]
-}
-
 // Every address a directory user can be known by in Ascend: mail, UPN, and SMTP aliases.
 function graphUserEmails(u: GraphUser): string[] {
   const aliases = (u.proxyAddresses ?? [])
@@ -183,6 +154,50 @@ async function main() {
 
   const allOffices = await prisma.office.findMany({ select: { id: true, name: true } })
   const officeNameToId = new Map(allOffices.flatMap((o) => officeKeys(o.name).map((k) => [k, o.id] as const)))
+  const matchHubOffice = buildHubOfficeMatcher(allOffices)
+
+  // HUB lookups for new users. The token is fetched on the first new user (so a run
+  // with nothing to create never touches HUB); if there's none or HUB rejects it,
+  // HUB is skipped for the rest of the run and users are created from M365 data.
+  let hubToken: string | null | undefined
+  let hubFound = 0
+  let hubNotFound = 0
+  const hubUnmapped: string[] = []
+  async function lookUpInHub(graphUser: GraphUser): Promise<HubEmployee | null> {
+    if (hubToken === undefined) {
+      // HUB must never break the M365 sync: any failure here (network down, HUB
+      // erroring) just turns HUB off for this run.
+      try {
+        const result = await getHubToken(prisma, { allowExchange: !DRY_RUN })
+        hubToken = result.token
+        if (result.token === null) console.warn(`Skipping HUB lookups: ${result.reason}`)
+      } catch (error) {
+        console.error("Skipping HUB lookups: couldn't get a HUB token:", error)
+        hubToken = null
+      }
+    }
+    if (!hubToken) return null
+    const emails = [...new Set([graphUser.mail, graphUser.userPrincipalName].filter((e): e is string => !!e).map((e) => e.toLowerCase()))]
+    try {
+      for (const email of emails) {
+        const employee = await fetchHubEmployee(hubToken, email)
+        if (employee) {
+          hubFound++
+          return employee
+        }
+      }
+      hubNotFound++
+      console.log(`  not in HUB: ${emails.join(" / ")}`)
+    } catch (error) {
+      if (error instanceof HubAuthError) {
+        console.error(`Skipping HUB lookups for the rest of this run: ${error.message}`)
+        hubToken = null
+      } else {
+        console.error(`HUB lookup failed for ${emails.join(" / ")}:`, error)
+      }
+    }
+    return null
+  }
 
   const deletedEmails = await fetchDeletedUserEmails(token)
 
@@ -229,13 +244,46 @@ async function main() {
       continue
     }
 
-    const officeId = graphUser.officeLocation ? officeNameToId.get(graphUser.officeLocation.trim().toLowerCase()) ?? null : null
+    let officeId = graphUser.officeLocation ? officeNameToId.get(graphUser.officeLocation.trim().toLowerCase()) ?? null : null
     // Blank or unrecognised in M365 → NA, so an admin can spot and fix it.
-    const division = mapDivision(graphUser.department) ?? Division.NA
-    const title = mapJobTitle(graphUser.jobTitle) ?? JobTitle.NA
+    let division = mapDivision(graphUser.department) ?? Division.NA
+    let title = mapJobTitle(graphUser.jobTitle) ?? JobTitle.NA
+
+    // HUB wins over M365 where its value maps to an Ascend one (app/lib/hubMapping.ts).
+    const hub = await lookUpInHub(graphUser)
+    const mapped = hub
+      ? mapHubValues(
+          {
+            jobTitle: hub.job_title?.value ?? null,
+            division: hub.division,
+            office: hub.office?.value ?? null,
+            region: hub.region,
+            employmentType: hub.employment_type?.value ?? null,
+            joinDate: hub.join_date,
+          },
+          matchHubOffice
+        )
+      : null
+    if (mapped) {
+      if (mapped.title) title = mapped.title
+      if (mapped.division) division = mapped.division
+      if (mapped.officeId) officeId = mapped.officeId
+      for (const u of mapped.unmapped) hubUnmapped.push(`${email}: ${u}`)
+    }
+    const hubFields = {
+      joinDate: mapped?.joinDate ?? null,
+      region: mapped?.region ?? null,
+      employmentType: mapped?.employmentType ?? null,
+    }
 
     if (DRY_RUN) {
-      console.log(`[dry-run] would create ${email}`)
+      const officeName = allOffices.find((o) => o.id === officeId)?.name ?? "no office"
+      console.log(
+        `[dry-run] would create ${email} — ${title}, ${division}, ${officeName}` +
+          (hub
+            ? `; HUB: region ${hubFields.region ?? "-"}, ${hubFields.employmentType ?? "-"}, joined ${hub.join_date ?? "-"}`
+            : "")
+      )
       created++
       continue
     }
@@ -247,6 +295,7 @@ async function main() {
           officeId,
           division,
           title,
+          ...hubFields,
         },
       })
       created++
@@ -295,6 +344,11 @@ async function main() {
     }
   }
 
+  if (hubUnmapped.length > 0) {
+    console.log(`${hubUnmapped.length} HUB values didn't match an Ascend one (kept the M365 value; add a mapping in this script):`)
+    for (const line of hubUnmapped) console.log(`  ${line}`)
+  }
+
   if (licensedButDeactivated.length > 0) {
     console.log(`${licensedButDeactivated.length} deactivated users hold a qualifying license (reactivate from Admin → Users if they should be back):`)
     for (const email of licensedButDeactivated) console.log(`  ${email}`)
@@ -307,7 +361,7 @@ async function main() {
 
   console.log(
     `M365 sync ${DRY_RUN ? "dry run " : ""}complete: ${users.length} seen, ${toCreate.length} licensed members, ` +
-      `${created} created, ${skippedExisting} already existed (${titlesUpdated} title updates), ${skippedFiltered} filtered out, ${deactivated} deactivated, ` +
+      `${created} created (${hubFound} found in HUB, ${hubNotFound} not), ${skippedExisting} already existed (${titlesUpdated} title updates), ${skippedFiltered} filtered out, ${deactivated} deactivated, ` +
       `${unmatched.length} unmatched, ${licensedButDeactivated.length} licensed but deactivated.`
   )
 }

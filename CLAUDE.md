@@ -21,7 +21,9 @@ npx prisma studio         # inspect data
 Cron jobs (run on the production server via crontab from `~/ascend-lms`, each a `tsx --env-file=.env` script in `scripts/`; most accept `--dry-run`):
 
 ```bash
-npm run sync-m365-users              # active = holds a qualifying license (O365 E3, M365 Business Basic/Standard/Premium, EMS E5), any domain, even if sign-in is blocked; creates new licensed members, soft-deletes users whose license is gone, updates job titles (--dry-run, --force past the 10% cap)
+npm run sync-m365-users              # active = holds a qualifying license (O365 E3, M365 Business Basic/Standard/Premium, EMS E5), any domain, even if sign-in is blocked; creates new licensed members, soft-deletes users whose license is gone, updates job titles; new users are also looked up in HUB to set title/division/office/region/employment type/join date (--dry-run, --force past the 10% cap)
+npm run hub-lookup -- <email> [--exchange]  # manual HUB check; --exchange spends the single-use HUB_HANDOFF_CODE
+npm run import-hub-employees -- <file.xlsx> [--dry-run]  # manual; updates title/division/office/region/employment type/join date from a HUB employee export, matched by email
 npm run send-pathway-reminders       # weekly (Wed) digest for incomplete pathways; skips past-deadline enrollments
 npm run send-custom-pathway-reminders # hourly; processes admin-scheduled PathwayReminder rows once (sets sentAt)
 npm run send-deadline-reminders      # must run exactly once/day — no sent-tracking, matches by date
@@ -67,6 +69,9 @@ Almost all writes go through colocated `actions.ts` files (`"use server"`) next 
 
 ### Email
 `app/lib/email.ts` sends over SMTP (nodemailer) when `SMTP_HOST` is set (production; also needs `SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`, plus optional `SMTP_FROM` to send as another address; port 465 uses TLS directly, any other port STARTTLS). Otherwise it uses the Mailtrap sandbox API (`MAILTRAP_TOKEN`/`MAILTRAP_INBOX_ID`) for local dev, and if neither is configured it just logs and skips. Send failures are logged, not thrown. Don't add another code path — extend the existing `send()` helper. Every email goes through the `EmailOutbox` queue (`app/lib/emailOutbox.ts`), which drops mail to deactivated (`deletedAt`) users when queued and again at send time — so callers don't need their own active-user check for email, though they should still skip deactivated users for the action itself.
+
+### HUB integration
+`app/lib/hubEmployees.ts` calls HUB's `GET /employees/limited?email=` (factory item HUB-6104; prod base `https://hub.ycp.com/api`) as handoff client `ycp-ascend`. The handoff code in `HUB_HANDOFF_CODE` is **single-use**: it is exchanged once for an access token (no refresh token), which is stored in the `IntegrationToken` table and reused until it expires; after that a new code from the HUB team is needed (yearly — see the note in `.env`). Never exchange it casually (dry runs don't) — the first exchange should happen on production, whose sync cron uses the token. Another server can use the token via `HUB_ACCESS_TOKEN`. HUB→Ascend value mapping (incl. the HUB office-name alias list) lives in `app/lib/hubMapping.ts`, shared by the sync and the import.
 
 ### Pathway deadlines
 `PathwayEnrollment.deadline` is a calendar date stored as UTC midnight, and every day boundary is a UTC day. All deadline rules live as pure functions in `app/lib/pathwayDeadline.ts`: reminder emails go out the day before and on the day, and `DEADLINE_GRACE_DAYS` (7) after the deadline the enrollment locks — content stays viewable, but nothing can be completed or submitted. Reuse those helpers for any deadline check; don't do your own date math.

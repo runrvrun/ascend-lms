@@ -1,11 +1,13 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Division, JobTitle, Role } from "@prisma/client"
 import type { AppRole } from "../../lib/userRoles"
 import { Pencil, Trash2, X, UserPlus, ShieldCheck, Search, Upload, Download, CheckCircle2, AlertCircle, SkipForward, Users, Mail, KeyRound, BarChart2, RotateCcw } from "lucide-react"
 import { SearchableSelect } from "../../components/SearchableSelect"
 import { ActionsMenu } from "../../components/ActionsMenu"
+import { createCohortWithUsers } from "../cohort/actions"
 import { createUser, updateUser, deleteUser, reactivateUser, setUserRoles, setUserCohorts, bulkCreateUsers, sendActivationEmail, adminSetPassword, addUserManager, removeUserManager, UserFormData, BulkImportResult } from "./actions"
 
 type ManagerOption = { id: string; name: string | null }
@@ -20,6 +22,10 @@ type UserRow = {
   title: JobTitle
   officeId: string | null
   office: OfficeOption | null
+  // From HUB, set when the M365 sync creates the user (null for older users).
+  joinDate: Date | null
+  region: string | null
+  employmentType: string | null
   managers: { managerId: string; manager: ManagerOption }[]
   roles: { role: Role }[]
   // Stored ADMIN plus roles derived from assignments (see app/lib/userRoles.ts)
@@ -31,6 +37,16 @@ type UserRow = {
 const DIVISIONS = Object.values(Division)
 const TITLES = Object.values(JobTitle)
 const ALL_ROLES: AppRole[] = ["ADMIN", "MANAGER", "TRAINER", "SME", "PATHWAY_OWNER"]
+
+// Distinct non-empty values of a field, alphabetical.
+function distinctValues(values: (string | null)[]) {
+  return [...new Set(values.filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b))
+}
+
+// joinDate is a calendar date stored as UTC midnight, so its ISO date is the day itself.
+function isoDay(date: Date | null) {
+  return date ? new Date(date).toISOString().slice(0, 10) : ""
+}
 
 function emailDomain(email: string | null) {
   return email ? email.slice(email.lastIndexOf("@") + 1).toLowerCase() : ""
@@ -532,6 +548,60 @@ function ChangePasswordModal({ user, onClose }: { user: UserRow; onClose: () => 
   )
 }
 
+function CreateCohortModal({ users, onClose }: { users: UserRow[]; onClose: () => void }) {
+  const router = useRouter()
+  const [name, setName] = useState("")
+  const [error, setError] = useState("")
+  const [pending, startTransition] = useTransition()
+  const active = users.filter((u) => !u.deletedAt)
+  const skipped = users.length - active.length
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError("")
+    startTransition(async () => {
+      const result = await createCohortWithUsers(name, active.map((u) => u.id))
+      if (result.ok) router.push(`/admin/cohort/${result.cohortId}`)
+      else setError(result.error)
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Create Cohort from List</h2>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Cohort name</label>
+            <input
+              required
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. 2026 SEA Analysts"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <p className="text-sm text-slate-600">
+            {active.length} {active.length === 1 ? "user" : "users"} in the current list will be added.
+            {skipped > 0 && <span className="text-slate-400"> {skipped} inactive {skipped === 1 ? "user is" : "users are"} left out.</span>}
+          </p>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button type="submit" disabled={pending || active.length === 0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+              {pending ? "Creating…" : "Create Cohort"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function BulkImportModal({ onClose }: { onClose: () => void }) {
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<BulkImportResult | null>(null)
@@ -704,6 +774,13 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
   const [officeFilter, setOfficeFilter] = useState("") // office id, or "none"
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "">("active")
   const [domainFilter, setDomainFilter] = useState("")
+  const [regionFilter, setRegionFilter] = useState("") // region, or "none"
+  const [employmentFilter, setEmploymentFilter] = useState("") // employment type, or "none"
+  const [joinedFrom, setJoinedFrom] = useState("") // yyyy-mm-dd
+  const [joinedTo, setJoinedTo] = useState("")
+  const [creatingCohort, setCreatingCohort] = useState(false)
+  const regions = useMemo(() => distinctValues(users.map((u) => u.region)), [users])
+  const employmentTypes = useMemo(() => distinctValues(users.map((u) => u.employmentType)), [users])
   // Every email domain in use, most common first.
   const domains = useMemo(() => {
     const counts = new Map<string, number>()
@@ -723,6 +800,12 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
     if (officeFilter && (officeFilter === "none" ? u.officeId : u.officeId !== officeFilter)) return false
     if (statusFilter && (statusFilter === "active") !== !u.deletedAt) return false
     if (domainFilter && emailDomain(u.email) !== domainFilter) return false
+    if (regionFilter && (regionFilter === "none" ? u.region : u.region !== regionFilter)) return false
+    if (employmentFilter && (employmentFilter === "none" ? u.employmentType : u.employmentType !== employmentFilter)) return false
+    if (joinedFrom || joinedTo) {
+      const day = isoDay(u.joinDate)
+      if (!day || (joinedFrom && day < joinedFrom) || (joinedTo && day > joinedTo)) return false
+    }
     return true
   })
 
@@ -731,7 +814,18 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Users</h1>
-          <p className="mt-1 text-sm text-slate-500">{filtered.length} of {users.length} users</p>
+          <div className="mt-1 flex items-center gap-3">
+            <p className="text-sm text-slate-500">{filtered.length} of {users.length} users</p>
+            <button
+              onClick={() => setCreatingCohort(true)}
+              disabled={!filtered.some((u) => !u.deletedAt)}
+              title="Create a cohort with the active users in this list"
+              className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Users size={13} />
+              Create Cohort
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <a
@@ -819,6 +913,49 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
           <option value="">All Email Domains</option>
           {domains.map((d) => <option key={d} value={d}>@{d}</option>)}
         </select>
+        <select
+          value={regionFilter}
+          onChange={(e) => setRegionFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Regions</option>
+          {regions.map((r) => <option key={r} value={r}>{r}</option>)}
+          <option value="none">No region</option>
+        </select>
+        <select
+          value={employmentFilter}
+          onChange={(e) => setEmploymentFilter(e.target.value)}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Employment Types</option>
+          {employmentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value="none">No employment type</option>
+        </select>
+        <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 text-sm text-slate-600">
+          <span>Joined</span>
+          <input
+            type="date"
+            value={joinedFrom}
+            max={joinedTo || undefined}
+            onChange={(e) => setJoinedFrom(e.target.value)}
+            aria-label="Joined from"
+            className="rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span>–</span>
+          <input
+            type="date"
+            value={joinedTo}
+            min={joinedFrom || undefined}
+            onChange={(e) => setJoinedTo(e.target.value)}
+            aria-label="Joined to"
+            className="rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {(joinedFrom || joinedTo) && (
+            <button onClick={() => { setJoinedFrom(""); setJoinedTo("") }} aria-label="Clear join dates" className="rounded p-0.5 text-slate-400 hover:bg-slate-100">
+              <X size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -899,6 +1036,8 @@ export function UserManagement({ users, allManagers, cohorts, offices }: { users
       </div>
 
       {importing && <BulkImportModal onClose={() => setImporting(false)} />}
+
+      {creatingCohort && <CreateCohortModal users={filtered} onClose={() => setCreatingCohort(false)} />}
 
       {creating && (
         <UserFormModal

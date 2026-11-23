@@ -20,6 +20,34 @@ export async function createCohort(name: string) {
   revalidatePath("/admin/cohort")
 }
 
+// Creates a cohort holding the given users — used by Admin → Users to turn the current
+// search result into a cohort. Deactivated users are left out. A new cohort has no
+// pathways yet, so there's nothing to enroll anyone in.
+export async function createCohortWithUsers(
+  rawName: string,
+  requestedUserIds: string[]
+): Promise<{ ok: true; cohortId: string; added: number } | { ok: false; error: string }> {
+  await requireAdmin()
+  const name = rawName.trim()
+  if (!name) return { ok: false, error: "Enter a cohort name." }
+  // Cohort names are unique across deleted cohorts too.
+  const clash = await prisma.cohort.findUnique({ where: { name }, select: { deletedAt: true } })
+  if (clash) {
+    return { ok: false, error: clash.deletedAt ? "A deleted cohort already used this name. Pick another." : "A cohort with this name already exists." }
+  }
+  const userIds = await activeUserIds([...new Set(requestedUserIds)])
+  if (userIds.length === 0) return { ok: false, error: "There are no active users in this list to add." }
+
+  const cohort = await prisma.$transaction(async (tx) => {
+    const created = await tx.cohort.create({ data: { name } })
+    await tx.cohortUser.createMany({ data: userIds.map((userId) => ({ cohortId: created.id, userId })) })
+    return created
+  })
+  revalidatePath("/admin/cohort")
+  revalidatePath("/admin/user")
+  return { ok: true, cohortId: cohort.id, added: userIds.length }
+}
+
 export async function updateCohort(id: string, name: string) {
   await requireAdmin()
   await prisma.cohort.update({ where: { id }, data: { name } })
