@@ -13,6 +13,11 @@ export const RELEASE_NOTES: ReleaseDay[] = [
     date: "2026-11-23",
     changes: [
       { kind: "improved", text: "Admins can now feature any number of pathways (the limit of 2 is gone), and can feature or unfeature a pathway straight from the Pathways page by clicking the star on it." },
+      { kind: "new", text: "Courses can now include Word documents from SharePoint as lessons. Admins choose Word as the lesson type and paste the document's embed link, the same way as for PowerPoint." },
+      { kind: "new", text: "In-person sessions now track attendance. Trainers and admins can print a QR code for the session that attendees scan to check in, or mark attendance themselves (tick people off or paste a list of emails). People who couldn't attend can watch the session recording once it's added." },
+      { kind: "improved", text: "In-person lessons no longer have a Mark as Completed button: check in at the session, get marked by your trainer, or watch the recording instead." },
+      { kind: "new", text: "On Admin → Users you can now filter by region, employment type and join date. These details come from HUB and are filled in for people added automatically from Microsoft 365." },
+      { kind: "new", text: "On Admin → Users, click Create Cohort next to the user count to turn the people you've filtered into a new cohort in one step." },
       { kind: "improved", text: "On the admin Pathways list, names have more room so they fit on one line, and the Description and Tags columns are wider, with descriptions wrapping instead of being cut off." },
     ],
   },
