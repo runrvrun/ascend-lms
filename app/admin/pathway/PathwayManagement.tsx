@@ -369,9 +369,9 @@ export function PathwayManagement({
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="min-w-[18rem] px-5 py-3">Name</th>
-              <th className="w-[16rem] px-5 py-3">Description</th>
-              <th className="px-5 py-3">Tags</th>
-              <th className="min-w-[12rem] px-5 py-3">Owners</th>
+              <th className="min-w-[20rem] px-5 py-3">Description</th>
+              <th className="min-w-[14rem] px-5 py-3">Tags</th>
+              <th className="min-w-[10rem] px-5 py-3">Owners</th>
               {isAdmin && <th className="px-5 py-3 text-center">Featured</th>}
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Visibility</th>
@@ -398,7 +398,7 @@ export function PathwayManagement({
                     <span className="font-medium text-slate-900">{p.name}</span>
                   </div>
                 </td>
-                <td className="w-[16rem] max-w-[16rem] px-5 py-3 text-xs leading-snug text-slate-500 break-words">
+                <td className="min-w-[20rem] max-w-[24rem] px-5 py-3 text-xs leading-snug text-slate-500 break-words">
                   {p.description ?? <span className="italic text-slate-300">No description</span>}
                 </td>
                 <td className="px-5 py-3">
