@@ -167,10 +167,6 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
             <Target size={16} />
             My Growth Plan
           </a>
-          <a href="/help" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
-            <HelpCircle size={16} />
-            Help
-          </a>
         </nav>
 
         <div className="flex flex-col gap-1 px-4 pb-2">
@@ -306,6 +302,10 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
               )}
             </div>
           )}
+          <a href="/help" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
+            <HelpCircle size={16} />
+            Help
+          </a>
         </div>
 
         <div className="px-4 pb-6 pt-2">

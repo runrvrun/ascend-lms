@@ -133,6 +133,9 @@ export function AttendanceModal({ contentId, title, onClose }: { contentId: stri
                 className="w-full rounded-lg border border-slate-200 py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            <a href="/help/in-person#trainers" target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+              How this works
+            </a>
             <button onClick={() => setPasting(true)} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
               <ClipboardPaste size={14} />
               Paste emails
@@ -235,6 +238,9 @@ export function CheckInQrModal({ contentId, title, onClose }: { contentId: strin
         >
           <Printer size={15} />
           Open printable QR code
+        </a>
+        <a href="/help/in-person" target="_blank" rel="noreferrer" className="text-center text-xs text-blue-600 hover:underline">
+          Guide: running an in-person session
         </a>
       </div>
     </Shell>

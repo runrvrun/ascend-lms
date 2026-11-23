@@ -19,6 +19,8 @@ export const RELEASE_NOTES: ReleaseDay[] = [
       { kind: "new", text: "On Admin → Users you can now filter by region, employment type and join date. These details come from HUB and are filled in for people added automatically from Microsoft 365." },
       { kind: "new", text: "On Admin → Users, click Create Cohort next to the user count to turn the people you've filtered into a new cohort in one step." },
       { kind: "improved", text: "Ascend now checks more carefully who can do what. Only learners enrolled in a pathway can comment on its lessons or record progress in it, and managers can only approve requests, assign pathways, change deadlines and confirm goals for their own team members." },
+      { kind: "new", text: "A new In-Person Sessions guide in Help shows trainers how to print the check-in QR code and record attendance, and learners how to sign in and check in at a session." },
+      { kind: "improved", text: "Help has moved to the bottom of the left menu, below the role menus." },
       { kind: "improved", text: "On the admin Pathways list, names have more room so they fit on one line, and the Description and Tags columns are wider, with descriptions wrapping instead of being cut off." },
     ],
   },

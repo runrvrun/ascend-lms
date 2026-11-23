@@ -27,7 +27,8 @@ export function InPersonCheckIn({ disabled }: { disabled?: boolean }) {
         <h3 className="text-sm font-semibold text-slate-800">Attending in person?</h3>
       </div>
       <p className="mb-3 text-sm text-slate-500">
-        Scan the QR code handed around at the session with your phone camera, or type the code printed under it.
+        Scan the QR code handed around at the session with your phone camera, or type the code printed under it.{" "}
+        <a href="/help/in-person#learners" className="text-blue-600 hover:underline">How to check in</a>
       </p>
       <form onSubmit={submit} className="flex flex-wrap gap-2">
         <input

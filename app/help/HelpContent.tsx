@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb, Megaphone, KeyRound, CalendarClock, Settings, History, Image as ImageIcon, Star, Route, Copy, Check, Mail } from "lucide-react"
+import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb, Megaphone, KeyRound, CalendarClock, Settings, History, Image as ImageIcon, Star, Route, Copy, Check, Mail, QrCode } from "lucide-react"
 import { RELEASE_NOTES, type ChangeKind } from "./releaseNotes"
 
 type Role = "learner" | "admin" | "owner" | "manager" | "trainer" | "sme"
@@ -392,6 +392,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Add the session as an In Person lesson. After the session, edit the lesson to add the recording link (and, for a SharePoint video, its length) for people who missed it.",
           "Before the session, open the lesson's Actions menu and choose Check-in QR code, then Open printable QR code and print it. The code never changes, so one printout works for every run of the session. Learners scan it, sign in and tap Check in; anyone without a camera can type the code shown under the QR into the lesson.",
           "To mark attendance yourself, choose Attendance from the lesson's Actions menu. Tick the people who attended and click Mark present, or click Paste emails and paste a list of addresses (for example from a Teams attendance report). Mark not attended removes someone's attendance.",
+          "For a step-by-step walkthrough with pictures, see the In-person sessions guide at the top of this page.",
           "The Attendance list shows how each person completed the session: checked in with the QR code, marked present, or watched the recording. Admins and trainers can mark attendance even after a pathway's deadline has closed it.",
         ],
       },
@@ -631,6 +632,18 @@ export function HelpContent() {
         <h1 className="text-2xl font-bold text-slate-900">User Guide</h1>
         <p className="mt-1 text-sm text-slate-500">Step-by-step instructions for each role in Ascend, and what&apos;s new.</p>
       </div>
+
+      <a
+        href="/help/in-person"
+        className="mb-6 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 hover:border-blue-300 hover:bg-blue-50/40"
+      >
+        <QrCode size={20} className="shrink-0 text-blue-600" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-900">In-person sessions guide</p>
+          <p className="text-xs text-slate-500">How trainers show the check-in QR code and record attendance, and how learners check in.</p>
+        </div>
+        <ChevronRight size={16} className="shrink-0 text-slate-400" />
+      </a>
 
       {/* Tabs */}
       <div className="mb-6 flex flex-wrap gap-2">
