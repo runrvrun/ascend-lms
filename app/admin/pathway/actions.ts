@@ -7,7 +7,6 @@ import { notStartedEnrollments } from "../../lib/notStartedEnrollments"
 import { sendEmails } from "../../lib/sendEmail"
 import { parseDeadlineInput } from "../../lib/pathwayDeadline"
 import { PathwayVisibility } from "@prisma/client"
-import { MAX_FEATURED_PATHWAYS } from "../../lib/featuredPathways"
 import { requireAdmin, requirePathwayManager } from "../../lib/permissions"
 
 export type PathwayFormData = {
@@ -95,12 +94,6 @@ export async function setPathwayFeatured(id: string, featured: boolean): Promise
     if (!pathway) return { error: "Pathway not found." }
     if (pathway.status !== "PUBLISHED" || pathway.visibility === "HIDDEN") {
       return { error: "Only published, non-hidden pathways can be featured." }
-    }
-    const featuredCount = await prisma.pathway.count({
-      where: { featuredAt: { not: null }, deletedAt: null, id: { not: id } },
-    })
-    if (featuredCount >= MAX_FEATURED_PATHWAYS) {
-      return { error: `At most ${MAX_FEATURED_PATHWAYS} pathways can be featured. Unfeature one first.` }
     }
     await prisma.pathway.update({ where: { id }, data: { featuredAt: new Date() } })
   }

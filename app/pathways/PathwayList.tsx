@@ -5,6 +5,7 @@ import { Search, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles, 
 import type { EnrollmentStatus, Language, PathwayVisibility } from "@prisma/client"
 import { LANGUAGES } from "../lib/languages"
 import { enrollPathway, requestPathway, unenrollPathway } from "./actions"
+import { setPathwayFeatured } from "../admin/pathway/actions"
 import { SharePathwayModal } from "./SharePathwayModal"
 import type { Recommendation, RecommendationKind } from "../lib/pathwayRecommendations"
 
@@ -98,7 +99,36 @@ export function RequestModal({
   )
 }
 
-function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
+// Admin-only star on each card to feature / unfeature the pathway in place.
+function FeatureStar({ pathway }: { pathway: PathwayCard }) {
+  const [pending, startTransition] = useTransition()
+  const [error, setError] = useState("")
+  const isOn = pathway.recommendation?.kind === "featured"
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <button
+        disabled={pending}
+        aria-label={isOn ? "Unfeature pathway" : "Feature pathway"}
+        title={isOn ? "Featured — click to unfeature" : "Feature this pathway"}
+        onClick={() => {
+          setError("")
+          startTransition(async () => {
+            const result = await setPathwayFeatured(pathway.id, !isOn)
+            if (result.error) setError(result.error)
+          })
+        }}
+        className={`rounded-md p-1 transition-colors disabled:opacity-40 ${
+          isOn ? "text-amber-500 hover:bg-amber-100" : "text-slate-300 hover:bg-slate-100 hover:text-amber-400"
+        }`}
+      >
+        <Star size={16} fill={isOn ? "currentColor" : "none"} />
+      </button>
+      {error && <span className="text-[11px] font-normal text-red-500">{error}</span>}
+    </span>
+  )
+}
+
+function PathwayCardItem({ pathway, isAdmin }: { pathway: PathwayCard; isAdmin: boolean }) {
   const [requesting, setRequesting] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [unenrollConfirming, setUnenrollConfirming] = useState(false)
@@ -224,7 +254,10 @@ function PathwayCardItem({ pathway }: { pathway: PathwayCard }) {
   return (
     <>
       <div className={`rounded-xl border px-4 py-3 shadow-sm transition-shadow hover:shadow-md sm:px-5 ${featured ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"}`}>
-        <h3 className="font-semibold leading-snug text-slate-900" title={pathway.description ?? undefined}>{pathway.name}</h3>
+        <div className="flex items-start gap-1.5">
+          <h3 className="flex-1 font-semibold leading-snug text-slate-900" title={pathway.description ?? undefined}>{pathway.name}</h3>
+          {isAdmin && <FeatureStar pathway={pathway} />}
+        </div>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs">
@@ -392,10 +425,12 @@ export function PathwayList({
   pathways,
   recommendedOrder,
   topics,
+  isAdmin = false,
 }: {
   pathways: PathwayCard[]
   recommendedOrder: string[]
   topics: TopicFilterOption[]
+  isAdmin?: boolean
 }) {
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState<SortKey>("name")
@@ -621,7 +656,7 @@ export function PathwayList({
         ) : (
           <div className="flex flex-col gap-3">
             {filtered.map((p) => (
-              <PathwayCardItem key={p.id} pathway={p} />
+              <PathwayCardItem key={p.id} pathway={p} isAdmin={isAdmin} />
             ))}
           </div>
         )}

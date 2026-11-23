@@ -10,8 +10,8 @@
 // Each slot picks one of the strategies that still has candidates at random, so the
 // mix of reasons varies between visits.
 
-// Total "Recommended for you" carousel slots; featured pathways (at most
-// MAX_FEATURED_PATHWAYS) take the first ones, automated picks fill the rest.
+// Total "Recommended for you" carousel slots; featured pathways take the first
+// ones, automated picks fill the rest.
 export const MAX_RECOMMENDATIONS = 4
 
 // Pathways with any of these tags, or whose name contains any of these phrases (both

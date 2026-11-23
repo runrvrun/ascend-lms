@@ -7,7 +7,6 @@ import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
-import { MAX_FEATURED_PATHWAYS } from "../lib/featuredPathways"
 import type { Recommendation } from "../lib/pathwayRecommendations"
 import type { Language } from "@prisma/client"
 
@@ -16,6 +15,7 @@ export default async function PathwaysPage() {
   if (!session?.user) redirect("/")
 
   const userId = (session.user as any).id as string
+  const isAdmin = ((session.user as any).roles as string[] | undefined)?.includes("ADMIN") ?? false
 
   const [pathways, enrollments, courseProgressRecords, pathwayCourses, selfEnrollCounts] = await Promise.all([
     prisma.pathway.findMany({
@@ -105,7 +105,6 @@ export default async function PathwaysPage() {
   const featuredIds = pathwayCards
     .filter((p) => p.featuredAt)
     .sort((a, b) => a.featuredAt!.getTime() - b.featuredAt!.getTime())
-    .slice(0, MAX_FEATURED_PATHWAYS)
     .map((p) => p.id)
 
   const recommendations: Record<string, Recommendation> = {}
@@ -141,7 +140,7 @@ export default async function PathwaysPage() {
           <h1 className="text-2xl font-bold text-slate-900">Pathways</h1>
         </div>
 
-        <PathwayList pathways={pathwayCardsWithRec} recommendedOrder={recommendedOrder} topics={topics} />
+        <PathwayList pathways={pathwayCardsWithRec} recommendedOrder={recommendedOrder} topics={topics} isAdmin={isAdmin} />
       </main>
     </div>
   )

@@ -220,7 +220,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Go to Admin → Pathways and click Add Pathway.",
           "Fill in the name, description and tags, and pick the owners (optional).",
           "Choose who can see it: Public — free enroll, Public — needs approval (the learner's manager must approve), or Hidden — assigned only.",
-          "Use the status button to switch between Draft and Published, and the star to feature it. Up to 2 pathways can be featured; they are marked Featured and listed first on the Pathways page.",
+          "Use the status button to switch between Draft and Published, and the star to feature it. Any number of published pathways can be featured; they are marked Featured and listed first on the Pathways page. You can also click the star on a pathway on the Pathways page itself to feature or unfeature it.",
           {
             heading: "From each pathway's Actions menu:",
             items: [

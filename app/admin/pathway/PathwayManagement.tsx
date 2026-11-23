@@ -3,7 +3,6 @@
 import { useState, useTransition, useRef } from "react"
 import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Users, Copy, Eye, Star } from "lucide-react"
 import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, setPathwayFeatured, PathwayFormData } from "./actions"
-import { MAX_FEATURED_PATHWAYS } from "../../lib/featuredPathways"
 import { ActionsMenu } from "../../components/ActionsMenu"
 import { SearchableMultiSelect } from "../../components/SearchableSelect"
 import type { PathwayVisibility } from "@prisma/client"
@@ -110,19 +109,16 @@ function StatusToggle({ id, status }: { id: string; status: "DRAFT" | "PUBLISHED
   )
 }
 
-function FeaturedToggle({ pathway, featuredCount }: { pathway: PathwayRow; featuredCount: number }) {
+function FeaturedToggle({ pathway }: { pathway: PathwayRow }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
   const isOn = !!pathway.featuredAt
   const eligible = pathway.status === "PUBLISHED" && pathway.visibility !== "HIDDEN"
-  const full = !isOn && featuredCount >= MAX_FEATURED_PATHWAYS
-  const disabled = pending || (!isOn && (!eligible || full))
+  const disabled = pending || (!isOn && !eligible)
   const title = isOn
     ? "Featured — click to unfeature"
     : !eligible
     ? "Only published, non-hidden pathways can be featured"
-    : full
-    ? `Already ${MAX_FEATURED_PATHWAYS} featured pathways — unfeature one first`
     : "Feature this pathway on the Pathways page"
 
   return (
@@ -343,7 +339,7 @@ export function PathwayManagement({
           <h1 className="text-2xl font-bold text-slate-900">Pathways</h1>
           <p className="mt-1 text-sm text-slate-500">
             {isAdmin
-              ? <>{filtered.length} of {pathways.length} pathways · {featuredCount}/{MAX_FEATURED_PATHWAYS} featured</>
+              ? <>{filtered.length} of {pathways.length} pathways · {featuredCount} featured</>
               : <>{filtered.length} of {pathways.length} pathways you own</>}
           </p>
         </div>
@@ -372,10 +368,10 @@ export function PathwayManagement({
         <table className="w-full min-w-[800px] text-sm">
           <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-5 py-3">Name</th>
-              <th className="px-5 py-3">Description</th>
+              <th className="min-w-[18rem] px-5 py-3">Name</th>
+              <th className="w-[16rem] px-5 py-3">Description</th>
               <th className="px-5 py-3">Tags</th>
-              <th className="px-5 py-3">Owners</th>
+              <th className="min-w-[12rem] px-5 py-3">Owners</th>
               {isAdmin && <th className="px-5 py-3 text-center">Featured</th>}
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3 text-center">Visibility</th>
@@ -402,7 +398,7 @@ export function PathwayManagement({
                     <span className="font-medium text-slate-900">{p.name}</span>
                   </div>
                 </td>
-                <td className="px-5 py-3 max-w-xs text-slate-500 truncate">
+                <td className="w-[16rem] max-w-[16rem] px-5 py-3 text-xs leading-snug text-slate-500 break-words">
                   {p.description ?? <span className="italic text-slate-300">No description</span>}
                 </td>
                 <td className="px-5 py-3">
@@ -423,7 +419,7 @@ export function PathwayManagement({
                 </td>
                 {isAdmin && (
                   <td className="px-5 py-3 text-center">
-                    <FeaturedToggle pathway={p} featuredCount={featuredCount} />
+                    <FeaturedToggle pathway={p} />
                   </td>
                 )}
                 <td className="px-5 py-3 text-center">
