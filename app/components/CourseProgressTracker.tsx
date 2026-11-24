@@ -100,6 +100,9 @@ export function CourseProgressDetail({ course, className = "" }: { course: Cours
               <Circle size={12} className="shrink-0 text-slate-300" />
             )}
             <span className="truncate text-xs text-slate-600">{content.title}</span>
+            {content.optional && (
+              <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">Optional</span>
+            )}
           </div>
           {content.completedAt && (
             <span className="shrink-0 text-[11px] text-slate-400">

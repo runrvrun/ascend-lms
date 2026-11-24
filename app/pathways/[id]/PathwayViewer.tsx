@@ -117,6 +117,7 @@ type ContentItem = {
   duration: number | null
   imageKey: string | null
   recordingUrl?: string | null // IN_PERSON only
+  optional?: boolean // not needed to finish the course
   popQuizzes?: PopQuizItem[]
 }
 
@@ -1632,6 +1633,14 @@ function CourseSection({
                       </span>
                     )}
                     <span className="line-clamp-2 min-w-0 flex-1">{c.title}</span>
+                    {c.optional && (
+                      <span
+                        className="mt-px shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500"
+                        title="Not needed to finish the course"
+                      >
+                        Optional
+                      </span>
+                    )}
                   </button>
                 )
               }

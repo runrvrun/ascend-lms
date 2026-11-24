@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { requiredContents } from "./pathwayCompletion"
 import type { CourseDetail } from "./userLearningProgress"
 import { combinedAssignmentStatus, statusByAssignment } from "./assignmentStatus"
 
@@ -8,7 +9,7 @@ export async function getCourseReportData(courseId: string) {
     include: {
       topic: { select: { name: true } },
       trainers: { include: { user: { select: { name: true } } } },
-      contents: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, type: true } },
+      contents: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, type: true, optional: true } },
       tests: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true, title: true, passThreshold: true } },
       assignments: { where: { deletedAt: null }, orderBy: { order: "asc" }, select: { id: true } },
       pathways: { include: { pathway: { select: { id: true, name: true, deletedAt: true } } } },
@@ -159,7 +160,7 @@ export async function getCourseReportData(courseId: string) {
       })
       const contents = course.contents.map((c) => {
         const at = contentCompletedAt.get(`${userId}:${c.id}`) ?? null
-        return { id: c.id, title: c.title, type: c.type, completed: !!at, completedAt: at ? at.toISOString() : null }
+        return { id: c.id, title: c.title, type: c.type, optional: c.optional, completed: !!at, completedAt: at ? at.toISOString() : null }
       })
       const progress: CourseDetail = {
         id: course.id,
@@ -172,8 +173,8 @@ export async function getCourseReportData(courseId: string) {
         hasAssignment: course.assignments.length > 0,
         assignmentStatus:
           latestSubmissionStatus.get(userId) ?? (prog?.assignmentStatus as CourseDetail["assignmentStatus"]) ?? null,
-        totalContents: contents.length,
-        completedContents: contents.filter((c) => c.completed).length,
+        totalContents: requiredContents(contents, course.tests.length + course.assignments.length).length,
+        completedContents: requiredContents(contents, course.tests.length + course.assignments.length).filter((c) => c.completed).length,
         contents,
       }
       return {

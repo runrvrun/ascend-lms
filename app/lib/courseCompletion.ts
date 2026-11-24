@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { requiredContents } from "./pathwayCompletion"
 
 export async function awardCoursePoints(userId: string, courseId: string, pathwayId: string) {
   // Use referenceId to ensure points are only awarded once per course+pathway
@@ -26,18 +27,20 @@ export async function evaluateCourseCompletion(userId: string, courseId: string,
   const course = await prisma.course.findUnique({
     where: { id: courseId },
     include: {
-      contents: { where: { deletedAt: null }, select: { id: true } },
+      contents: { where: { deletedAt: null }, select: { id: true, optional: true } },
       tests: { where: { deletedAt: null }, select: { id: true } },
       assignments: { where: { deletedAt: null }, select: { id: true } },
     },
   })
   if (!course) return false
 
+  // Optional lessons don't have to be done.
+  const contents = requiredContents(course.contents, course.tests.length + course.assignments.length)
   const allContentsComplete =
-    course.contents.length === 0 ||
+    contents.length === 0 ||
     (await prisma.contentProgress.count({
-      where: { userId, pathwayId, contentId: { in: course.contents.map((c) => c.id) } },
-    })) === course.contents.length
+      where: { userId, pathwayId, contentId: { in: contents.map((c) => c.id) } },
+    })) === contents.length
 
   const allTestsPassed =
     course.tests.length === 0 ||
@@ -97,20 +100,29 @@ export async function recheckCourseCompletionAfterRemoval(courseId: string) {
   const course = await prisma.course.findUnique({
     where: { id: courseId },
     select: {
-      contents: { where: { deletedAt: null }, select: { id: true } },
+      contents: { where: { deletedAt: null }, select: { id: true, optional: true } },
       tests: { where: { deletedAt: null }, select: { id: true } },
+      assignments: { where: { deletedAt: null }, select: { id: true } },
     },
   })
   // An emptied course isn't auto-completed for everyone; that matches how a new empty course behaves.
   if (!course || course.contents.length + course.tests.length === 0) return
 
-  // Cheap pre-filter: only learners who finished every remaining content item (or, in a
-  // test-only course, passed every test) can be done. evaluateCourseCompletion decides.
-  const candidates = course.contents.length
+  // Cheap pre-filter: only learners who finished every remaining required content item (or,
+  // in a course with no required lessons, passed every test) can be done. evaluateCourseCompletion decides.
+  const contents = requiredContents(course.contents, course.tests.length + course.assignments.length)
+  const candidates = contents.length === 0 && course.tests.length === 0
+    ? // Only assignments are required: anyone with a passed submission may be done.
+      await prisma.assignmentSubmission.findMany({
+        where: { status: "PASSED", assignmentId: { in: course.assignments.map((a) => a.id) } },
+        distinct: ["userId", "pathwayId"],
+        select: { userId: true, pathwayId: true },
+      })
+    : contents.length
     ? await prisma.contentProgress.groupBy({
         by: ["userId", "pathwayId"],
-        where: { contentId: { in: course.contents.map((c) => c.id) } },
-        having: { contentId: { _count: { equals: course.contents.length } } },
+        where: { contentId: { in: contents.map((c) => c.id) } },
+        having: { contentId: { _count: { equals: contents.length } } },
       })
     : await prisma.testProgress.groupBy({
         by: ["userId", "pathwayId"],

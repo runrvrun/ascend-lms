@@ -17,6 +17,7 @@ export type ContentRow = {
   duration: number | null
   imageKey: string | null
   recordingUrl: string | null
+  optional: boolean
 }
 
 // Hours / minutes / seconds inputs for a length in seconds (null = not set).
@@ -97,7 +98,7 @@ export const TYPE_STYLES: Record<ContentType, string> = {
 }
 
 // recordingUrl: IN_PERSON only, "" = none.
-export type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null; imageKey: string | null; recordingUrl: string }
+export type ContentDraft = { title: string; type: ContentType; value: string; duration: number | null; imageKey: string | null; recordingUrl: string; optional: boolean }
 
 export function ContentFormModal({
   courseId,
@@ -335,6 +336,19 @@ export function ContentFormModal({
               />
             </div>
           )}
+
+          <label className="flex items-start gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.optional}
+              onChange={(e) => setForm((f) => ({ ...f, optional: e.target.checked }))}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              Optional
+              <span className="block text-xs text-slate-500">Learners can do it, but they don&apos;t need it to finish the course.</span>
+            </span>
+          </label>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
 

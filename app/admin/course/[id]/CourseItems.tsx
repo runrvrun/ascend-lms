@@ -222,7 +222,12 @@ export function CourseItems({
                 return (
                   <tr key={`${row.kind}-${row.item.id}`} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-slate-400">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{row.item.title}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      {row.item.title}
+                      {row.kind === "CONTENT" && row.item.optional && (
+                        <span className="ml-2 whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Optional</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${badge.style}`}>{badge.label}</span>
                     </td>
@@ -262,7 +267,7 @@ export function CourseItems({
         <ContentFormModal
           courseId={courseId}
           title="Add Lesson"
-          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null, imageKey: null, recordingUrl: "" }}
+          initial={{ title: "", type: "YOUTUBE_VIDEO", value: "", duration: null, imageKey: null, recordingUrl: "", optional: false }}
           outline={outline}
           initialInsertAfterOrder={lastOrder}
           onClose={close}
@@ -295,7 +300,7 @@ export function CourseItems({
           <ContentFormModal
             courseId={courseId}
             title="Edit Lesson"
-            initial={{ title: c.title, type: c.type, value: c.value, duration: c.duration, imageKey: c.imageKey, recordingUrl: c.recordingUrl ?? "" }}
+            initial={{ title: c.title, type: c.type, value: c.value, duration: c.duration, imageKey: c.imageKey, recordingUrl: c.recordingUrl ?? "", optional: c.optional }}
             outline={null}
             onClose={close}
             onSubmit={(d) => updateContent(c.id, courseId, d)}

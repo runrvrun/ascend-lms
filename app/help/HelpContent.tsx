@@ -89,7 +89,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Open a pathway you are enrolled in from the Home page or the Pathways page.",
           "The course outline on the left lists the courses in the pathway, sometimes grouped under section headings. On a phone, tap Contents to open it.",
-          "Courses marked Optional are there if you want them, but you don't need them to finish the pathway or get its certificate.",
+          "Courses and lessons marked Optional are there if you want them. You don't need optional courses to finish the pathway or get its certificate, or optional lessons to finish a course.",
           "Click a lesson to open it. Lessons can be videos, written text, PDFs, slides, Word documents, in-person sessions, links or pictures.",
           "For videos, you must watch at least 75% before you can mark them as complete. YouTube videos may pause for a pop quiz — answer correctly to keep watching.",
           "Click Mark as Completed to record your progress, then use Next Lesson to move on (or Previous Lesson to go back).",
@@ -382,6 +382,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Click Add Lesson and choose a type:",
           { heading: "Lesson types:", items: CONTENT_TYPES },
           "Use Position to place the new item anywhere in the course.",
+          "Tick Optional for a lesson learners can do but don't need to finish the course. It's marked Optional for them, and the course is complete once every other lesson, test and assignment is done.",
           "For SharePoint videos, enter the duration — learners must watch 75% of it before they can mark it complete.",
           "Use the up/down arrows to reorder anything in the list, and each row's Actions menu to edit or delete it.",
         ],

@@ -5,7 +5,7 @@
 // (a few thousand rows), so everything is loaded once and aggregated in memory.
 import { Prisma } from "@prisma/client"
 import { prisma } from "./prisma"
-import { requiredCourses } from "./pathwayCompletion"
+import { requiredContents, requiredCourses } from "./pathwayCompletion"
 
 export type AnalyticsRole = "admin" | "manager" | "trainer" | "sme"
 
@@ -200,8 +200,9 @@ export async function loadAnalytics({
         id: true,
         name: true,
         status: true,
-        contents: { where: { deletedAt: null }, select: { id: true, title: true, order: true } },
+        contents: { where: { deletedAt: null }, select: { id: true, title: true, order: true, optional: true } },
         tests: { where: { deletedAt: null }, select: { id: true, title: true, order: true } },
+        _count: { select: { assignments: { where: { deletedAt: null } } } },
         pathways: { select: { pathwayId: true } },
       },
     }),
@@ -216,14 +217,17 @@ export async function loadAnalytics({
         where: { id: { in: missingCourseIds } },
         select: {
           id: true,
-          contents: { where: { deletedAt: null }, select: { id: true } },
+          contents: { where: { deletedAt: null }, select: { id: true, optional: true } },
           tests: { where: { deletedAt: null }, select: { id: true } },
+          _count: { select: { assignments: { where: { deletedAt: null } } } },
         },
       })
     : []
   const itemsByCourse: Record<string, { contentIds: string[]; testIds: string[] }> = {}
   for (const c of [...courses, ...extraCourses]) {
-    itemsByCourse[c.id] = { contentIds: c.contents.map((x) => x.id), testIds: c.tests.map((x) => x.id) }
+    // Progress is measured over the items needed to finish the course (optional lessons left out).
+    const contents = requiredContents(c.contents, c.tests.length + c._count.assignments)
+    itemsByCourse[c.id] = { contentIds: contents.map((x) => x.id), testIds: c.tests.map((x) => x.id) }
   }
   const allContentIds = Object.values(itemsByCourse).flatMap((c) => c.contentIds)
   const allTestIds = Object.values(itemsByCourse).flatMap((c) => c.testIds)

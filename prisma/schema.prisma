@@ -382,6 +382,8 @@ model Content {
   // printed check-in QR (/check-in/<code>), created the first time it's shown.
   recordingUrl String?
   checkInCode  String? @unique
+  // Optional lessons don't count toward finishing the course (evaluateCourseCompletion).
+  optional Boolean @default(false)
 
   order Int?
 

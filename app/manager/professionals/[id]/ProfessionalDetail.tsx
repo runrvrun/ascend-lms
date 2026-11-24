@@ -25,6 +25,7 @@ type ContentDetail = {
   id: string
   title: string
   type: string
+  optional: boolean
   completed: boolean
   completedAt: string | null
 }

@@ -1,11 +1,12 @@
 import { prisma } from "./prisma"
-import { requiredCourses } from "./pathwayCompletion"
+import { requiredContents, requiredCourses } from "./pathwayCompletion"
 import { combinedAssignmentStatus, statusByAssignment } from "./assignmentStatus"
 
 export type ContentDetail = {
   id: string
   title: string
   type: string
+  optional: boolean
   completed: boolean
   completedAt: string | null
 }
@@ -84,7 +85,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
             contents: {
               where: { deletedAt: null },
               orderBy: { order: "asc" },
-              select: { id: true, title: true, type: true },
+              select: { id: true, title: true, type: true, optional: true },
             },
           },
         },
@@ -141,6 +142,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
         id: content.id,
         title: content.title,
         type: content.type,
+        optional: content.optional,
         completed: !!completedAt,
         completedAt: completedAt ? completedAt.toISOString() : null,
       }
@@ -173,8 +175,9 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       hasAssignment: pc.course.assignments.length > 0,
       // Combined over all the course's assignments, from the submissions themselves.
       assignmentStatus: submissionStatus ?? progress?.assignmentStatus ?? null,
-      totalContents: contents.length,
-      completedContents: contents.filter((c) => c.completed).length,
+      // Lesson counts cover the lessons needed to finish the course (not optional ones).
+      totalContents: requiredContents(contents, pc.course.tests.length + pc.course.assignments.length).length,
+      completedContents: requiredContents(contents, pc.course.tests.length + pc.course.assignments.length).filter((c) => c.completed).length,
       contents,
     }
 

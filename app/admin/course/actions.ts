@@ -32,6 +32,7 @@ export type ContentFormData = {
   duration: number | null // seconds, only relevant for VIDEO
   imageKey: string | null // required for IMAGE, optional for LINK
   recordingUrl: string // IN_PERSON only; "" = none
+  optional: boolean // not needed to finish the course
   insertAfterOrder: number // 0 = insert at the very beginning
 }
 
@@ -42,6 +43,7 @@ export type ContentEditData = {
   duration: number | null
   imageKey: string | null
   recordingUrl: string
+  optional: boolean
 }
 
 // Only IN_PERSON content has a recording.
@@ -218,6 +220,7 @@ export async function duplicateCourse(id: string): Promise<string> {
         duration: c.duration,
         imageKey: c.imageKey, // image files are never deleted, so the copy can share them
         recordingUrl: c.recordingUrl, // not checkInCode: each session gets its own QR
+        optional: c.optional,
       })),
     })
   }
@@ -288,6 +291,7 @@ type CourseExport = {
     value: string
     duration: number | null
     recordingUrl?: string | null
+    optional?: boolean
     order: number | null
     // Base64 image embedded by the export route so it survives a move between servers
     image?: { data: string } | null
@@ -370,6 +374,7 @@ export async function importCourse(formData: FormData): Promise<string> {
           value: c.value,
           duration: c.duration ?? null,
           recordingUrl: c.type === "IN_PERSON" ? c.recordingUrl ?? null : null,
+          optional: c.optional ?? false,
           order: c.order,
           imageKey,
         },
@@ -591,7 +596,7 @@ export async function createContent(courseId: string, data: ContentFormData) {
     const target = data.insertAfterOrder + 1
     await shiftCourseItemsUpFrom(tx, courseId, target)
     await tx.content.create({
-      data: { courseId, title: data.title, type: data.type, value: data.value, order: target, duration: data.duration, imageKey, recordingUrl: contentRecordingUrl(data) },
+      data: { courseId, title: data.title, type: data.type, value: data.value, order: target, duration: data.duration, imageKey, recordingUrl: contentRecordingUrl(data), optional: data.optional },
     })
     await tx.course.update({ where: { id: courseId }, data: { updatedAt: new Date() } })
   })
@@ -602,15 +607,17 @@ export async function updateContent(id: string, courseId: string, data: ContentE
   await requireCourseEditor(courseId)
   await assertInCourse(courseItemInCourse("CONTENT", id, courseId))
   const imageKey = contentImageKey(data)
-  const previous = await prisma.content.findUnique({ where: { id }, select: { imageKey: true } })
+  const previous = await prisma.content.findUnique({ where: { id }, select: { imageKey: true, optional: true } })
   await Promise.all([
     prisma.content.update({
       where: { id },
-      data: { title: data.title, type: data.type, value: data.value, duration: data.duration, imageKey, recordingUrl: contentRecordingUrl(data) },
+      data: { title: data.title, type: data.type, value: data.value, duration: data.duration, imageKey, recordingUrl: contentRecordingUrl(data), optional: data.optional },
     }),
     touchCourse(courseId),
   ])
   if (previous?.imageKey && previous.imageKey !== imageKey) await deleteUnusedContentImages([previous.imageKey])
+  // Making a lesson optional can leave learners with nothing else left to do.
+  if (data.optional && !previous?.optional) after(() => recheckCourseCompletionAfterRemoval(courseId))
   revalidateCourse(courseId)
 }
 
