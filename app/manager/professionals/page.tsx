@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { prisma } from "../../lib/prisma"
+import { requiredCourseIdsByPathway } from "../../lib/pathwayCompletion"
 import { ProfessionalsList } from "./ProfessionalsList"
 
 export default async function ProfessionalsPage() {
@@ -29,7 +30,7 @@ export default async function ProfessionalsPage() {
         },
         courseProgress: {
           where: { completed: true },
-          select: { pathwayId: true },
+          select: { pathwayId: true, courseId: true },
         },
         points: {
           select: { points: true },
@@ -44,14 +45,11 @@ export default async function ProfessionalsPage() {
     }),
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true },
+      select: { pathwayId: true, courseId: true, optional: true },
     }),
   ])
 
-  const courseCountByPathway: Record<string, number> = {}
-  for (const pc of pathwayCourseCounts) {
-    courseCountByPathway[pc.pathwayId] = (courseCountByPathway[pc.pathwayId] ?? 0) + 1
-  }
+  const requiredByPathway = requiredCourseIdsByPathway(pathwayCourseCounts)
 
   const professionalsWithStats = professionals.map((p) => {
     const enrolledPathwayIds = p.enrollments.map((e) => e.pathwayId)
@@ -59,11 +57,12 @@ export default async function ProfessionalsPage() {
     // Count completed courses per pathway
     const completedCoursesByPathway: Record<string, number> = {}
     p.courseProgress.forEach((cp) => {
+      if (!requiredByPathway.get(cp.pathwayId)?.has(cp.courseId)) return
       completedCoursesByPathway[cp.pathwayId] = (completedCoursesByPathway[cp.pathwayId] ?? 0) + 1
     })
 
     const completedPathways = enrolledPathwayIds.filter((pid) => {
-      const total = courseCountByPathway[pid] ?? 0
+      const total = requiredByPathway.get(pid)?.size ?? 0
       const completed = completedCoursesByPathway[pid] ?? 0
       return total > 0 && completed >= total
     }).length

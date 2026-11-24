@@ -14,8 +14,28 @@ type PathwayCourseRow = {
   id: string
   order: number
   points: number
+  optional: boolean
   sectionTitle: string | null
   course: { id: string; name: string }
+}
+
+function OptionalCheckbox({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-start gap-2 text-sm text-slate-700">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+      />
+      <span>
+        Optional
+        <span className="block text-xs text-slate-500">
+          Learners can take it, but it doesn&apos;t count toward finishing the pathway.
+        </span>
+      </span>
+    </label>
+  )
 }
 
 function AddCourseModal({
@@ -32,6 +52,7 @@ function AddCourseModal({
   const [courseId, setCourseId] = useState(availableCourses[0]?.id ?? "")
   const [order, setOrder] = useState(nextOrder)
   const [points, setPoints] = useState(10)
+  const [optional, setOptional] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
@@ -41,7 +62,7 @@ function AddCourseModal({
     setError("")
     startTransition(async () => {
       try {
-        const result = await addCourseToPathway(pathwayId, courseId, order, points)
+        const result = await addCourseToPathway(pathwayId, courseId, order, points, optional)
         if (result.error) return setError(result.error)
         onClose()
       } catch {
@@ -119,6 +140,8 @@ function AddCourseModal({
             </div>
           </div>
 
+          <OptionalCheckbox checked={optional} onChange={setOptional} />
+
           {error && <p className="text-xs text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-1">
@@ -146,6 +169,7 @@ function EditCourseModal({
 }) {
   const [order, setOrder] = useState(entry.order)
   const [points, setPoints] = useState(entry.points)
+  const [optional, setOptional] = useState(entry.optional)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState("")
 
@@ -154,7 +178,7 @@ function EditCourseModal({
     setError("")
     startTransition(async () => {
       try {
-        await updatePathwayCourse(entry.id, pathwayId, order, points)
+        await updatePathwayCourse(entry.id, pathwayId, order, points, optional)
         onClose()
       } catch {
         setError("Order number already in use. Choose a different one.")
@@ -201,6 +225,8 @@ function EditCourseModal({
               />
             </div>
           </div>
+
+          <OptionalCheckbox checked={optional} onChange={setOptional} />
 
           {error && <p className="text-xs text-red-500">{error}</p>}
 
@@ -425,6 +451,9 @@ export function PathwayCourseManagement({
                           </a>
                         ) : (
                           <span className="font-medium text-slate-900">{e.course.name}</span>
+                        )}
+                        {e.optional && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Optional</span>
                         )}
                       </div>
                     </td>

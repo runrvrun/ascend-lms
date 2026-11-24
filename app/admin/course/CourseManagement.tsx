@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
+import { navigateFromRow } from "../../components/rowNavigation"
 import { Plus, Pencil, Trash2, X, BookOpen, ArrowRight, Search, Copy, Eye, BarChart3, Download, Upload } from "lucide-react"
 import { useCourseStatusToggle } from "./[id]/CourseStatusToggle"
 import { createCourse, updateCourse, deleteCourse, setCourseTrainers, duplicateCourse, importCourse, CourseFormData } from "./actions"
@@ -235,6 +237,7 @@ function ImportCourseModal({ onClose }: { onClose: () => void }) {
 }
 
 export function CourseManagement({ courses, trainerUsers, topics }: { courses: CourseRow[]; trainerUsers: TrainerUser[]; topics: TopicOption[] }) {
+  const router = useRouter()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<CourseRow | null>(null)
   const [deleting, setDeleting] = useState<CourseRow | null>(null)
@@ -314,7 +317,11 @@ export function CourseManagement({ courses, trainerUsers, topics }: { courses: C
               <tr><td colSpan={8} className="px-5 py-10 text-center text-slate-400">{courses.length === 0 ? "No courses yet. Add one above." : "No courses match your search."}</td></tr>
             )}
             {filtered.map((c) => (
-              <tr key={c.id} className="group hover:bg-slate-50">
+              <tr
+                key={c.id}
+                onClick={(e) => navigateFromRow(e, `/admin/course/${c.id}`, router.push)}
+                className="group cursor-pointer hover:bg-slate-50"
+              >
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <BookOpen size={15} className="shrink-0 text-blue-400" />

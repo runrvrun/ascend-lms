@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
+import { requiredCourseIdsByPathway } from "../lib/pathwayCompletion"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { CheckCircle2, BookOpen, Map as MapIcon, Star, Award, PlayCircle, Circle } from "lucide-react"
 import type { ReactNode } from "react"
@@ -40,7 +41,7 @@ export default async function LearningHistoryPage() {
     }),
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true, courseId: true },
+      select: { pathwayId: true, courseId: true, optional: true },
     }),
     prisma.userPoint.aggregate({
       where: { userId },
@@ -83,20 +84,16 @@ export default async function LearningHistoryPage() {
     byPathway[cp.pathwayId].courses.push(cp)
   }
 
-  // Compute completed pathways: all PUBLISHED courses done
-  const totalByPathway: Record<string, number> = {}
-  for (const pc of completedPathways) {
-    totalByPathway[pc.pathwayId] = (totalByPathway[pc.pathwayId] ?? 0) + 1
+  // Compute completed pathways: every required (non-optional) PUBLISHED course done
+  const completedKeys = new Set(courseProgressRecords.map((cp) => `${cp.pathwayId}:${cp.courseId}`))
+  const requiredByPathway = requiredCourseIdsByPathway(completedPathways)
+  const isPathwayDone = (pid: string) => {
+    const required = [...(requiredByPathway.get(pid) ?? [])]
+    return required.length > 0 && required.every((cid) => completedKeys.has(`${pid}:${cid}`))
   }
-  const completedByPathway: Record<string, number> = {}
-  for (const cp of courseProgressRecords) {
-    completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
-  }
-  const completedPathwayCount = Object.keys(byPathway).filter((pid) => {
-    const total = totalByPathway[pid] ?? 0
-    const done = completedByPathway[pid] ?? 0
-    return total > 0 && done >= total
-  }).length
+  const requiredDone = (pid: string) =>
+    [...(requiredByPathway.get(pid) ?? [])].filter((cid) => completedKeys.has(`${pid}:${cid}`)).length
+  const completedPathwayCount = Object.keys(byPathway).filter(isPathwayDone).length
 
   const groups = Object.values(byPathway)
 
@@ -117,30 +114,13 @@ export default async function LearningHistoryPage() {
     : [[], []]
   const publishedIds = new Set(publishedPathways.map((p) => p.id))
   const approvedIds = new Set(approvedEnrollments.map((e) => e.pathwayId))
-  const completedKeys = new Set(courseProgressRecords.map((cp) => `${cp.pathwayId}:${cp.courseId}`))
-  const requiredByPathway: Record<string, string[]> = {}
-  for (const pc of completedPathways) {
-    if (!requiredByPathway[pc.pathwayId]) requiredByPathway[pc.pathwayId] = []
-    requiredByPathway[pc.pathwayId].push(pc.courseId)
-  }
   const certificatePathwayIds = new Set(
-    groupPathwayIds.filter((pid) => {
-      const required = requiredByPathway[pid] ?? []
-      return (
-        publishedIds.has(pid) &&
-        approvedIds.has(pid) &&
-        required.length > 0 &&
-        required.every((cid) => completedKeys.has(`${pid}:${cid}`))
-      )
-    })
+    groupPathwayIds.filter((pid) => publishedIds.has(pid) && approvedIds.has(pid) && isPathwayDone(pid))
   )
 
   // Split into the page's three sections. In progress / not started come from the
   // learner's enrollments; completed and leftover history come from course progress.
-  const isGroupComplete = (pid: string) => {
-    const total = totalByPathway[pid] ?? 0
-    return total > 0 && (completedByPathway[pid] ?? 0) >= total
-  }
+  const isGroupComplete = isPathwayDone
   const inProgress = learnerPathways.filter((p) => p.state === "IN_PROGRESS")
   const notStarted = learnerPathways.filter((p) => p.state === "NOT_STARTED" || p.state === "PENDING")
   const activeIds = new Set([...inProgress, ...notStarted].map((p) => p.pathwayId))
@@ -223,7 +203,7 @@ export default async function LearningHistoryPage() {
                       <span className="font-semibold text-slate-800">{group.pathwayName}</span>
                     </div>
                     <span className="text-xs text-slate-400">
-                      {completedByPathway[group.pathwayId] ?? 0}/{totalByPathway[group.pathwayId] ?? 0} courses
+                      {requiredDone(group.pathwayId)}/{requiredByPathway.get(group.pathwayId)?.size ?? 0} courses
                     </span>
                   </div>
                   <CourseList courses={group.courses} scoresByKey={scoresByKey} />

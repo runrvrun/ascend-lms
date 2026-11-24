@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useTransition, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { navigateFromRow } from "../../components/rowNavigation"
 import { Plus, Pencil, Trash2, X, BookOpen, GraduationCap, Search, Users, Copy, Eye, Star } from "lucide-react"
 import { createPathway, updatePathway, deletePathway, togglePathwayStatus, duplicatePathway, setPathwayFeatured, PathwayFormData } from "./actions"
 import { ActionsMenu } from "../../components/ActionsMenu"
@@ -306,6 +308,7 @@ export function PathwayManagement({
   isAdmin: boolean
   ownerOptions: OwnerOption[]
 }) {
+  const router = useRouter()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<PathwayRow | null>(null)
   const [deleting, setDeleting] = useState<PathwayRow | null>(null)
@@ -391,7 +394,11 @@ export function PathwayManagement({
               </tr>
             )}
             {filtered.map((p) => (
-              <tr key={p.id} className="group hover:bg-slate-50">
+              <tr
+                key={p.id}
+                onClick={(e) => navigateFromRow(e, `/admin/pathway/${p.id}`, router.push)}
+                className="group cursor-pointer hover:bg-slate-50"
+              >
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-2">
                     <BookOpen size={15} className="shrink-0 text-blue-400" />

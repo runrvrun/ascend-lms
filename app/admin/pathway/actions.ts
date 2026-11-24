@@ -129,6 +129,7 @@ export async function duplicatePathway(id: string): Promise<{ error?: string }> 
           order: c.order,
           points: c.points,
           sectionTitle: c.sectionTitle,
+          optional: c.optional,
         })),
       },
     },
@@ -147,24 +148,25 @@ export async function addCourseToPathway(
   pathwayId: string,
   courseId: string,
   order: number,
-  points: number
+  points: number,
+  optional = false
 ): Promise<{ error?: string }> {
   await requirePathwayManager(pathwayId)
   // Pathways only hold published courses (see toggleCourseStatus in app/admin/course/actions.ts).
   const course = await prisma.course.findFirst({ where: { id: courseId, deletedAt: null }, select: { status: true } })
   if (course?.status !== "PUBLISHED") return { error: "Only published courses can be added to a pathway." }
   await Promise.all([
-    prisma.pathwayCourse.create({ data: { pathwayId, courseId, order, points } }),
+    prisma.pathwayCourse.create({ data: { pathwayId, courseId, order, points, optional } }),
     touchPathway(pathwayId),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)
   return {}
 }
 
-export async function updatePathwayCourse(id: string, pathwayId: string, order: number, points: number) {
+export async function updatePathwayCourse(id: string, pathwayId: string, order: number, points: number, optional: boolean) {
   await requirePathwayManager(pathwayId)
   await Promise.all([
-    prisma.pathwayCourse.update({ where: { id, pathwayId }, data: { order, points } }),
+    prisma.pathwayCourse.update({ where: { id, pathwayId }, data: { order, points, optional } }),
     touchPathway(pathwayId),
   ])
   revalidatePath(`/admin/pathway/${pathwayId}`)

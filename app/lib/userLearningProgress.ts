@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { requiredCourses } from "./pathwayCompletion"
 import { combinedAssignmentStatus, statusByAssignment } from "./assignmentStatus"
 
 export type ContentDetail = {
@@ -21,6 +22,8 @@ export type CourseDetail = {
   id: string
   name: string
   sectionTitle: string | null
+  // Optional courses don't count toward completedCourses/totalCourses or isCompleted.
+  optional: boolean
   completed: boolean
   completedAt: string | null
   tests: TestDetail[]
@@ -71,6 +74,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       select: {
         pathwayId: true,
         sectionTitle: true,
+        optional: true,
         course: {
           select: {
             id: true,
@@ -162,6 +166,7 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
       id: pc.course.id,
       name: pc.course.name,
       sectionTitle: pc.sectionTitle,
+      optional: pc.optional,
       completed: progress?.completed ?? false,
       completedAt: progress?.completedAt ? progress.completedAt.toISOString() : null,
       tests,
@@ -180,8 +185,9 @@ export async function getUserLearningProgress(userId: string): Promise<Enrollmen
 
   return enrollmentRecords.map((e) => {
     const courses = coursesByPathway.get(e.pathwayId) ?? []
-    const totalCourses = courses.length
-    const completedCourses = courses.filter((c) => c.completed).length
+    const required = requiredCourses(courses)
+    const totalCourses = required.length
+    const completedCourses = required.filter((c) => c.completed).length
     return {
       id: e.id,
       pathwayId: e.pathwayId,

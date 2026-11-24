@@ -63,7 +63,7 @@ function UnpublishDialog({
   onConfirm: (() => void) | null
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 text-left shadow-xl">
         <div className="flex items-center gap-2">
           <AlertTriangle size={18} className="text-amber-500" />

@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
+import { navigateFromRow } from "../components/rowNavigation"
 import { Search, X, CheckCircle2, Clock, XCircle, ArrowRight, LogOut, Sparkles, Eye, Share2, Star, Users, SlidersHorizontal, Check } from "lucide-react"
 import type { EnrollmentStatus, Language, PathwayVisibility } from "@prisma/client"
 import { LANGUAGES } from "../lib/languages"
@@ -135,6 +137,7 @@ function PathwayCardItem({ pathway, isAdmin }: { pathway: PathwayCard; isAdmin: 
   const [pending, startTransition] = useTransition()
   const [unenrollPending, startUnenrollTransition] = useTransition()
   const { enrollment } = pathway
+  const router = useRouter()
 
   function handleEnroll() {
     startTransition(async () => {
@@ -253,7 +256,10 @@ function PathwayCardItem({ pathway, isAdmin }: { pathway: PathwayCard; isAdmin: 
   // On phones all the buttons move to one row at the bottom instead.
   return (
     <>
-      <div className={`rounded-xl border px-4 py-3 shadow-sm transition-shadow hover:shadow-md sm:px-5 ${featured ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"}`}>
+      {/* Clicking the card opens the pathway once enrolled, otherwise its preview. */}
+      <div
+        onClick={(e) => navigateFromRow(e, enrollmentStatus === "APPROVED" ? `/pathways/${pathway.id}` : `/pathways/${pathway.id}/preview`, router.push)}
+        className={`cursor-pointer rounded-xl border px-4 py-3 shadow-sm transition-shadow hover:shadow-md sm:px-5 ${featured ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-white"}`}>
         <div className="flex items-start gap-1.5">
           <h3 className="flex-1 font-semibold leading-snug text-slate-900" title={pathway.description ?? undefined}>{pathway.name}</h3>
           {isAdmin && <FeatureStar pathway={pathway} />}

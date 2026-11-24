@@ -71,6 +71,9 @@ export function CourseRow({ course }: { course: CourseDetail }) {
             <Circle size={14} className="shrink-0 text-slate-300" />
           )}
           <span className="truncate text-sm text-slate-700">{course.name}</span>
+          {course.optional && (
+            <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">Optional</span>
+          )}
         </div>
         {course.totalContents > 0 && (
           <span className="shrink-0 text-xs text-slate-400">

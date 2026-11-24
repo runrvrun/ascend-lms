@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
+import { requiredCourseIdsByPathway } from "../lib/pathwayCompletion"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { MyPathwaysList } from "./MyPathwaysList"
 import { ArrowLeft } from "lucide-react"
@@ -27,25 +28,23 @@ export default async function MyPathwaysPage() {
     }),
     prisma.courseProgress.findMany({
       where: { userId, completed: true },
-      select: { pathwayId: true },
+      select: { pathwayId: true, courseId: true },
     }),
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true },
+      select: { pathwayId: true, courseId: true, optional: true },
     }),
   ])
 
+  const requiredByPathway = requiredCourseIdsByPathway(pathwayCourseCounts)
   const completedByPathway: Record<string, number> = {}
   for (const cp of courseProgressRecords) {
+    if (!requiredByPathway.get(cp.pathwayId)?.has(cp.courseId)) continue
     completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
-  }
-  const totalByPathway: Record<string, number> = {}
-  for (const pc of pathwayCourseCounts) {
-    totalByPathway[pc.pathwayId] = (totalByPathway[pc.pathwayId] ?? 0) + 1
   }
 
   const items = enrollments.map((e) => {
-    const total = totalByPathway[e.pathwayId] ?? 0
+    const total = requiredByPathway.get(e.pathwayId)?.size ?? 0
     const completed = completedByPathway[e.pathwayId] ?? 0
     return { ...e, isCompleted: total > 0 && completed >= total }
   })

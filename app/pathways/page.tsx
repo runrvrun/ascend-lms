@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "../api/auth/[...nextauth]/route"
 import { prisma } from "../lib/prisma"
+import { requiredCourseIdsByPathway } from "../lib/pathwayCompletion"
 import { SidebarWithStats } from "../components/SidebarWithStats"
 import { PathwayList } from "./PathwayList"
 import type { Recommendation } from "../lib/pathwayRecommendations"
@@ -48,11 +49,11 @@ export default async function PathwaysPage() {
     }),
     prisma.courseProgress.findMany({
       where: { userId, completed: true },
-      select: { pathwayId: true },
+      select: { pathwayId: true, courseId: true },
     }),
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true, course: { select: { language: true, topic: { select: { id: true, name: true } } } } },
+      select: { pathwayId: true, courseId: true, optional: true, course: { select: { language: true, topic: { select: { id: true, name: true } } } } },
     }),
     // Ranks the Topic filter: topics whose pathways people self-enroll in most come first.
     prisma.pathwayEnrollment.groupBy({
@@ -64,24 +65,25 @@ export default async function PathwaysPage() {
 
   const enrollmentMap = Object.fromEntries(enrollments.map((e) => [e.pathwayId, e]))
 
+  // Optional courses don't count toward progress or completion.
+  const requiredByPathway = requiredCourseIdsByPathway(pathwayCourses)
   const completedByPathway: Record<string, number> = {}
   for (const cp of courseProgressRecords) {
+    if (!requiredByPathway.get(cp.pathwayId)?.has(cp.courseId)) continue
     completedByPathway[cp.pathwayId] = (completedByPathway[cp.pathwayId] ?? 0) + 1
   }
 
   // A pathway's topics and languages are those of its published courses.
-  const totalByPathway: Record<string, number> = {}
   const topicsByPathway: Record<string, Map<string, string>> = {}
   const languagesByPathway: Record<string, Set<Language>> = {}
   for (const pc of pathwayCourses) {
-    totalByPathway[pc.pathwayId] = (totalByPathway[pc.pathwayId] ?? 0) + 1
     ;(languagesByPathway[pc.pathwayId] ??= new Set()).add(pc.course.language)
     if (pc.course.topic) (topicsByPathway[pc.pathwayId] ??= new Map()).set(pc.course.topic.id, pc.course.topic.name)
   }
   const selfEnrollByPathway = Object.fromEntries(selfEnrollCounts.map((r) => [r.pathwayId, r._count._all]))
 
   const pathwayCards = pathways.map((p) => {
-    const total = totalByPathway[p.id] ?? 0
+    const total = requiredByPathway.get(p.id)?.size ?? 0
     const completed = completedByPathway[p.id] ?? 0
     const isApproved = enrollmentMap[p.id]?.status === "APPROVED"
     const { createdAt, _count, ...rest } = p

@@ -111,19 +111,6 @@ model Office {
   updatedAt DateTime @updatedAt
 }
 
-// Access tokens for outside APIs, one row per provider (e.g. "hub" — see
-// app/lib/hubEmployees.ts). codeHash is the SHA-256 of the single-use code the
-// token was exchanged from, so a spent code isn't tried again.
-model IntegrationToken {
-  provider    String   @id
-  accessToken String
-  expiresAt   DateTime
-  codeHash    String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model Account {
   id                String  @id @default(dbgenerated("gen_random_uuid()::text"))
   userId            String
@@ -368,6 +355,8 @@ model PathwayCourse {
 
   order  Int // enforce sequence
   points Int @default(10)
+  // Optional courses don't count toward finishing the pathway (see app/lib/pathwayCompletion.ts).
+  optional Boolean @default(false)
 
   pathway Pathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
   course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)

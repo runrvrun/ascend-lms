@@ -169,6 +169,7 @@ type SubmissionItem = {
 type CourseEntry = {
   order: number
   sectionTitle?: string | null
+  optional?: boolean
   course: {
     id: string
     name: string
@@ -1590,6 +1591,14 @@ function CourseSection({
         <span className="line-clamp-2 min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-slate-700">
           {course.name}
         </span>
+        {entry.optional && (
+          <span
+            className="mt-px shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500"
+            title="Not needed to finish the pathway"
+          >
+            Optional
+          </span>
+        )}
       </button>
 
       {open && (

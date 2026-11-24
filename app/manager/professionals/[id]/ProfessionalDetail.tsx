@@ -40,6 +40,7 @@ type CourseDetail = {
   id: string
   name: string
   sectionTitle: string | null
+  optional: boolean
   completed: boolean
   completedAt: string | null
   tests: TestDetail[]

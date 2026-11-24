@@ -157,19 +157,24 @@ async function main() {
   const matchHubOffice = buildHubOfficeMatcher(allOffices)
 
   // HUB lookups for new users. The token is fetched on the first new user (so a run
-  // with nothing to create never touches HUB); if there's none or HUB rejects it,
-  // HUB is skipped for the rest of the run and users are created from M365 data.
+  // with nothing to create never touches HUB) and renewed before its 1-hour life runs
+  // out; if there's none or HUB rejects it, HUB is skipped for the rest of the run and
+  // users are created from M365 data.
+  const HUB_TOKEN_REFRESH_MS = 50 * 60 * 1000
   let hubToken: string | null | undefined
+  let hubTokenAt = 0
   let hubFound = 0
   let hubNotFound = 0
   const hubUnmapped: string[] = []
   async function lookUpInHub(graphUser: GraphUser): Promise<HubEmployee | null> {
+    if (hubToken && Date.now() - hubTokenAt > HUB_TOKEN_REFRESH_MS) hubToken = undefined
     if (hubToken === undefined) {
       // HUB must never break the M365 sync: any failure here (network down, HUB
       // erroring) just turns HUB off for this run.
       try {
-        const result = await getHubToken(prisma, { allowExchange: !DRY_RUN })
+        const result = await getHubToken()
         hubToken = result.token
+        hubTokenAt = Date.now()
         if (result.token === null) console.warn(`Skipping HUB lookups: ${result.reason}`)
       } catch (error) {
         console.error("Skipping HUB lookups: couldn't get a HUB token:", error)

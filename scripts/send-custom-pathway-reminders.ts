@@ -9,6 +9,7 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { learningReminderEmail } from "../app/lib/email"
 import type { EmailMessage } from "../app/lib/emailOutbox"
 import { pickMessage } from "../app/lib/pathwayReminders"
+import { requiredCourses } from "../app/lib/pathwayCompletion"
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
@@ -76,7 +77,7 @@ async function main() {
           courses: {
             where: { course: { deletedAt: null, status: "PUBLISHED" } },
             orderBy: { order: "asc" },
-            select: { course: { select: { id: true, name: true } } },
+            select: { optional: true, course: { select: { id: true, name: true } } },
           },
         },
       },
@@ -104,7 +105,7 @@ async function main() {
 
     const emails: EmailMessage[] = []
     for (const target of targets) {
-      const nextEntry = reminder.pathway.courses.find((pc) => !completedSet.has(`${target.userId}:${pc.course.id}`))
+      const nextEntry = requiredCourses(reminder.pathway.courses).find((pc) => !completedSet.has(`${target.userId}:${pc.course.id}`))
       if (!nextEntry) {
         skipped++
         continue // pathway already complete for this learner

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "../../../api/auth/[...nextauth]/route"
 import { prisma } from "../../../lib/prisma"
+import { requiredCourseIds } from "../../../lib/pathwayCompletion"
 import { CertificateView } from "./CertificateView"
 
 export const metadata: Metadata = { title: "Certificate" }
@@ -22,7 +23,7 @@ export default async function CertificatePage({ params }: { params: Promise<{ id
         name: true,
         courses: {
           where: { course: { status: "PUBLISHED", deletedAt: null } },
-          select: { courseId: true },
+          select: { courseId: true, optional: true },
         },
       },
     }),
@@ -44,14 +45,14 @@ export default async function CertificatePage({ params }: { params: Promise<{ id
   if (enrollment?.status !== "APPROVED") redirect(`/pathways/${id}`)
 
   const completedCourseIds = new Set(courseProgressRecords.map((r) => r.courseId))
-  const isComplete =
-    pathway.courses.length > 0 &&
-    pathway.courses.every((c) => completedCourseIds.has(c.courseId))
+  const required = requiredCourseIds(pathway.courses)
+  const isComplete = required.size > 0 && [...required].every((courseId) => completedCourseIds.has(courseId))
 
   if (!isComplete) redirect(`/pathways/${id}`)
 
-  // Use the latest completedAt as the certificate date
+  // The certificate date is when the last required course was finished
   const completedAt = courseProgressRecords
+    .filter((r) => required.has(r.courseId))
     .map((r) => r.completedAt)
     .filter((d): d is Date => d !== null)
     .sort((a, b) => b.getTime() - a.getTime())[0] ?? new Date()

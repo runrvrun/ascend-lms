@@ -9,6 +9,7 @@ import { SidebarWithStats } from "../../components/SidebarWithStats"
 import { PathwayViewer } from "./PathwayViewer"
 import { isDeadlineLocked, toDeadlineInput } from "../../lib/pathwayDeadline"
 import { evaluateCourseCompletion } from "../../lib/courseCompletion"
+import { requiredCourses } from "../../lib/pathwayCompletion"
 
 function shuffled<T>(items: T[]): T[] {
   const a = [...items]
@@ -202,7 +203,7 @@ export default async function PathwayDetailPage({
   const isPathwayComplete =
     !isPreviewMode &&
     pathway.courses.length > 0 &&
-    pathway.courses.every((entry) => completedCourseIds.has(entry.course.id))
+    requiredCourses(pathway.courses).every((entry) => completedCourseIds.has(entry.course.id))
 
   const normalizedPathway = {
     ...pathway,

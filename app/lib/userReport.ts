@@ -1,6 +1,7 @@
 import { prisma } from "./prisma"
 import { getUserLearningProgress, type EnrollmentWithCourses } from "./userLearningProgress"
 import { isDeadlinePassed, startOfUtcDay } from "./pathwayDeadline"
+import { requiredCourses } from "./pathwayCompletion"
 import { ASSIGNMENT_COUNTS, deriveRoles } from "./userRoles"
 
 // One user's whole learning journey, for the admin User Progress Report page and
@@ -191,7 +192,7 @@ export async function getUserReport(userId: string): Promise<UserReport | null> 
       ? "Requested"
       : "Self-enrolled"
     const deadline = e.deadline ? new Date(e.deadline) : null
-    const completedAt = e.isCompleted ? maxDate(e.courses.map((c) => c.completedAt)) : null
+    const completedAt = e.isCompleted ? maxDate(requiredCourses(e.courses).map((c) => c.completedAt)) : null
     const started = e.courses.some((c) => courseStatus(c) !== "Not started")
 
     let status: PathwayStatus

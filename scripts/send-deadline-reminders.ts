@@ -11,6 +11,7 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import { deadlineReminderEmail } from "../app/lib/email"
 import { enqueueEmails } from "../app/lib/emailOutbox"
 import { addDays, startOfUtcDay, DEADLINE_GRACE_DAYS } from "../app/lib/pathwayDeadline"
+import { requiredCourses } from "../app/lib/pathwayCompletion"
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
@@ -41,7 +42,7 @@ async function main() {
           courses: {
             where: { course: { deletedAt: null, status: "PUBLISHED" } },
             orderBy: { order: "asc" },
-            select: { course: { select: { id: true } } },
+            select: { optional: true, course: { select: { id: true } } },
           },
         },
       },
@@ -62,7 +63,7 @@ async function main() {
   const due = enrollments
     .map((e) => ({
       ...e,
-      nextCourseId: e.pathway.courses.find((pc) => !completedSet.has(`${e.userId}:${e.pathwayId}:${pc.course.id}`))?.course.id,
+      nextCourseId: requiredCourses(e.pathway.courses).find((pc) => !completedSet.has(`${e.userId}:${e.pathwayId}:${pc.course.id}`))?.course.id,
     }))
     .filter((e) => e.nextCourseId) // pathway already finished — nothing to remind about
 

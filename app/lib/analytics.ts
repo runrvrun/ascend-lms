@@ -5,6 +5,7 @@
 // (a few thousand rows), so everything is loaded once and aggregated in memory.
 import { Prisma } from "@prisma/client"
 import { prisma } from "./prisma"
+import { requiredCourses } from "./pathwayCompletion"
 
 export type AnalyticsRole = "admin" | "manager" | "trainer" | "sme"
 
@@ -188,7 +189,7 @@ export async function loadAnalytics({
         status: true,
         courses: {
           where: { course: { deletedAt: null, status: "PUBLISHED" } },
-          select: { courseId: true, order: true, course: { select: { name: true } } },
+          select: { courseId: true, order: true, optional: true, course: { select: { name: true } } },
           orderBy: { order: "asc" },
         },
       },
@@ -288,6 +289,8 @@ export async function loadAnalytics({
   const pathwayPct: Record<string, number> = {} // `${userId}:${pathwayId}` -> %
   const pathwayRows: PathwayRow[] = pathways.map((p) => {
     const rows = approved.filter((e) => e.pathwayId === p.id)
+    // Optional courses don't count toward a pathway's progress or completion.
+    const required = requiredCourses(p.courses)
     const buckets = emptyBuckets()
     let completed = 0
     let sumPct = 0
@@ -296,13 +299,13 @@ export async function loadAnalytics({
       let done = 0
       let total = 0
       let coursesDone = 0
-      for (const c of p.courses) {
+      for (const c of required) {
         const r = courseItemsDone(e.userId, p.id, c.courseId)
         done += r.done
         total += r.total
         if (courseDone.has(`${e.userId}:${p.id}:${c.courseId}`)) coursesDone++
       }
-      const isComplete = p.courses.length > 0 && coursesDone >= p.courses.length
+      const isComplete = required.length > 0 && coursesDone >= required.length
       const value = isComplete ? 100 : Math.min(99, pct(done, total))
       pathwayPct[`${e.userId}:${p.id}`] = value
       buckets[bucketIndex(value)]++

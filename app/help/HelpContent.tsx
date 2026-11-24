@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb, Megaphone, KeyRound, CalendarClock, Settings, History, Image as ImageIcon, Star, Route, Copy, Check, Mail, QrCode } from "lucide-react"
+import { ShieldCheck, Users, PenLine, GraduationCap, ChevronDown, ChevronRight, BookOpen, BarChart3, ClipboardList, UserCog, UsersRound, Map, Target, Bell, Home, Lightbulb, Megaphone, KeyRound, CalendarClock, Settings, History, Image as ImageIcon, Star, Route, Copy, Check, Mail, QrCode, Search, X } from "lucide-react"
 import { RELEASE_NOTES, type ChangeKind } from "./releaseNotes"
 
 type Role = "learner" | "admin" | "owner" | "manager" | "trainer" | "sme"
@@ -63,7 +63,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           },
           "You can pick several options. The filters you've picked are shown above the list; click one to remove it, or Clear all to start again. On a phone, tap Filters next to the search box to show them.",
           "Pathways featured by the Learning team are marked Featured and listed first (unless you sort by Newest first or Most popular).",
-          "Click Preview on a pathway to see its courses, trainers and first lesson before enrolling.",
+          "Click a pathway (or its Preview button) to see its courses, trainers and first lesson before enrolling. Once you're enrolled, clicking it opens the pathway.",
           "Click Share to send a pathway to a colleague. They get a notification and an email with a link — sharing does not enroll them.",
           {
             heading: "To enroll:",
@@ -89,6 +89,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Open a pathway you are enrolled in from the Home page or the Pathways page.",
           "The course outline on the left lists the courses in the pathway, sometimes grouped under section headings. On a phone, tap Contents to open it.",
+          "Courses marked Optional are there if you want them, but you don't need them to finish the pathway or get its certificate.",
           "Click a lesson to open it. Lessons can be videos, written text, PDFs, slides, Word documents, in-person sessions, links or pictures.",
           "For videos, you must watch at least 75% before you can mark them as complete. YouTube videos may pause for a pop quiz — answer correctly to keep watching.",
           "Click Mark as Completed to record your progress, then use Next Lesson to move on (or Previous Lesson to go back).",
@@ -224,9 +225,9 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
           "Choose who can see it: Public — free enroll, Public — needs approval (the learner's manager must approve), or Hidden — assigned only.",
           "Use the status button to switch between Draft and Published, and the star to feature it. Any number of published pathways can be featured; they are marked Featured and listed first on the Pathways page. You can also click the star on a pathway on the Pathways page itself to feature or unfeature it.",
           {
-            heading: "From each pathway's Actions menu:",
+            heading: "Click a pathway's row to manage its courses, or use its Actions menu:",
             items: [
-              "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them. Only published courses can be added.",
+              "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them. Tick Optional when adding or editing a course if learners don't need it to finish the pathway. Only published courses can be added.",
               "Manage Enrollments — enroll people or cohorts (optionally with a deadline), change deadlines, schedule reminder emails, or remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
               "Preview — see the pathway as a learner would.",
               "Edit, Duplicate (the copy starts as a draft with no one enrolled), or Delete.",
@@ -240,7 +241,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Go to Admin → Courses and click Add Course. Set the name, description, topic, language (English or Japanese) and one or more trainers. Learners can filter pathways by topic and language, so set both.",
           {
-            heading: "From each course's Actions menu:",
+            heading: "Click a course's row to manage its contents, or use its Actions menu:",
             items: [
               "Manage Contents — add lessons, tests, pop quizzes and assignments (see the Trainer tab for details).",
               "Preview — see the course as a learner would.",
@@ -300,7 +301,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Route,
         steps: [
           "Edit your pathway's name, description, tags and visibility, and switch it between Draft and Published.",
-          "Manage Courses — add, reorder and remove courses, set points, and add section headings. Only published courses can be added.",
+          "Manage Courses (or click the pathway's row) — add, reorder and remove courses, set points, mark courses as Optional (not needed to finish the pathway), and add section headings. Only published courses can be added.",
           "Manage Enrollments — enroll people or cohorts, set or change deadlines, schedule reminder emails, and remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
           "Preview the pathway as a learner would.",
           "Only admins can add a new pathway, change owners, feature, duplicate or delete a pathway, or edit the courses themselves.",
@@ -621,8 +622,147 @@ function AccordionSection({ section }: { section: Section }) {
   )
 }
 
+// ── Search ───────────────────────────────────────────────────────────────────
+// Searches every role's guide and all release notes at once. A step matches when
+// each word typed appears in it or in its section's title.
+
+function searchTerms(query: string) {
+  return query.toLowerCase().split(/\s+/).filter(Boolean)
+}
+
+function matchesAll(text: string, terms: string[]) {
+  const lower = text.toLowerCase()
+  return terms.every((t) => lower.includes(t))
+}
+
+function stepText(step: Section["steps"][number]) {
+  return typeof step === "string" ? step : `${step.heading} ${step.items.join(" ")}`
+}
+
+function Highlight({ text, terms }: { text: string; terms: string[] }) {
+  if (!terms.length) return <>{text}</>
+  const pattern = new RegExp(`(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi")
+  return (
+    <>
+      {text.split(pattern).map((part, i) =>
+        i % 2 === 1 ? (
+          <mark key={i} className="rounded bg-yellow-100 px-0.5 text-inherit">{part}</mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  )
+}
+
+function SearchResults({ query, onOpenTab }: { query: string; onOpenTab: (tab: Tab) => void }) {
+  const terms = searchTerms(query)
+
+  const guideHits = (Object.keys(CONTENT) as Role[]).flatMap((role) =>
+    CONTENT[role].sections
+      .map((section) => ({
+        role,
+        section,
+        steps: section.steps.filter((step) => matchesAll(`${section.title} ${stepText(step)}`, terms)),
+      }))
+      .filter((hit) => hit.steps.length > 0)
+  )
+
+  const releaseHits = RELEASE_NOTES.map((day) => ({
+    day,
+    changes: day.changes.filter((c) => matchesAll(c.text, terms)),
+  })).filter((hit) => hit.changes.length > 0)
+
+  if (!guideHits.length && !releaseHits.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
+        Nothing in the guide or release notes matches &ldquo;{query.trim()}&rdquo;.
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-8">
+      {guideHits.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">
+            User Guide <span className="font-normal text-slate-400">· {guideHits.length} {guideHits.length === 1 ? "section" : "sections"}</span>
+          </h2>
+          <div className="flex flex-col gap-3">
+            {guideHits.map(({ role, section, steps }) => {
+              const tab = TABS.find((t) => t.id === role)!
+              const Icon = section.icon
+              return (
+                <div key={`${role}-${section.title}`} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => onOpenTab(role)}
+                      title={`Open the ${tab.label} guide`}
+                      className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold hover:opacity-80 ${tab.bg} ${tab.color}`}
+                    >
+                      <tab.icon size={11} />
+                      {tab.label}
+                    </button>
+                    <Icon size={14} className="shrink-0 text-slate-500" />
+                    <span className="font-semibold text-slate-800"><Highlight text={section.title} terms={terms} /></span>
+                  </div>
+                  <ul className="flex flex-col gap-2">
+                    {steps.map((step, i) => (
+                      <li key={i} className="list-disc ml-4 text-sm text-slate-700">
+                        {typeof step === "string" ? (
+                          <Highlight text={step} terms={terms} />
+                        ) : (
+                          <>
+                            <span className="font-medium text-slate-800"><Highlight text={step.heading} terms={terms} /></span>
+                            <ul className="mt-1 flex flex-col gap-1 pl-4">
+                              {step.items.map((item, j) => (
+                                <li key={j} className="list-[circle] text-slate-600"><Highlight text={item} terms={terms} /></li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {releaseHits.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">
+            Release Notes <span className="font-normal text-slate-400">· {releaseHits.reduce((n, h) => n + h.changes.length, 0)} {releaseHits.reduce((n, h) => n + h.changes.length, 0) === 1 ? "change" : "changes"}</span>
+          </h2>
+          <div className="flex flex-col gap-3">
+            {releaseHits.map(({ day, changes }) => (
+              <div key={day.date} className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+                <p className="mb-3 font-semibold text-slate-800">{formatReleaseDate(day.date)}</p>
+                <ul className="flex flex-col gap-3">
+                  {changes.map((change, i) => (
+                    <li key={i} className="flex items-start gap-3 text-sm text-slate-700">
+                      <span className={`mt-0.5 w-16 shrink-0 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold ${KIND_STYLES[change.kind].className}`}>
+                        {KIND_STYLES[change.kind].label}
+                      </span>
+                      <span><Highlight text={change.text} terms={terms} /></span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
+
 export function HelpContent() {
   const [activeTab, setActiveTab] = useState<Tab>("learner")
+  const [query, setQuery] = useState("")
+  const searching = query.trim().length > 0
   const tab = TABS.find((t) => t.id === activeTab)!
   const content = activeTab === "releases" ? null : CONTENT[activeTab]
 
@@ -645,6 +785,39 @@ export function HelpContent() {
         <ChevronRight size={16} className="shrink-0 text-slate-400" />
       </a>
 
+      {/* Search */}
+      <div className="relative mb-6">
+        <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+          placeholder="Search the guide and release notes…"
+          aria-label="Search the guide and release notes"
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {searching && (
+          <button
+            onClick={() => setQuery("")}
+            title="Clear search"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {searching ? (
+        <SearchResults
+          query={query}
+          onOpenTab={(t) => {
+            setActiveTab(t)
+            setQuery("")
+          }}
+        />
+      ) : (
+      <>
       {/* Tabs */}
       <div className="mb-6 flex flex-wrap gap-2">
         {TABS.map((t) => {
@@ -682,6 +855,8 @@ export function HelpContent() {
           ? content.sections.map((section) => <AccordionSection key={`${activeTab}-${section.title}`} section={section} />)
           : RELEASE_NOTES.map((day, i) => <ReleaseDaySection key={day.date} day={day} defaultOpen={i === 0} />)}
       </div>
+      </>
+      )}
     </main>
   )
 }

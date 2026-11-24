@@ -165,6 +165,7 @@ export async function getCourseReportData(courseId: string) {
         id: course.id,
         name: course.name,
         sectionTitle: null,
+        optional: false,
         completed,
         completedAt: completedAt ? completedAt.toISOString() : null,
         tests,

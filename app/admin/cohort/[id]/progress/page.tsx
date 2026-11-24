@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Map, CheckCircle2, Users } from "lucide-react"
 import { prisma } from "../../../../lib/prisma"
+import { requiredCourseIdsByPathway } from "../../../../lib/pathwayCompletion"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -29,12 +30,12 @@ export default async function CohortProgressPage({ params }: { params: Promise<{
 
     prisma.pathwayCourse.findMany({
       where: { course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true },
+      select: { pathwayId: true, courseId: true, optional: true },
     }),
 
     prisma.courseProgress.findMany({
       where: { completed: true },
-      select: { userId: true, pathwayId: true },
+      select: { userId: true, pathwayId: true, courseId: true },
     }),
 
     prisma.contentProgress.findMany({
@@ -47,15 +48,13 @@ export default async function CohortProgressPage({ params }: { params: Promise<{
   const memberIds = new Set(cohort.users.map((u) => u.userId))
   const memberCount = memberIds.size
 
-  // Total published courses per pathway
-  const totalByPathway: Record<string, number> = {}
-  for (const pc of pathwayCourseCounts) {
-    totalByPathway[pc.pathwayId] = (totalByPathway[pc.pathwayId] ?? 0) + 1
-  }
+  // Required (non-optional) published courses per pathway
+  const requiredByPathway = requiredCourseIdsByPathway(pathwayCourseCounts)
 
-  // Completed courses per user per pathway
+  // Completed required courses per user per pathway
   const completedCoursesMap: Record<string, number> = {}
   for (const cp of allCourseProgress) {
+    if (!requiredByPathway.get(cp.pathwayId)?.has(cp.courseId)) continue
     const key = `${cp.userId}:${cp.pathwayId}`
     completedCoursesMap[key] = (completedCoursesMap[key] ?? 0) + 1
   }
@@ -74,7 +73,7 @@ export default async function CohortProgressPage({ params }: { params: Promise<{
     .map(({ pathway: p }) => {
       const startedCount = startedSet[p.id]?.size ?? 0
 
-      const total = totalByPathway[p.id] ?? 0
+      const total = requiredByPathway.get(p.id)?.size ?? 0
       const completedCount = [...memberIds].filter((uid) => {
         const done = completedCoursesMap[`${uid}:${p.id}`] ?? 0
         return total > 0 && done >= total

@@ -12,6 +12,7 @@ import { learningReminderEmail } from "../app/lib/email"
 import { enqueueEmails } from "../app/lib/emailOutbox"
 import { pickMessage } from "../app/lib/pathwayReminders"
 import { startOfUtcDay } from "../app/lib/pathwayDeadline"
+import { requiredCourses } from "../app/lib/pathwayCompletion"
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" }),
@@ -40,7 +41,7 @@ async function main() {
           courses: {
             where: { course: { deletedAt: null, status: "PUBLISHED" } },
             orderBy: { order: "asc" },
-            select: { course: { select: { id: true, name: true } } },
+            select: { optional: true, course: { select: { id: true, name: true } } },
           },
         },
       },
@@ -65,10 +66,11 @@ async function main() {
   const openPathwaysByUser = new Map<string, { name: string | null; email: string; pathways: OpenPathway[] }>()
 
   for (const e of enrollments) {
-    const nextEntry = e.pathway.courses.find(
+    // Optional courses don't keep a pathway open.
+    const nextEntry = requiredCourses(e.pathway.courses).find(
       (pc) => !completedSet.has(`${e.userId}:${e.pathwayId}:${pc.course.id}`)
     )
-    if (!nextEntry) continue // every course in this pathway is complete
+    if (!nextEntry) continue // every required course in this pathway is complete
 
     const bucket = openPathwaysByUser.get(e.userId) ?? { name: e.user.name, email: e.user.email!, pathways: [] }
     bucket.pathways.push({

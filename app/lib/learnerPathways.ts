@@ -1,5 +1,6 @@
 import { EnrollmentStatus, EnrollmentType } from "@prisma/client"
 import { prisma } from "./prisma"
+import { requiredCourseIdsByPathway } from "./pathwayCompletion"
 
 // A learner's enrolled pathways with a display state, for the dashboard card and
 // Learning History. "Last activity" is the most recent lesson completed, test
@@ -51,7 +52,7 @@ export async function getLearnerPathways(userId: string): Promise<LearnerPathway
   const [required, courseDone, contentLast, testLast] = await Promise.all([
     prisma.pathwayCourse.findMany({
       where: { pathwayId: { in: pathwayIds }, course: { status: "PUBLISHED", deletedAt: null } },
-      select: { pathwayId: true, courseId: true },
+      select: { pathwayId: true, courseId: true, optional: true },
     }),
     prisma.courseProgress.findMany({
       where: { userId, pathwayId: { in: pathwayIds }, completed: true },
@@ -69,11 +70,8 @@ export async function getLearnerPathways(userId: string): Promise<LearnerPathway
     }),
   ])
 
-  const requiredByPathway = new Map<string, Set<string>>()
-  for (const pc of required) {
-    if (!requiredByPathway.has(pc.pathwayId)) requiredByPathway.set(pc.pathwayId, new Set())
-    requiredByPathway.get(pc.pathwayId)!.add(pc.courseId)
-  }
+  // Optional courses don't count toward the progress or completion.
+  const requiredByPathway = requiredCourseIdsByPathway(required)
 
   const doneByPathway = new Map<string, number>()
   const lastByPathway = new Map<string, Date | null>()
