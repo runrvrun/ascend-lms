@@ -10,6 +10,16 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-24",
+    changes: [
+      { kind: "new", text: "Courses in a pathway can now be marked Optional. Learners can still take them, but they don't need them to finish the pathway or get its certificate, and progress bars and reminder emails only count the required courses." },
+      { kind: "new", text: "Lessons in a course can now be marked Optional too. Learners can still do them, but a course is finished once all its other lessons, tests and assignments are done." },
+      { kind: "new", text: "The Help page has a search box. Type a word to find it across every role's guide and all the release notes at once." },
+      { kind: "improved", text: "Click anywhere on a pathway on the Pathways page to open it: its preview if you're not enrolled, or the pathway itself if you are." },
+      { kind: "improved", text: "On Admin → Courses and Admin → Pathways, click a row to manage that course's contents or that pathway's courses, without opening the Actions menu." },
+    ],
+  },
+  {
     date: "2026-11-23",
     changes: [
       { kind: "improved", text: "Admins can now feature any number of pathways (the limit of 2 is gone), and can feature or unfeature a pathway straight from the Pathways page by clicking the star on it." },
