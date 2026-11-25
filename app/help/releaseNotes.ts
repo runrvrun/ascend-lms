@@ -10,6 +10,12 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-25",
+    changes: [
+      { kind: "new", text: "When enrolling people or a cohort in a pathway, admins can now untick Notify to add them silently, with no assignment email or in-app notification. Reminder emails still go out as usual." },
+    ],
+  },
+  {
     date: "2026-11-24",
     changes: [
       { kind: "new", text: "Courses in a pathway can now be marked Optional. Learners can still take them, but they don't need them to finish the pathway or get its certificate, and progress bars and reminder emails only count the required courses." },

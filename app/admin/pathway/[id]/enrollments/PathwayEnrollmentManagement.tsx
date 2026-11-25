@@ -16,6 +16,7 @@ import {
 } from "../../actions"
 import { DEADLINE_GRACE_DAYS, isDeadlineLocked, isDeadlinePassed, toDeadlineInput } from "../../../../lib/pathwayDeadline"
 import { ReminderModal, ReminderItem } from "./ReminderModal"
+import { NotifyCheckbox } from "../../../NotifyCheckbox"
 
 type IndividualEnrollment = {
   id: string
@@ -157,6 +158,7 @@ function AddUsersModal({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState("")
   const [deadline, setDeadline] = useState("")
+  const [notify, setNotify] = useState(true)
   const [pending, startTransition] = useTransition()
 
   const filtered = useMemo(() => {
@@ -186,7 +188,7 @@ function AddUsersModal({
   function handleSubmit() {
     if (selected.size === 0) return
     startTransition(async () => {
-      await adminEnrollUsers(pathwayId, Array.from(selected), deadline || null)
+      await adminEnrollUsers(pathwayId, Array.from(selected), deadline || null, notify)
       onClose()
     })
   }
@@ -268,6 +270,7 @@ function AddUsersModal({
 
         <div className="shrink-0 border-t border-slate-100 px-6 pt-4">
           <DeadlineField value={deadline} onChange={setDeadline} />
+          <div className="mt-3"><NotifyCheckbox checked={notify} onChange={setNotify} /></div>
         </div>
         <div className="flex shrink-0 items-center justify-between px-6 py-4">
           <p className="text-sm text-slate-500">
@@ -304,6 +307,7 @@ function AssignCohortModal({
 }) {
   const [selectedId, setSelectedId] = useState(availableCohorts[0]?.id ?? "")
   const [deadline, setDeadline] = useState("")
+  const [notify, setNotify] = useState(true)
   const [pending, startTransition] = useTransition()
   const [search, setSearch] = useState("")
 
@@ -315,7 +319,7 @@ function AssignCohortModal({
   function handleSubmit() {
     if (!selectedId) return
     startTransition(async () => {
-      await adminAssignCohortToPathway(pathwayId, selectedId, deadline || null)
+      await adminAssignCohortToPathway(pathwayId, selectedId, deadline || null, notify)
       onClose()
     })
   }
@@ -388,6 +392,7 @@ function AssignCohortModal({
         <div className="shrink-0 border-t border-slate-100 px-6 pt-4">
           <DeadlineField value={deadline} onChange={setDeadline} />
           <p className="mt-1 text-xs text-slate-400">Applies to current members and anyone added to the cohort later.</p>
+          <div className="mt-3"><NotifyCheckbox checked={notify} onChange={setNotify} /></div>
         </div>
         <div className="flex shrink-0 justify-end gap-2 px-6 py-4">
           <button onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">

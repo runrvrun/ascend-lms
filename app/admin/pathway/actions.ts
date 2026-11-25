@@ -207,7 +207,7 @@ export async function swapPathwayCourseOrder(
 
 // ── Pathway Enrollments ───────────────────────────────────────────────────────
 
-export async function adminEnrollUsers(pathwayId: string, userIds: string[], deadlineInput: string | null = null) {
+export async function adminEnrollUsers(pathwayId: string, userIds: string[], deadlineInput: string | null = null, notify = true) {
   await requirePathwayManager(pathwayId)
   // Only active (not deactivated) users can be enrolled.
   const activeUsers = await prisma.user.findMany({ where: { id: { in: userIds }, deletedAt: null }, select: { id: true } })
@@ -230,7 +230,7 @@ export async function adminEnrollUsers(pathwayId: string, userIds: string[], dea
     prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } }),
   ])
 
-  if (pathway) {
+  if (pathway && notify) {
     await prisma.notification.createMany({
       data: users.map((u) => ({
         userId: u.id,
@@ -279,7 +279,9 @@ export async function adminRemoveEnrollment(enrollmentId: string, pathwayId: str
   revalidatePath(`/admin/pathway/${pathwayId}/enrollments`)
 }
 
-export async function adminAssignCohortToPathway(pathwayId: string, cohortId: string, deadlineInput: string | null = null) {
+// notify: false enrolls the current members silently (no notification or email). Members
+// added to the cohort later are still notified as usual.
+export async function adminAssignCohortToPathway(pathwayId: string, cohortId: string, deadlineInput: string | null = null, notify = true) {
   await requirePathwayManager(pathwayId)
   const deadline = parseDeadlineInput(deadlineInput)
   await prisma.cohortPathway.create({ data: { pathwayId, cohortId, deadline } })
@@ -308,7 +310,9 @@ export async function adminAssignCohortToPathway(pathwayId: string, cohortId: st
       })),
       skipDuplicates: true,
     })
+  }
 
+  if (pathway && cohort && cohort.users.length > 0 && notify) {
     await prisma.notification.createMany({
       data: cohort.users.map((u) => ({
         userId: u.userId,

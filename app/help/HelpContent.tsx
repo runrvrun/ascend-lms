@@ -211,7 +211,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Go to Admin → Cohorts and click Add Cohort to create a group.",
           "Members — add or remove people, upload members in bulk from Excel, or download the member list. Search the member list by name or email, and filter it by division, job title, office or status (active or inactive). When adding, search by name or email and filter by division, job title or office, then use Select all visible to add everyone shown.",
-          "Pathways — assign pathways to the whole cohort, optionally with a deadline. Every active member of the cohort is enrolled and notified by email; deactivated members are skipped.",
+          "Pathways — assign pathways to the whole cohort, optionally with a deadline. Every active member of the cohort is enrolled and notified by email and in-app; deactivated members are skipped. Untick Notify to add them silently, with no email or notification (people added to the cohort later are still notified).",
           "People added to the cohort later are enrolled in its pathways automatically (with the same deadline); people removed lose those cohort enrollments.",
           "View Progress — see how the cohort is doing.",
         ],
@@ -228,7 +228,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
             heading: "Click a pathway's row to manage its courses, or use its Actions menu:",
             items: [
               "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them. Tick Optional when adding or editing a course if learners don't need it to finish the pathway. Only published courses can be added.",
-              "Manage Enrollments — enroll people or cohorts (optionally with a deadline), change deadlines, schedule reminder emails, or remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
+              "Manage Enrollments — enroll people or cohorts (optionally with a deadline; untick Notify to add them silently, with no email or notification), change deadlines, schedule reminder emails, or remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
               "Preview — see the pathway as a learner would.",
               "Edit, Duplicate (the copy starts as a draft with no one enrolled), or Delete.",
             ],
@@ -302,7 +302,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Edit your pathway's name, description, tags and visibility, and switch it between Draft and Published.",
           "Manage Courses (or click the pathway's row) — add, reorder and remove courses, set points, mark courses as Optional (not needed to finish the pathway), and add section headings. Only published courses can be added.",
-          "Manage Enrollments — enroll people or cohorts, set or change deadlines, schedule reminder emails, and remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
+          "Manage Enrollments — enroll people or cohorts (untick Notify to add them silently, with no email or notification), set or change deadlines, schedule reminder emails, and remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
           "Preview the pathway as a learner would.",
           "Only admins can add a new pathway, change owners, feature, duplicate or delete a pathway, or edit the courses themselves.",
         ],

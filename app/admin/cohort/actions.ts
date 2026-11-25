@@ -242,7 +242,8 @@ export async function bulkAddMembersToCohort(
 
 // ── Cohort Pathways ───────────────────────────────────────────────────────────
 
-export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
+// notify: false enrolls the current members silently (no notification or email).
+export async function addPathwayToCohort(cohortId: string, pathwayId: string, notify = true) {
   await requireAdmin()
   await prisma.cohortPathway.create({ data: { cohortId, pathwayId } })
 
@@ -269,7 +270,9 @@ export async function addPathwayToCohort(cohortId: string, pathwayId: string) {
       })),
       skipDuplicates: true,
     })
+  }
 
+  if (cohort && pathway && cohort.users.length > 0 && notify) {
     await prisma.notification.createMany({
       data: cohort.users.map((u) => ({
         userId: u.userId,

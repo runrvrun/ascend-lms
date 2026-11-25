@@ -3,6 +3,7 @@
 import { useState, useTransition, useMemo } from "react"
 import { Plus, Trash2, X, BookOpen, Search } from "lucide-react"
 import { addPathwayToCohort, removePathwayFromCohort } from "../actions"
+import { NotifyCheckbox } from "../../NotifyCheckbox"
 
 type PathwayOption = {
   id: string
@@ -27,6 +28,7 @@ function AssignPathwaysModal({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState("")
+  const [notify, setNotify] = useState(true)
   const [pending, startTransition] = useTransition()
 
   const filtered = useMemo(() => {
@@ -47,7 +49,7 @@ function AssignPathwaysModal({
     if (selected.size === 0) return
     startTransition(async () => {
       for (const pathwayId of selected) {
-        await addPathwayToCohort(cohortId, pathwayId)
+        await addPathwayToCohort(cohortId, pathwayId, notify)
       }
       onClose()
     })
@@ -122,7 +124,10 @@ function AssignPathwaysModal({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center justify-between border-t border-slate-100 px-6 py-4">
+        <div className="shrink-0 border-t border-slate-100 px-6 pt-4">
+          <NotifyCheckbox checked={notify} onChange={setNotify} />
+        </div>
+        <div className="flex shrink-0 items-center justify-between px-6 py-4">
           <p className="text-sm text-slate-500">
             {selected.size === 0 ? "Select pathways to assign" : `Assigning ${selected.size} pathway${selected.size !== 1 ? "s" : ""}`}
           </p>
