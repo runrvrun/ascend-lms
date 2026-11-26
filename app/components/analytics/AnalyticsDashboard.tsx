@@ -4,6 +4,7 @@ import { loadAnalytics, type AnalyticsFilters, type AnalyticsViewer, type Learne
 import { AnalyticsFilter } from "../AnalyticsFilter"
 import { StatCard, BarRow, BucketLegend, DistributionBar, CompletionHistogram, Card } from "./AnalyticsCharts"
 import { PeopleTable } from "./PeopleTable"
+import { TableSearch } from "./TableSearch"
 
 type Tab = "users" | "pathways" | "courses" | "cohorts"
 
@@ -572,10 +573,15 @@ function ScopeTable({
   extraHeaders: string[]
   empty: string
 }) {
+  const plural = kind === "pathway" ? "Pathways" : kind === "cohort" ? "Cohorts" : "Courses"
+  const tableId = `scope-table-${kind}`
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div id={tableId} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-        <h2 className="font-semibold text-slate-900">{kind === "pathway" ? "Pathways" : kind === "cohort" ? "Cohorts" : "Courses"}</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="font-semibold text-slate-900">{plural}</h2>
+          {rows.length > 0 && <TableSearch targetId={tableId} placeholder={`Search ${plural.toLowerCase()}…`} />}
+        </div>
         <BucketLegend />
       </div>
       {rows.length === 0 ? (
@@ -596,7 +602,7 @@ function ScopeTable({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50">
+                <tr key={r.id} data-search={r.name.toLowerCase()} className="hover:bg-slate-50">
                   <td className="min-w-[14rem] max-w-xs px-5 py-3">
                     <a href={r.href} className="font-medium text-slate-900 hover:text-blue-700">{r.name}</a>
                     {r.isDraft && <DraftBadge />}
@@ -615,6 +621,11 @@ function ScopeTable({
                   </td>
                 </tr>
               ))}
+              <tr data-search-empty hidden>
+                <td colSpan={6 + extraHeaders.length} className="px-5 py-10 text-center text-sm text-slate-400">
+                  No {plural.toLowerCase()} match your search.
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
