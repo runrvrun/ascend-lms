@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from "react"
 import {
   Plus, Trash2, X, UserCircle2, Search,
-  CheckSquare, Square, Users, UsersRound, Bell, Pencil, Check, Mail,
+  CheckSquare, Square, Users, UsersRound, Bell, Pencil, Check, Mail, ChevronRight,
 } from "lucide-react"
 import {
   adminEnrollUsers,
@@ -17,16 +17,9 @@ import {
 import { DEADLINE_GRACE_DAYS, isDeadlineLocked, isDeadlinePassed, toDeadlineInput } from "../../../../lib/pathwayDeadline"
 import { ReminderModal, ReminderItem } from "./ReminderModal"
 import { NotifyCheckbox } from "../../../NotifyCheckbox"
+import { EnrollmentTable, EnrollmentRow, formatDeadline, safeFileName } from "./EnrollmentTable"
 
-type IndividualEnrollment = {
-  id: string
-  type: "SELF_ENROLL" | "ASSIGNED" | "USER_REQUEST"
-  status: "PENDING" | "APPROVED" | "REJECTED"
-  deadline: Date | null
-  createdAt: Date
-  user: { id: string; name: string | null; email: string | null; division: string }
-  reminders: ReminderItem[]
-}
+type IndividualEnrollment = EnrollmentRow
 
 type CohortAssignment = {
   id: string
@@ -49,27 +42,6 @@ type CohortOption = {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function typeLabel(type: IndividualEnrollment["type"]) {
-  if (type === "SELF_ENROLL") return "Self-enrolled"
-  if (type === "ASSIGNED") return "Assigned"
-  return "Requested"
-}
-
-function statusBadge(status: IndividualEnrollment["status"]) {
-  if (status === "APPROVED") return <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Approved</span>
-  if (status === "PENDING") return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Pending</span>
-  return <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Rejected</span>
-}
-
-function formatDate(d: Date) {
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-}
-
-// Deadlines are calendar dates stored as UTC midnight — always format in UTC.
-function formatDeadline(d: Date) {
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
-}
 
 function DeadlineField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -499,18 +471,67 @@ function ResendEmailConfirm({
   )
 }
 
+// ── Cohort Enrollments Modal ─────────────────────────────────────────────────
+
+function CohortEnrollmentsModal({
+  cohortName,
+  memberCount,
+  pathwayName,
+  rows,
+  onClose,
+}: {
+  cohortName: string
+  memberCount: number
+  pathwayName: string
+  rows: EnrollmentRow[]
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="flex w-full max-w-6xl flex-col rounded-2xl bg-slate-50 shadow-xl"
+        style={{ maxHeight: "90vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-start justify-between gap-4 rounded-t-2xl border-b border-slate-200 bg-white px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{cohortName}</h2>
+            <p className="text-xs text-slate-500">
+              {rows.length} enrolled in this pathway through the cohort · {memberCount} cohort member{memberCount !== 1 ? "s" : ""}.
+              Members already enrolled on their own are listed under Individual Enrollments.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-100"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          <EnrollmentTable
+            rows={rows}
+            emptyText="No one is enrolled in this pathway through this cohort."
+            exportFileName={`${safeFileName(pathwayName)}-${safeFileName(cohortName)}-enrollments.xlsx`}
+            exportSheetName={cohortName}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function PathwayEnrollmentManagement({
   pathwayId,
+  pathwayName,
   individualEnrollments,
+  cohortEnrollments,
   cohortAssignments,
   availableUsers,
   availableCohorts,
   notStartedCount,
 }: {
   pathwayId: string
+  pathwayName: string
   individualEnrollments: IndividualEnrollment[]
+  cohortEnrollments: EnrollmentRow[]
   cohortAssignments: CohortAssignment[]
   availableUsers: UserOption[]
   availableCohorts: CohortOption[]
@@ -523,6 +544,8 @@ export function PathwayEnrollmentManagement({
   const [resendingEmail, setResendingEmail] = useState(false)
   const [remindingEnrollmentId, setRemindingEnrollmentId] = useState<string | null>(null)
   const [remindingCohortId, setRemindingCohortId] = useState<string | null>(null)
+  const [viewingCohortId, setViewingCohortId] = useState<string | null>(null)
+  const viewingCohort = cohortAssignments.find((c) => c.id === viewingCohortId) ?? null
   // Derived (not just captured at click-time) so the modal reflects fresh
   // `reminders` after an add/delete triggers a server revalidation.
   const remindingEnrollment = individualEnrollments.find((e) => e.id === remindingEnrollmentId) ?? null
@@ -578,76 +601,42 @@ export function PathwayEnrollmentManagement({
           </button>
         </div>
 
-        {individualEnrollments.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-5 py-12 text-center text-sm text-slate-400">
-            No individual enrollments yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">User</th>
-                  <th className="px-5 py-3">Division</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Enrolled</th>
-                  <th className="px-5 py-3">Deadline</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {individualEnrollments.map((e) => (
-                  <tr key={e.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <UserCircle2 size={15} className="shrink-0 text-slate-400" />
-                        <div>
-                          <p className="font-medium text-slate-900">{e.user.name ?? "—"}</p>
-                          <p className="text-xs text-slate-400">{e.user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-slate-600">{e.user.division}</td>
-                    <td className="px-5 py-3 text-slate-500 text-xs">{typeLabel(e.type)}</td>
-                    <td className="px-5 py-3">{statusBadge(e.status)}</td>
-                    <td className="px-5 py-3 text-xs text-slate-400">{formatDate(e.createdAt)}</td>
-                    <td className="px-5 py-3">
-                      <DeadlineCell
-                        key={toDeadlineInput(e.deadline)}
-                        deadline={e.deadline}
-                        onSave={(v) => adminUpdateEnrollmentDeadline(e.id, pathwayId, v)}
-                      />
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          disabled={e.status !== "APPROVED"}
-                          onClick={() => setRemindingEnrollmentId(e.id)}
-                          title={e.status !== "APPROVED" ? "Reminders are only available for approved enrollments" : "Reminders"}
-                          className="relative rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                        >
-                          <Bell size={14} />
-                          {pendingReminderCount(e.reminders) > 0 && (
-                            <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white">
-                              {pendingReminderCount(e.reminders)}
-                            </span>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setRemovingEnrollment(e)}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <EnrollmentTable
+          rows={individualEnrollments}
+          emptyText="No individual enrollments yet."
+          exportFileName={`${safeFileName(pathwayName)}-individual-enrollments.xlsx`}
+          exportSheetName="Individual Enrollments"
+          renderDeadline={(e) => (
+            <DeadlineCell
+              key={toDeadlineInput(e.deadline)}
+              deadline={e.deadline}
+              onSave={(v) => adminUpdateEnrollmentDeadline(e.id, pathwayId, v)}
+            />
+          )}
+          renderActions={(e) => (
+            <div className="flex justify-end gap-1">
+              <button
+                disabled={e.status !== "APPROVED"}
+                onClick={() => setRemindingEnrollmentId(e.id)}
+                title={e.status !== "APPROVED" ? "Reminders are only available for approved enrollments" : "Reminders"}
+                className="relative rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+              >
+                <Bell size={14} />
+                {pendingReminderCount(e.reminders) > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-semibold text-white">
+                    {pendingReminderCount(e.reminders)}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setRemovingEnrollment(e)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
+        />
       </section>
 
       {/* Cohort Assignments */}
@@ -680,11 +669,17 @@ export function PathwayEnrollmentManagement({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {cohortAssignments.map((ca) => (
-                  <tr key={ca.id} className="hover:bg-slate-50">
+                  <tr
+                    key={ca.id}
+                    onClick={() => setViewingCohortId(ca.id)}
+                    title="View enrolled members"
+                    className="cursor-pointer hover:bg-slate-50"
+                  >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <Users size={15} className="shrink-0 text-slate-400" />
                         <span className="font-medium text-slate-900">{ca.cohort.name}</span>
+                        <ChevronRight size={14} className="text-slate-300" />
                       </div>
                     </td>
                     <td className="px-5 py-3 text-center">
@@ -692,14 +687,14 @@ export function PathwayEnrollmentManagement({
                         {ca.cohort._count.users}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3" onClick={(ev) => ev.stopPropagation()}>
                       <DeadlineCell
                         key={toDeadlineInput(ca.deadline)}
                         deadline={ca.deadline}
                         onSave={(v) => adminUpdateCohortDeadline(ca.id, pathwayId, v)}
                       />
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3" onClick={(ev) => ev.stopPropagation()}>
                       <div className="flex justify-end gap-1">
                         <button
                           onClick={() => setRemindingCohortId(ca.id)}
@@ -730,6 +725,15 @@ export function PathwayEnrollmentManagement({
       </section>
 
       {/* Modals */}
+      {viewingCohort && (
+        <CohortEnrollmentsModal
+          cohortName={viewingCohort.cohort.name}
+          memberCount={viewingCohort.cohort._count.users}
+          pathwayName={pathwayName}
+          rows={cohortEnrollments.filter((e) => e.cohortId === viewingCohort.cohort.id)}
+          onClose={() => setViewingCohortId(null)}
+        />
+      )}
       {addingUsers && (
         <AddUsersModal
           pathwayId={pathwayId}

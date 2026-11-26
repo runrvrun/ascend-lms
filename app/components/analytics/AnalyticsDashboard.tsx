@@ -1,18 +1,24 @@
-import { Users, Map, BookOpen, GraduationCap, TrendingUp, Activity, Award, Briefcase, Star, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, BarChart3, AlertTriangle } from "lucide-react"
+import { Users, Map, BookOpen, GraduationCap, TrendingUp, Activity, Award, Briefcase, Star, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, BarChart3, AlertTriangle, UsersRound } from "lucide-react"
 import { prisma } from "../../lib/prisma"
-import { loadAnalytics, type AnalyticsFilters, type AnalyticsRole, type LearnerRow } from "../../lib/analytics"
+import { loadAnalytics, type AnalyticsFilters, type AnalyticsViewer, type LearnerRow } from "../../lib/analytics"
 import { AnalyticsFilter } from "../AnalyticsFilter"
 import { StatCard, BarRow, BucketLegend, DistributionBar, CompletionHistogram, Card } from "./AnalyticsCharts"
+import { PeopleTable } from "./PeopleTable"
 
-type Tab = "users" | "pathways" | "courses"
+type Tab = "users" | "pathways" | "courses" | "cohorts"
 
 const TAB_META: Record<Tab, { label: string; icon: React.ElementType }> = {
   users: { label: "Users", icon: Users },
   pathways: { label: "Pathways", icon: Map },
   courses: { label: "Courses", icon: BookOpen },
+  cohorts: { label: "Cohorts", icon: UsersRound },
 }
 
-export type AnalyticsSearchParams = AnalyticsFilters & { tab?: string; pathway?: string; course?: string }
+export type AnalyticsSearchParams = AnalyticsFilters & { tab?: string; pathway?: string; course?: string; cohort?: string }
+
+function fileSlug(name: string) {
+  return name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "export"
+}
 
 function hrefFor(basePath: string, filters: AnalyticsFilters, extra: Record<string, string | undefined>) {
   const params = new URLSearchParams()
@@ -45,21 +51,16 @@ function LearnerList({ rows, unit, empty }: { rows: LearnerRow[]; unit: React.Re
 const pctOf = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0)
 
 export async function AnalyticsDashboard({
-  role,
-  viewerId,
+  viewer,
   basePath,
-  title,
-  subtitle,
   searchParams,
 }: {
-  role: AnalyticsRole
-  viewerId: string
+  viewer: AnalyticsViewer
   basePath: string
-  title: string
-  subtitle: string
   searchParams: AnalyticsSearchParams
 }) {
-  const tabs: Tab[] = role === "trainer" ? ["users", "courses"] : ["users", "pathways", "courses"]
+  const isAdmin = viewer.roles.includes("ADMIN")
+  const tabs: Tab[] = isAdmin ? ["users", "pathways", "courses", "cohorts"] : ["users", "pathways", "courses"]
   const tab: Tab = tabs.includes(searchParams.tab as Tab) ? (searchParams.tab as Tab) : "users"
   const filters: AnalyticsFilters = { division: searchParams.division, title: searchParams.title, officeId: searchParams.officeId }
   const hasFilter = !!(filters.division || filters.title || filters.officeId)
@@ -67,22 +68,25 @@ export async function AnalyticsDashboard({
   const [offices, data] = await Promise.all([
     prisma.office.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     loadAnalytics({
-      role,
-      viewerId,
+      viewer,
       filters,
       pathwayId: tab === "pathways" ? searchParams.pathway : undefined,
       courseId: tab === "courses" ? searchParams.course : undefined,
+      cohortTab: tab === "cohorts",
+      cohortId: tab === "cohorts" ? searchParams.cohort : undefined,
     }),
   ])
 
-  const showPathwayStats = role !== "trainer"
-  const learnerLabel = role === "manager" ? "Team members" : role === "admin" ? "Users" : "Learners"
+  const learnerLabel = isAdmin ? "Users" : "Learners"
+  const scopeText = isAdmin
+    ? "Learning across the whole company, by user, pathway, course and cohort"
+    : "Learning in your scope: your team, the courses you train or look after as an SME, and the pathways you own"
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl p-6 md:p-10">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
-        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
+        <p className="mt-1 text-sm text-slate-500">{scopeText}</p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -109,7 +113,12 @@ export async function AnalyticsDashboard({
           offices={offices}
           current={{ division: filters.division ?? "", title: filters.title ?? "", officeId: filters.officeId ?? "" }}
           basePath={basePath}
-          keep={{ tab: tab === "users" ? "" : tab }}
+          keep={{
+            tab: tab === "users" ? "" : tab,
+            pathway: tab === "pathways" ? searchParams.pathway ?? "" : "",
+            course: tab === "courses" ? searchParams.course ?? "" : "",
+            cohort: tab === "cohorts" ? searchParams.cohort ?? "" : "",
+          }}
         />
       </div>
 
@@ -130,29 +139,14 @@ export async function AnalyticsDashboard({
               color="purple"
               sub={`${pctOf(data.activeLearners, data.learnerCount)}% signed in recently`}
             />
-            {showPathwayStats ? (
-              <>
-                <StatCard label="Pathway Enrollments" value={data.pathwayEnrollments} icon={GraduationCap} color="green" />
-                <StatCard
-                  label="Pathway Completion"
-                  value={`${pctOf(data.pathwayCompleted, data.pathwayEnrollments)}%`}
-                  icon={TrendingUp}
-                  color="amber"
-                  sub={`${data.pathwayCompleted} of ${data.pathwayEnrollments} completed`}
-                />
-              </>
-            ) : (
-              <>
-                <StatCard label="Course Learners" value={data.courseEnrollments} icon={GraduationCap} color="green" />
-                <StatCard
-                  label="Course Completion"
-                  value={`${pctOf(data.courseCompleted, data.courseEnrollments)}%`}
-                  icon={TrendingUp}
-                  color="amber"
-                  sub={`${data.courseCompleted} of ${data.courseEnrollments} completed`}
-                />
-              </>
-            )}
+            <StatCard label="Pathway Enrollments" value={data.pathwayEnrollments} icon={GraduationCap} color="green" />
+            <StatCard
+              label="Pathway Completion"
+              value={`${pctOf(data.pathwayCompleted, data.pathwayEnrollments)}%`}
+              icon={TrendingUp}
+              color="amber"
+              sub={`${data.pathwayCompleted} of ${data.pathwayEnrollments} completed`}
+            />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
@@ -174,12 +168,12 @@ export async function AnalyticsDashboard({
                 </div>
               )}
             </Card>
-            {(role === "admin" || role === "manager") && (
-              <Card title="Top Point Earners" icon={Award} iconColor="text-yellow-500">
+            {data.showPoints && (
+              <Card title={isAdmin ? "Top Point Earners" : "Top Point Earners (your team)"} icon={Award} iconColor="text-yellow-500">
                 <LearnerList rows={data.topEarners} unit={<Star size={14} className="text-yellow-400" />} empty="No points awarded yet." />
               </Card>
             )}
-            <Card title={role === "admin" || role === "manager" ? "Most Courses Completed" : "Most Courses Completed (your courses)"} icon={CheckCircle2} iconColor="text-green-600">
+            <Card title="Most Courses Completed" icon={CheckCircle2} iconColor="text-green-600">
               <LearnerList rows={data.topCompleters} unit={<BookOpen size={14} className="text-slate-400" />} empty="No courses completed yet." />
             </Card>
           </div>
@@ -271,6 +265,160 @@ export async function AnalyticsDashboard({
                 )}
               </Card>
             </div>
+            <div className="mt-6">
+              <PeopleTable
+                title="Enrolled People"
+                empty="No one is enrolled in this pathway yet."
+                fileName={`${fileSlug(d.row.name)}-enrolled.xlsx`}
+                sheetName="Enrolled"
+                rows={d.people.map((p) => ({ id: p.userId, ...p }))}
+                columns={[
+                  { key: "name", label: "Name", sub: "email" },
+                  { key: "email", label: "Email", exportOnly: true },
+                  { key: "office", label: "Office", filter: true },
+                  { key: "division", label: "Division", filter: true },
+                  { key: "title", label: "Title", exportOnly: true },
+                  { key: "via", label: "Enrolled via", filter: true },
+                  { key: "pct", label: "Progress", kind: "pct" },
+                  { key: "coursesDone", label: "Courses done" },
+                  { key: "coursesTotal", label: "Required courses", exportOnly: true },
+                  { key: "enrolledAt", label: "Enrolled", kind: "date" },
+                  { key: "deadline", label: "Deadline", kind: "date" },
+                ]}
+              />
+            </div>
+          </>
+        )
+      })()}
+
+      {tab === "cohorts" && data.cohorts && !data.cohortDetail && (() => {
+        const enrollments = data.cohorts.reduce((s, c) => s + c.enrollments, 0)
+        const completed = data.cohorts.reduce((s, c) => s + c.completed, 0)
+        const buckets = data.cohorts.reduce((acc, c) => acc.map((n, i) => n + c.buckets[i]), data.pathwayBuckets.map(() => 0))
+        return (
+          <>
+            <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard label="Cohorts" value={data.cohorts.length} icon={UsersRound} color="blue" />
+              <StatCard label="Members" value={data.cohorts.reduce((s, c) => s + c.members, 0)} icon={Users} color="green" sub="Counted once per cohort" />
+              <StatCard
+                label="Completion Rate"
+                value={`${pctOf(completed, enrollments)}%`}
+                icon={TrendingUp}
+                color="amber"
+                sub={`${completed} of ${enrollments} pathway enrollments completed`}
+              />
+              <StatCard
+                label="Members Done"
+                value={data.cohorts.reduce((s, c) => s + c.membersDone, 0)}
+                icon={CheckCircle2}
+                color="purple"
+                sub="Finished every pathway of their cohort"
+              />
+            </div>
+            <div className="mb-6">
+              <Card title="Cohort Pathway Enrollments by Completion" icon={BarChart3}>
+                <CompletionHistogram buckets={buckets} unit="enrollments" />
+              </Card>
+            </div>
+            <ScopeTable
+              kind="cohort"
+              empty="No cohorts yet."
+              rows={data.cohorts.map((c) => ({
+                id: c.id,
+                name: c.name,
+                isDraft: false,
+                href: hrefFor(basePath, filters, { tab: "cohorts", cohort: c.id }),
+                people: c.members,
+                completed: c.membersDone,
+                avgPct: c.avgPct,
+                buckets: c.buckets,
+                extra: [
+                  <span key="p">{c.pathwayCount}</span>,
+                  <span key="e">{c.completed} / {c.enrollments}</span>,
+                ],
+              }))}
+              extraHeaders={["Pathways", "Pathways completed"]}
+            />
+          </>
+        )
+      })()}
+
+      {tab === "cohorts" && data.cohortDetail && (() => {
+        const d = data.cohortDetail
+        return (
+          <>
+            <BackLink href={hrefFor(basePath, filters, { tab: "cohorts" })} label="All cohorts" />
+            <h2 className="mb-4 text-xl font-bold text-slate-900">{d.row.name}</h2>
+            <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard label="Members" value={d.row.members} icon={Users} color="blue" sub={`${d.row.pathwayCount} pathway${d.row.pathwayCount !== 1 ? "s" : ""} assigned`} />
+              <StatCard
+                label="Members Done"
+                value={d.row.membersDone}
+                icon={CheckCircle2}
+                color="green"
+                sub={`${pctOf(d.row.membersDone, d.row.members)}% finished every pathway`}
+              />
+              <StatCard label="Average Progress" value={`${d.row.avgPct}%`} icon={TrendingUp} color="amber" sub="Across all their pathway enrollments" />
+              <StatCard
+                label="Pathways Completed"
+                value={`${d.row.completed} / ${d.row.enrollments}`}
+                icon={GraduationCap}
+                color="purple"
+                sub={`${pctOf(d.row.completed, d.row.enrollments)}% of pathway enrollments`}
+              />
+            </div>
+            <div className="mb-6 grid gap-6 lg:grid-cols-2">
+              <Card title="Pathway Enrollments by Completion" icon={BarChart3}>
+                <CompletionHistogram buckets={d.row.buckets} unit="enrollments" />
+              </Card>
+              <Card title="Progress by Pathway" icon={Map} action={<span className="text-xs text-slate-400">Members completed</span>}>
+                {d.pathways.length === 0 ? (
+                  <p className="text-sm text-slate-400">No pathways are assigned to this cohort.</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {d.pathways.map((p) => (
+                      <a key={p.id} href={hrefFor(basePath, filters, { tab: "pathways", pathway: p.id })} className="block rounded-lg hover:bg-slate-50">
+                        <BarRow
+                          label={`${p.name}${p.isDraft ? " (draft)" : ""}`}
+                          value={p.completed}
+                          max={p.enrolled}
+                          sub={`${p.enrolled} enrolled · avg ${p.avgPct}%`}
+                          color="bg-blue-600"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+            <PeopleTable
+              title="Members"
+              empty="This cohort has no members matching the filters."
+              fileName={`${fileSlug(d.row.name)}-cohort-progress.xlsx`}
+              sheetName={d.row.name}
+              progressKey="avgPct"
+              rows={d.members.map((m) => ({
+                id: m.userId,
+                name: m.name,
+                email: m.email,
+                office: m.office,
+                division: m.division,
+                title: m.title,
+                avgPct: m.avgPct,
+                pathwaysDone: `${m.pathwaysDone} / ${m.pathwaysEnrolled}`,
+                ...Object.fromEntries(d.pathways.map((p) => [`p:${p.id}`, m.byPathway[p.id] ?? null])),
+              }))}
+              columns={[
+                { key: "name", label: "Name", sub: "email" },
+                { key: "email", label: "Email", exportOnly: true },
+                { key: "office", label: "Office", filter: true },
+                { key: "division", label: "Division", filter: true },
+                { key: "title", label: "Title", exportOnly: true },
+                { key: "avgPct", label: "Overall", kind: "pct" },
+                { key: "pathwaysDone", label: "Pathways done" },
+                ...d.pathways.map((p) => ({ key: `p:${p.id}`, label: p.name, kind: "pct" as const })),
+              ]}
+            />
           </>
         )
       })()}
@@ -419,7 +567,7 @@ function ScopeTable({
   extraHeaders,
   empty,
 }: {
-  kind: "pathway" | "course"
+  kind: "pathway" | "course" | "cohort"
   rows: { id: string; name: string; isDraft: boolean; href: string; people: number; completed: number; avgPct: number; buckets: number[]; extra: React.ReactNode[] }[]
   extraHeaders: string[]
   empty: string
@@ -427,7 +575,7 @@ function ScopeTable({
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-        <h2 className="font-semibold text-slate-900">{kind === "pathway" ? "Pathways" : "Courses"}</h2>
+        <h2 className="font-semibold text-slate-900">{kind === "pathway" ? "Pathways" : kind === "cohort" ? "Cohorts" : "Courses"}</h2>
         <BucketLegend />
       </div>
       {rows.length === 0 ? (
@@ -437,9 +585,9 @@ function ScopeTable({
           <table className="w-full min-w-[860px] text-sm">
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-5 py-3">{kind === "pathway" ? "Pathway" : "Course"}</th>
-                <th className="px-3 py-3 text-right">{kind === "pathway" ? "Enrolled" : "Learners"}</th>
-                <th className="px-3 py-3 text-right">Completed</th>
+                <th className="px-5 py-3">{kind === "pathway" ? "Pathway" : kind === "cohort" ? "Cohort" : "Course"}</th>
+                <th className="px-3 py-3 text-right">{kind === "pathway" ? "Enrolled" : kind === "cohort" ? "Members" : "Learners"}</th>
+                <th className="px-3 py-3 text-right">{kind === "cohort" ? "Members done" : "Completed"}</th>
                 <th className="px-3 py-3 text-right">Avg</th>
                 <th className="w-56 px-3 py-3">Completion</th>
                 {extraHeaders.map((h) => <th key={h} className="px-3 py-3 text-right">{h}</th>)}

@@ -10,6 +10,15 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-26",
+    changes: [
+      { kind: "improved", text: "Analytics now has its own item in the left menu, just above Help, instead of one under each role's menu. Everyone sees the same page, showing only what their roles cover: admins everything, managers their team, trainers and SMEs their courses, and pathway owners their pathways." },
+      { kind: "new", text: "In Analytics, opening a pathway now lists everyone enrolled, how they were enrolled (self-enrolled, by a manager, by an admin, or through a cohort) and their progress. Filter it by completed, in progress or not started, and export it to Excel." },
+      { kind: "new", text: "Admins have a new Cohorts tab in Analytics showing each cohort's overall progress, its progress in each of its pathways, and every member's progress, with filters and Excel export." },
+      { kind: "improved", text: "On a pathway's Manage Enrollments page, the individual enrollments list now shows each person's office and completion (% of required courses done), can be searched by name and filtered by office, division, status and completion, and can be exported to Excel. Click a cohort to see the same list for the people enrolled through it." },
+    ],
+  },
+  {
     date: "2026-11-25",
     changes: [
       { kind: "new", text: "When enrolling people or a cohort in a pathway, admins can now untick Notify to add them silently, with no assignment email or in-app notification. Reminder emails still go out as usual." },

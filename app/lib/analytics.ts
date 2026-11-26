@@ -1,5 +1,6 @@
-// Shared analytics for the admin, manager, trainer and SME analytics pages. Each role
-// gets the same Users / Pathways / Courses views, restricted to its own scope.
+// The /analytics page. Everyone with an analytics role (admin, manager, trainer, SME,
+// pathway owner) gets the same Users / Pathways / Courses views, restricted to the union
+// of their roles' scopes; admins also get a Cohorts view.
 // Progress is measured in items (lessons + tests): a course counts every item done once
 // it's completed, otherwise the lessons done plus the tests passed. Datasets are small
 // (a few thousand rows), so everything is loaded once and aggregated in memory.
@@ -7,7 +8,14 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "./prisma"
 import { requiredContents, requiredCourses } from "./pathwayCompletion"
 
-export type AnalyticsRole = "admin" | "manager" | "trainer" | "sme"
+// Roles that can open /analytics. Session roles come from app/lib/userRoles.ts.
+export const ANALYTICS_ROLES = ["ADMIN", "MANAGER", "TRAINER", "SME", "PATHWAY_OWNER"] as const
+
+export function canViewAnalytics(roles: string[]) {
+  return roles.some((r) => (ANALYTICS_ROLES as readonly string[]).includes(r))
+}
+
+export type AnalyticsViewer = { id: string; roles: string[] }
 
 export type AnalyticsFilters = { division?: string; title?: string; officeId?: string }
 
@@ -68,9 +76,57 @@ export type CourseRow = {
 export type CountRow = { label: string; value: number }
 export type LearnerRow = { id: string; name: string; sub: string; value: number }
 
+// One enrolled person in a pathway drill-down (approved enrollments only).
+export type PathwayPerson = {
+  userId: string
+  name: string
+  email: string
+  office: string
+  division: string
+  title: string
+  via: string // how they were enrolled
+  pct: number
+  coursesDone: number
+  coursesTotal: number
+  enrolledAt: string // ISO
+  deadline: string | null // ISO, a UTC calendar date
+}
+
 export type PathwayDetail = {
   row: PathwayRow
   courses: { id: string; name: string; completed: number; started: number }[]
+  people: PathwayPerson[]
+}
+
+export type CohortRow = {
+  id: string
+  name: string
+  members: number
+  pathwayCount: number
+  enrollments: number // member × assigned pathway pairs with an approved enrollment
+  completed: number // of those, completed
+  membersDone: number // members who completed every assigned pathway they're enrolled in
+  avgPct: number
+  buckets: BucketCounts
+}
+
+export type CohortMember = {
+  userId: string
+  name: string
+  email: string
+  office: string
+  division: string
+  title: string
+  avgPct: number // across the cohort's pathways they're enrolled in
+  pathwaysDone: number
+  pathwaysEnrolled: number
+  byPathway: Record<string, number | null> // pathwayId -> % (null = not enrolled)
+}
+
+export type CohortDetail = {
+  row: CohortRow
+  pathways: { id: string; name: string; isDraft: boolean; enrolled: number; completed: number; avgPct: number; buckets: BucketCounts }[]
+  members: CohortMember[]
 }
 
 export type CourseDetail = {
@@ -96,6 +152,10 @@ export type AnalyticsData = {
   courseBuckets: BucketCounts
   pathwayDetail: PathwayDetail | null
   courseDetail: CourseDetail | null
+  cohorts: CohortRow[] | null // admins only
+  cohortDetail: CohortDetail | null
+  isAdmin: boolean
+  showPoints: boolean // points leaderboards: admins and managers (their team) only
 }
 
 function formatEnum(val: string) {
@@ -113,59 +173,123 @@ function countBy<T>(items: T[], key: (item: T) => string): CountRow[] {
 
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0)
 
-// Which pathways, courses and learners a role may see. null = no restriction.
-async function resolveScope(role: AnalyticsRole, viewerId: string) {
-  if (role === "admin") return { userIds: null, pathwayIds: null, courseIds: null }
+// What a viewer may see: the union of their roles' scopes.
+// - admin: everything.
+// - manager: their direct reports, in every pathway those people are enrolled in.
+// - trainer / SME: their courses, and everyone enrolled in a pathway containing one.
+// - pathway owner: their pathways, and everyone enrolled in them.
+// An enrollment (user × pathway) is visible when the user is on the viewer's team or the
+// pathway is one whose learners they can all see (`fullPathwayIds`).
+type Scope = {
+  all: boolean
+  userIds: string[] | null
+  pathwayIds: string[] | null
+  courseIds: string[] | null
+  teamIds: Set<string>
+  fullPathwayIds: Set<string>
+}
 
-  if (role === "manager") {
-    const team = await prisma.user.findMany({ where: { managers: { some: { managerId: viewerId } } }, select: { id: true } })
-    const userIds = team.map((u) => u.id)
-    const enrolled = await prisma.pathwayEnrollment.findMany({
-      where: { userId: { in: userIds }, status: { in: ["APPROVED", "PENDING"] } },
-      select: { pathwayId: true },
-      distinct: ["pathwayId"],
-    })
-    const pathwayIds = enrolled.map((e) => e.pathwayId)
-    const pcs = await prisma.pathwayCourse.findMany({ where: { pathwayId: { in: pathwayIds } }, select: { courseId: true } })
-    return { userIds, pathwayIds, courseIds: [...new Set(pcs.map((pc) => pc.courseId))] }
+async function resolveScope(viewer: AnalyticsViewer): Promise<Scope> {
+  const roles = viewer.roles
+  if (roles.includes("ADMIN")) {
+    return { all: true, userIds: null, pathwayIds: null, courseIds: null, teamIds: new Set(), fullPathwayIds: new Set() }
   }
 
-  const courses = await prisma.course.findMany({
-    where: role === "trainer"
-      ? { deletedAt: null, trainers: { some: { userId: viewerId } } }
-      : { deletedAt: null, topic: { smes: { some: { userId: viewerId } } } },
-    select: { id: true },
-  })
-  const courseIds = courses.map((c) => c.id)
-  const pcs = await prisma.pathwayCourse.findMany({ where: { courseId: { in: courseIds } }, select: { pathwayId: true } })
-  const pathwayIds = [...new Set(pcs.map((pc) => pc.pathwayId))]
-  // Learners = anyone enrolled in a pathway that contains one of these courses.
-  const enrolled = await prisma.pathwayEnrollment.findMany({
-    where: { pathwayId: { in: pathwayIds }, status: "APPROVED" },
-    select: { userId: true },
-    distinct: ["userId"],
-  })
-  return { userIds: enrolled.map((e) => e.userId), pathwayIds, courseIds }
+  const [team, ownedCourses, owned] = await Promise.all([
+    roles.includes("MANAGER")
+      ? prisma.user.findMany({ where: { managers: { some: { managerId: viewer.id } } }, select: { id: true } })
+      : Promise.resolve([]),
+    roles.includes("TRAINER") || roles.includes("SME")
+      ? prisma.course.findMany({
+          where: {
+            deletedAt: null,
+            OR: [
+              ...(roles.includes("TRAINER") ? [{ trainers: { some: { userId: viewer.id } } }] : []),
+              ...(roles.includes("SME") ? [{ topic: { smes: { some: { userId: viewer.id } } } }] : []),
+            ],
+          },
+          select: { id: true },
+        })
+      : Promise.resolve([]),
+    roles.includes("PATHWAY_OWNER")
+      ? prisma.pathwayOwner.findMany({ where: { userId: viewer.id }, select: { pathwayId: true } })
+      : Promise.resolve([]),
+  ])
+  const teamIds = team.map((u) => u.id)
+  const courseIds = new Set(ownedCourses.map((c) => c.id))
+
+  const [teamEnrollments, coursePathways] = await Promise.all([
+    teamIds.length
+      ? prisma.pathwayEnrollment.findMany({
+          where: { userId: { in: teamIds }, status: { in: ["APPROVED", "PENDING"] } },
+          select: { pathwayId: true },
+          distinct: ["pathwayId"],
+        })
+      : Promise.resolve([]),
+    courseIds.size
+      ? prisma.pathwayCourse.findMany({ where: { courseId: { in: [...courseIds] } }, select: { pathwayId: true } })
+      : Promise.resolve([]),
+  ])
+  const fullPathwayIds = new Set([...coursePathways.map((pc) => pc.pathwayId), ...owned.map((o) => o.pathwayId)])
+  const teamPathwayIds = teamEnrollments.map((e) => e.pathwayId)
+  const ownedPathwayIds = owned.map((o) => o.pathwayId)
+  const pathwayIds = [...new Set([...teamPathwayIds, ...fullPathwayIds])]
+
+  // Courses: the viewer's own, plus every course of their team's and their owned pathways.
+  const [pcs, fullLearners] = await Promise.all([
+    prisma.pathwayCourse.findMany({ where: { pathwayId: { in: [...teamPathwayIds, ...ownedPathwayIds] } }, select: { courseId: true } }),
+    fullPathwayIds.size
+      ? prisma.pathwayEnrollment.findMany({
+          where: { pathwayId: { in: [...fullPathwayIds] }, status: { in: ["APPROVED", "PENDING"] } },
+          select: { userId: true },
+          distinct: ["userId"],
+        })
+      : Promise.resolve([]),
+  ])
+  for (const pc of pcs) courseIds.add(pc.courseId)
+
+  return {
+    all: false,
+    userIds: [...new Set([...teamIds, ...fullLearners.map((e) => e.userId)])],
+    pathwayIds,
+    courseIds: [...courseIds],
+    teamIds: new Set(teamIds),
+    fullPathwayIds,
+  }
+}
+
+function enrollmentSource(e: { type: string; cohort: { name: string } | null; approvedById: string | null }) {
+  if (e.cohort) return `Cohort: ${e.cohort.name}`
+  if (e.type === "SELF_ENROLL") return "Self-enrolled"
+  if (e.type === "USER_REQUEST") return "Requested (approved)"
+  // Managers set approvedById when they assign; admins and pathway owners don't.
+  return e.approvedById ? "Assigned by manager" : "Assigned by admin"
 }
 
 export async function loadAnalytics({
-  role,
-  viewerId,
+  viewer,
   filters,
   pathwayId,
   courseId,
+  cohortTab,
+  cohortId,
 }: {
-  role: AnalyticsRole
-  viewerId: string
+  viewer: AnalyticsViewer
   filters: AnalyticsFilters
   pathwayId?: string
   courseId?: string
+  cohortTab?: boolean
+  cohortId?: string
 }): Promise<AnalyticsData> {
-  const scope = await resolveScope(role, viewerId)
+  const scope = await resolveScope(viewer)
+  const isAdmin = scope.all
+  const showPoints = isAdmin || scope.teamIds.size > 0
+  const visible = (e: { userId: string; pathwayId: string }) =>
+    scope.all || scope.teamIds.has(e.userId) || scope.fullPathwayIds.has(e.pathwayId)
 
   // Deactivated users stay in analytics — their history still counts.
   const userWhere: Prisma.UserWhereInput = {
-    ...(role === "admin" ? { status: "ACTIVE" } : {}),
+    ...(isAdmin ? { status: "ACTIVE" } : {}),
     ...(scope.userIds ? { id: { in: scope.userIds } } : {}),
     ...(filters.division ? { division: filters.division as Prisma.UserWhereInput["division"] } : {}),
     ...(filters.title ? { title: filters.title as Prisma.UserWhereInput["title"] } : {}),
@@ -174,7 +298,7 @@ export async function loadAnalytics({
 
   const users = await prisma.user.findMany({
     where: userWhere,
-    select: { id: true, name: true, email: true, division: true, title: true, lastActiveAt: true },
+    select: { id: true, name: true, email: true, division: true, title: true, lastActiveAt: true, office: { select: { name: true } } },
   })
   const userIds = users.map((u) => u.id)
   const userIdSet = new Set(userIds)
@@ -241,7 +365,16 @@ export async function loadAnalytics({
   const [enrollments, courseProgress, contentProgress, testProgress, feedback, submissions, points] = await Promise.all([
     prisma.pathwayEnrollment.findMany({
       where: { pathwayId: { in: enrollmentPathwayIds }, status: { in: ["APPROVED", "PENDING"] }, ...userFilter },
-      select: { userId: true, pathwayId: true, status: true, deadline: true },
+      select: {
+        userId: true,
+        pathwayId: true,
+        status: true,
+        deadline: true,
+        type: true,
+        approvedById: true,
+        createdAt: true,
+        cohort: { select: { name: true } },
+      },
     }),
     prisma.courseProgress.findMany({
       where: { completed: true, courseId: { in: Object.keys(itemsByCourse) }, ...userFilter },
@@ -261,10 +394,15 @@ export async function loadAnalytics({
     }),
     prisma.assignmentSubmission.findMany({
       where: { status: "SUBMITTED", assignment: { deletedAt: null, courseId: { in: courses.map((c) => c.id) } }, ...userFilter },
-      select: { userId: true, assignment: { select: { courseId: true } } },
+      select: { userId: true, pathwayId: true, assignment: { select: { courseId: true } } },
     }),
-    role === "admin" || role === "manager"
-      ? prisma.userPoint.groupBy({ by: ["userId"], where: { userId: { in: userIds } }, _sum: { points: true } })
+    // Points are personal, not tied to a pathway: only admins, and managers for their team.
+    showPoints
+      ? prisma.userPoint.groupBy({
+          by: ["userId"],
+          where: { userId: { in: isAdmin ? userIds : userIds.filter((id) => scope.teamIds.has(id)) } },
+          _sum: { points: true },
+        })
       : Promise.resolve([]),
   ])
 
@@ -284,13 +422,14 @@ export async function loadAnalytics({
     return { done, total }
   }
 
-  const approved = enrollments.filter((e) => e.status === "APPROVED" && userIdSet.has(e.userId))
+  const approved = enrollments.filter((e) => e.status === "APPROVED" && userIdSet.has(e.userId) && visible(e))
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
 
   // ── Pathways ───────────────────────────────────────────────────────────────
   const pathwayIdSet = new Set(pathways.map((p) => p.id))
   const pathwayPct: Record<string, number> = {} // `${userId}:${pathwayId}` -> %
+  const pathwayCoursesDone: Record<string, number> = {} // `${userId}:${pathwayId}` -> required courses done
   const pathwayRows: PathwayRow[] = pathways.map((p) => {
     const rows = approved.filter((e) => e.pathwayId === p.id)
     // Optional courses don't count toward a pathway's progress or completion.
@@ -312,6 +451,7 @@ export async function loadAnalytics({
       const isComplete = required.length > 0 && coursesDone >= required.length
       const value = isComplete ? 100 : Math.min(99, pct(done, total))
       pathwayPct[`${e.userId}:${p.id}`] = value
+      pathwayCoursesDone[`${e.userId}:${p.id}`] = coursesDone
       buckets[bucketIndex(value)]++
       sumPct += value
       if (isComplete) completed++
@@ -327,7 +467,7 @@ export async function loadAnalytics({
       avgPct: rows.length ? Math.round(sumPct / rows.length) : 0,
       buckets,
       overdue,
-      pending: enrollments.filter((e) => e.pathwayId === p.id && e.status === "PENDING" && userIdSet.has(e.userId)).length,
+      pending: enrollments.filter((e) => e.pathwayId === p.id && e.status === "PENDING" && userIdSet.has(e.userId) && visible(e)).length,
     }
   })
   pathwayRows.sort((a, b) => b.enrolled - a.enrolled || a.name.localeCompare(b.name))
@@ -356,8 +496,9 @@ export async function loadAnalytics({
     }
     const learners = Object.keys(best).length
     const testIds = new Set(c.tests.map((t) => t.id))
-    const attempts = testProgress.filter((t) => testIds.has(t.testId) && userIdSet.has(t.userId))
-    const ratings = feedback.filter((f) => f.courseId === c.id && userIdSet.has(f.userId))
+    const attempts = testProgress.filter((t) => testIds.has(t.testId) && userIdSet.has(t.userId) && visible(t))
+    // Feedback isn't tied to a pathway: count it from this course's visible learners.
+    const ratings = feedback.filter((f) => f.courseId === c.id && f.userId in best)
     return {
       id: c.id,
       name: c.name,
@@ -371,7 +512,7 @@ export async function loadAnalytics({
       testPassRate: attempts.length ? pct(attempts.filter((t) => t.status === "PASSED").length, attempts.length) : null,
       avgRating: ratings.length ? Math.round((ratings.reduce((s, f) => s + f.rating, 0) / ratings.length) * 10) / 10 : null,
       ratingCount: ratings.length,
-      awaitingGrading: submissions.filter((s) => s.assignment.courseId === c.id && userIdSet.has(s.userId)).length,
+      awaitingGrading: submissions.filter((s) => s.assignment.courseId === c.id && userIdSet.has(s.userId) && visible(s)).length,
     }
   })
   courseRows.sort((a, b) => b.learners - a.learners || a.name.localeCompare(b.name))
@@ -379,13 +520,13 @@ export async function loadAnalytics({
   for (const r of courseRows) r.buckets.forEach((n, i) => (courseBuckets[i] += n))
 
   // ── Learners ───────────────────────────────────────────────────────────────
-  // Trainers have no pathway view, so their learners are the people taking their courses.
-  const learnerIds = new Set(
-    role === "trainer"
-      ? Object.keys(coursePct).map((k) => k.split(":")[0])
-      : approved.filter((e) => pathwayIdSet.has(e.pathwayId)).map((e) => e.userId)
-  )
-  if (role === "admin" || role === "manager") for (const u of users) learnerIds.add(u.id)
+  // Admins see every user and managers their whole team; otherwise the people enrolled
+  // in a visible pathway (or taking a visible course).
+  const learnerIds = new Set([
+    ...approved.filter((e) => pathwayIdSet.has(e.pathwayId)).map((e) => e.userId),
+    ...Object.keys(coursePct).map((k) => k.split(":")[0]),
+  ])
+  for (const u of users) if (isAdmin || scope.teamIds.has(u.id)) learnerIds.add(u.id)
   const learners = users.filter((u) => learnerIds.has(u.id))
   const monthAgo = Date.now() - 30 * 86_400_000
 
@@ -420,6 +561,27 @@ export async function loadAnalytics({
         }
         return { id: c.courseId, name: c.course.name, completed, started }
       }),
+      people: approved
+        .filter((e) => e.pathwayId === selectedPathway.id)
+        .map((e) => {
+          const u = userMap[e.userId]
+          const key = `${e.userId}:${selectedPathway.id}`
+          return {
+            userId: e.userId,
+            name: u?.name ?? u?.email ?? "Unknown",
+            email: u?.email ?? "",
+            office: u?.office?.name ?? "",
+            division: u ? (u.division === "NA" ? "N/A" : u.division) : "",
+            title: u ? formatEnum(u.title) : "",
+            via: enrollmentSource(e),
+            pct: pathwayPct[key] ?? 0,
+            coursesDone: pathwayCoursesDone[key] ?? 0,
+            coursesTotal: requiredCourses(selectedPathway.courses).length,
+            enrolledAt: e.createdAt.toISOString(),
+            deadline: e.deadline ? e.deadline.toISOString() : null,
+          }
+        })
+        .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name)),
     }
   }
 
@@ -445,7 +607,7 @@ export async function loadAnalytics({
           : doneBy((e) => `${e.userId}:${e.pathwayId}:${item.id}`, testPassed),
       })),
       tests: selectedCourse.tests.map((t) => {
-        const attempts = testProgress.filter((p) => p.testId === t.id && userIdSet.has(p.userId))
+        const attempts = testProgress.filter((p) => p.testId === t.id && userIdSet.has(p.userId) && visible(p))
         return {
           id: t.id,
           title: t.title,
@@ -454,6 +616,111 @@ export async function loadAnalytics({
           avgScore: attempts.length ? Math.round(attempts.reduce((s, a) => s + a.score, 0) / attempts.length) : null,
         }
       }),
+    }
+  }
+
+  // ── Cohorts (admins only) ──────────────────────────────────────────────────
+  // A member's progress in each of the cohort's pathways, whether they were enrolled
+  // through the cohort or on their own. Deleted pathways are left out.
+  let cohorts: CohortRow[] | null = null
+  let cohortDetail: CohortDetail | null = null
+  if (isAdmin && cohortTab) {
+    const cohortRecords = await prisma.cohort.findMany({
+      where: { deletedAt: null },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        users: { select: { userId: true } },
+        pathways: { select: { pathwayId: true } },
+      },
+    })
+    const pathwayById = Object.fromEntries(pathways.map((p) => [p.id, p]))
+    const approvedKeys = new Set(approved.map((e) => `${e.userId}:${e.pathwayId}`))
+
+    const build = (c: (typeof cohortRecords)[number]) => {
+      const memberIds = c.users.map((u) => u.userId).filter((id) => userIdSet.has(id))
+      const cohortPathways = c.pathways.map((cp) => pathwayById[cp.pathwayId]).filter((p): p is (typeof pathways)[number] => !!p)
+      const buckets = emptyBuckets()
+      let enrolledPairs = 0
+      let completed = 0
+      let sumPct = 0
+      let membersDone = 0
+      const members: CohortMember[] = memberIds.map((uid) => {
+        const byPathway: Record<string, number | null> = {}
+        let n = 0
+        let done = 0
+        let sum = 0
+        for (const p of cohortPathways) {
+          const key = `${uid}:${p.id}`
+          if (!approvedKeys.has(key)) {
+            byPathway[p.id] = null
+            continue
+          }
+          const value = pathwayPct[key] ?? 0
+          byPathway[p.id] = value
+          n++
+          sum += value
+          if (value >= 100) done++
+          buckets[bucketIndex(value)]++
+        }
+        enrolledPairs += n
+        completed += done
+        sumPct += sum
+        if (n > 0 && done === n) membersDone++
+        const u = userMap[uid]
+        return {
+          userId: uid,
+          name: u?.name ?? u?.email ?? "Unknown",
+          email: u?.email ?? "",
+          office: u?.office?.name ?? "",
+          division: u ? (u.division === "NA" ? "N/A" : u.division) : "",
+          title: u ? formatEnum(u.title) : "",
+          avgPct: n ? Math.round(sum / n) : 0,
+          pathwaysDone: done,
+          pathwaysEnrolled: n,
+          byPathway,
+        }
+      })
+      const row: CohortRow = {
+        id: c.id,
+        name: c.name,
+        members: memberIds.length,
+        pathwayCount: cohortPathways.length,
+        enrollments: enrolledPairs,
+        completed,
+        membersDone,
+        avgPct: enrolledPairs ? Math.round(sumPct / enrolledPairs) : 0,
+        buckets,
+      }
+      return { row, cohortPathways, memberIds, members }
+    }
+
+    const built = cohortRecords.map(build)
+    cohorts = built.map((b) => b.row).sort((a, b) => b.members - a.members || a.name.localeCompare(b.name))
+
+    const selected = cohortId ? built.find((b) => b.row.id === cohortId) : undefined
+    if (selected) {
+      cohortDetail = {
+        row: selected.row,
+        pathways: selected.cohortPathways.map((p) => {
+          const values = selected.memberIds
+            .filter((uid) => approvedKeys.has(`${uid}:${p.id}`))
+            .map((uid) => pathwayPct[`${uid}:${p.id}`] ?? 0)
+          const buckets = emptyBuckets()
+          for (const v of values) buckets[bucketIndex(v)]++
+          return {
+            id: p.id,
+            name: p.name,
+            isDraft: p.status === "DRAFT",
+            enrolled: values.length,
+            completed: buckets[5],
+            avgPct: values.length ? Math.round(values.reduce((s, v) => s + v, 0) / values.length) : 0,
+            buckets,
+          }
+        }),
+        members: selected.members.sort((a, b) => b.avgPct - a.avgPct || a.name.localeCompare(b.name)),
+      }
     }
   }
 
@@ -482,5 +749,9 @@ export async function loadAnalytics({
     courseBuckets,
     pathwayDetail,
     courseDetail,
+    cohorts,
+    cohortDetail,
+    isAdmin,
+    showPoints,
   }
 }

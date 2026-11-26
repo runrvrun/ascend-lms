@@ -228,7 +228,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
             heading: "Click a pathway's row to manage its courses, or use its Actions menu:",
             items: [
               "Manage Courses — add courses with their points, reorder them with the arrows, and add section headings to group them. Tick Optional when adding or editing a course if learners don't need it to finish the pathway. Only published courses can be added.",
-              "Manage Enrollments — enroll people or cohorts (optionally with a deadline; untick Notify to add them silently, with no email or notification), change deadlines, schedule reminder emails, or remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
+              "Manage Enrollments — enroll people or cohorts (optionally with a deadline; untick Notify to add them silently, with no email or notification), change deadlines, schedule reminder emails, or remove enrollments. Search and filter the list by name, office, division, status or completion, and use Export Excel to download what's shown; click a cohort to see its members' enrollments the same way. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
               "Preview — see the pathway as a learner would.",
               "Edit, Duplicate (the copy starts as a draft with no one enrolled), or Delete.",
             ],
@@ -273,11 +273,13 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Admin → Analytics for a company-wide overview. Use the filters at the top to narrow by division, title or office.",
+          "Click Analytics in the left menu (just above Help) for a company-wide overview. Use the filters at the top to narrow by division, title or office.",
           "Users — how many people there are, how many signed in during the last 30 days, pathway enrollments and completion rate, a breakdown by division and title, and the top learners by points and by courses completed.",
           "Pathways — every pathway with how many people are enrolled, how many completed, average progress, overdue people and pending requests. A colored bar shows how many people are at each stage (not started, 1–24%, 25–49%, 50–74%, 75–99%, completed); hover over it for the numbers.",
           "Courses — the same view for each course, plus average test score, pass rate, star rating, and assignments waiting to be graded.",
           "Click a pathway or course to see more: a chart of people by completion, and how far people get through each course (for a pathway) or each lesson and test (for a course).",
+          "A pathway's page also lists everyone enrolled, how they were enrolled (self-enrolled, assigned by a manager or admin, requested, or through a cohort) and how far along they are. Search it, filter it by progress (completed, in progress, not started), office, division or how they were enrolled, and click Export Excel to download the people shown.",
+          "Cohorts — every cohort with its members, how many pathways it has, average progress, and how many members have finished all their pathways. Click a cohort to see its progress in each pathway and a list of members with their overall progress and their progress in each pathway, which you can filter and export to Excel.",
         ],
       },
       {
@@ -302,9 +304,17 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         steps: [
           "Edit your pathway's name, description, tags and visibility, and switch it between Draft and Published.",
           "Manage Courses (or click the pathway's row) — add, reorder and remove courses, set points, mark courses as Optional (not needed to finish the pathway), and add section headings. Only published courses can be added.",
-          "Manage Enrollments — enroll people or cohorts (untick Notify to add them silently, with no email or notification), set or change deadlines, schedule reminder emails, and remove enrollments. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
+          "Manage Enrollments — enroll people or cohorts (untick Notify to add them silently, with no email or notification), set or change deadlines, schedule reminder emails, and remove enrollments. Search and filter the list by name, office, division, status or completion, and use Export Excel to download what's shown; click a cohort to see its members' enrollments the same way. Resend Email sends the enrollment email again to everyone who hasn't started the pathway yet.",
           "Preview the pathway as a learner would.",
           "Only admins can add a new pathway, change owners, feature, duplicate or delete a pathway, or edit the courses themselves.",
+        ],
+      },
+      {
+        title: "Analytics",
+        icon: BarChart3,
+        steps: [
+          "Click Analytics in the left menu to see how learners are doing in your pathways. It's the same page admins use, but only counts your pathways and the people enrolled in them.",
+          "Click a pathway to see everyone enrolled and their progress, filter the list, and export it to Excel.",
         ],
       },
     ],
@@ -353,9 +363,9 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Team Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Manager → Analytics. It works like the admin Analytics page, but only counts your team.",
+          "Click Analytics in the left menu. It works like the admin Analytics page, but only counts your team (plus anything else you can see as a trainer, SME or pathway owner).",
           "Users — team size, who signed in recently, pathway completion, breakdowns by division and title, and your top learners.",
-          "Pathways and Courses — how many of your team are in each pathway and course, and how far along they are. Click one for details.",
+          "Pathways and Courses — how many of your team are in each pathway and course, and how far along they are. Click one for details; a pathway lists each team member enrolled with their progress, which you can filter and export to Excel.",
           "Use the filters to narrow by division, title or office.",
         ],
       },
@@ -446,8 +456,9 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Course Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Trainer → Analytics to see how learners are doing in the courses you train.",
+          "Click Analytics in the left menu to see how learners are doing in the courses you train.",
           "Users — how many people are taking your courses, who signed in recently, and who has completed the most of your courses.",
+          "Pathways — the pathways that include your courses. Click one to see everyone enrolled and their progress, filter the list, and export it to Excel.",
           "Courses — learners, completions, average progress, test scores, ratings and assignments to grade for each course. Click a course to see how many learners finished each lesson and test.",
         ],
       },
@@ -487,7 +498,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         title: "Topic Analytics",
         icon: BarChart3,
         steps: [
-          "Go to Subject Matter Expert → Analytics to see how learners are doing in your topics.",
+          "Click Analytics in the left menu to see how learners are doing in your topics.",
           "Users, Pathways and Courses tabs cover the courses in your topics and the pathways that include them. Click a pathway or course for details.",
         ],
       },

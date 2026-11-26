@@ -20,6 +20,14 @@ const nextConfig: NextConfig = {
     // larger limit is kept for other big server-action payloads such as course import.
     serverActions: { bodySizeLimit: "21mb" },
   },
+  // Analytics used to live under each role's menu; it's one page now.
+  async redirects() {
+    return ["admin", "manager", "trainer", "sme"].map((area) => ({
+      source: `/${area}/analytics`,
+      destination: "/analytics",
+      permanent: false,
+    }));
+  },
   async headers() {
     return [
       {

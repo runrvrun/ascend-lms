@@ -108,6 +108,7 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
   const isSME = roles.includes("SME")
   // Non-admin pathway owners get an Admin menu with only Pathways
   const isPathwayOwner = roles.includes("PATHWAY_OWNER")
+  const canViewAnalytics = isAdmin || isManager || isTrainer || isSME || isPathwayOwner
   const [adminOpen, setAdminOpen] = useState(false)
   const [managerOpen, setManagerOpen] = useState(false)
   const [trainerOpen, setTrainerOpen] = useState(false)
@@ -212,10 +213,6 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                         <Building2 size={14} />
                         Offices
                       </a>
-                      <a href="/admin/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                        <BarChart3 size={14} />
-                        Analytics
-                      </a>
                       <a href="/admin/email" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                         <Mail size={14} />
                         Email Log
@@ -246,10 +243,6 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                     <ClipboardList size={14} />
                     Pathway Requests
                   </a>
-                  <a href="/manager/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                    <BarChart3 size={14} />
-                    Analytics
-                  </a>
                 </div>
               )}
             </div>
@@ -269,10 +262,6 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                   <a href="/trainer/course" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
                     <GraduationCap size={14} />
                     My Courses
-                  </a>
-                  <a href="/trainer/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                    <BarChart3 size={14} />
-                    Analytics
                   </a>
                 </div>
               )}
@@ -294,13 +283,15 @@ export function DashboardSidebar({ session, streak = 0, totalPoints = 0, unreadN
                     <GraduationCap size={14} />
                     My Topics
                   </a>
-                  <a href="/sme/analytics" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-100 hover:bg-white/15">
-                    <BarChart3 size={14} />
-                    Analytics
-                  </a>
                 </div>
               )}
             </div>
+          )}
+          {canViewAnalytics && (
+            <a href="/analytics" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
+              <BarChart3 size={16} />
+              Analytics
+            </a>
           )}
           <a href="/help" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-white hover:bg-white/15">
             <HelpCircle size={16} />
