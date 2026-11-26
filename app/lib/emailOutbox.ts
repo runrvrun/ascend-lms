@@ -16,6 +16,10 @@ export type EmailMessage = { to: string; subject: string; html: string }
 // Windows are rolling (last 60 seconds / last 24 hours), like the server's own.
 export const EMAIL_PER_MINUTE = 20
 export const EMAIL_PER_DAY = 9000
+// Bulk mail (weekly reminders, mass assignments) goes out at half the rate: a steady
+// 20/minute for ~1h45m (the ~1,000-email weekly digest) tripped the mail provider's
+// sending-limit alert. One-off mail keeps the full rate and still goes first.
+export const BULK_EMAIL_PER_MINUTE = 10
 
 // Wait before retry n (after attempt n failed). After the last one the email is FAILED.
 const RETRY_DELAYS_MIN = [5, 30, 120, 360]
@@ -128,10 +132,11 @@ async function claimBatch(db: PrismaClient): Promise<ClaimedEmail[]> {
       }
 
       // Emails sent, or being sent, inside a window count against that window's limit.
-      const usedSince = (ms: number) => {
+      const usedSince = (ms: number, bulkOnly = false) => {
         const since = new Date(now.getTime() - ms)
         return tx.emailOutbox.count({
           where: {
+            ...(bulkOnly ? { bulk: true } : {}),
             OR: [
               { status: "SENT", sentAt: { gte: since } },
               { status: "SENDING", claimedAt: { gte: since } },
@@ -139,16 +144,28 @@ async function claimBatch(db: PrismaClient): Promise<ClaimedEmail[]> {
           },
         })
       }
-      const [lastMinute, lastDay] = await Promise.all([usedSince(60_000), usedSince(24 * 60 * 60_000)])
+      const [lastMinute, lastMinuteBulk, lastDay] = await Promise.all([
+        usedSince(60_000),
+        usedSince(60_000, true),
+        usedSince(24 * 60 * 60_000),
+      ])
       const budget = Math.min(EMAIL_PER_MINUTE - lastMinute, EMAIL_PER_DAY - lastDay)
       if (budget <= 0) return []
 
-      const due = await tx.emailOutbox.findMany({
-        where: { status: "PENDING", nextAttemptAt: { lte: now } },
-        orderBy: [{ bulk: "asc" }, { createdAt: "asc" }],
+      const select = { id: true, to: true, subject: true, html: true, attempts: true }
+      const ready = { status: "PENDING" as const, nextAttemptAt: { lte: now } }
+      // One-off mail first, then bulk mail within its own lower per-minute limit.
+      const oneOff = await tx.emailOutbox.findMany({
+        where: { ...ready, bulk: false },
+        orderBy: { createdAt: "asc" },
         take: budget,
-        select: { id: true, to: true, subject: true, html: true, attempts: true },
+        select,
       })
+      const bulkBudget = Math.min(budget - oneOff.length, BULK_EMAIL_PER_MINUTE - lastMinuteBulk)
+      const bulk = bulkBudget > 0
+        ? await tx.emailOutbox.findMany({ where: { ...ready, bulk: true }, orderBy: { createdAt: "asc" }, take: bulkBudget, select })
+        : []
+      const due = [...oneOff, ...bulk]
       if (!due.length) return []
 
       await tx.emailOutbox.updateMany({

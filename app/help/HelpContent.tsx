@@ -287,7 +287,7 @@ const CONTENT: Record<Role, { intro: string; sections: Section[] }> = {
         icon: Mail,
         steps: [
           "Go to Admin → Email Log to see every email Ascend sends, newest first. Search by recipient or subject, or filter by status.",
-          "Emails go out at most 20 a minute and 9,000 a day, so a big assignment (for example a whole cohort) can take a while to finish sending. Those emails show as Queued until they go.",
+          "Emails go out at most 20 a minute and 9,000 a day. Mass emails (weekly reminders, assigning a whole cohort, Resend Email) go out at most 10 a minute, after any one-off emails, so they can take a while to finish sending. Those emails show as Queued until they go.",
           "If an email can't be sent, Ascend tries again automatically up to 5 times over about 8 hours. After that it shows as Failed, with the reason underneath.",
           "Click View to see exactly what was sent. Click Resend on a failed email, or Resend all failed at the top, to send them again.",
         ],
