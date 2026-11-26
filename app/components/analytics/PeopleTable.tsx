@@ -4,7 +4,7 @@
 // members): search, filter by completion and other columns, and export what's shown.
 
 import { useMemo, useState } from "react"
-import { Download, Search, Users, X } from "lucide-react"
+import { Check, Download, Search, Users, X } from "lucide-react"
 
 type Value = string | number | null
 
@@ -19,7 +19,13 @@ export type PeopleColumn = {
 
 export type PeopleRow = { id: string } & Record<string, Value>
 
-type Progress = "" | "completed" | "in_progress" | "not_started"
+type Progress = "completed" | "in_progress" | "not_started"
+
+const PROGRESS_OPTIONS: { key: Progress; label: string }[] = [
+  { key: "not_started", label: "Not started" },
+  { key: "in_progress", label: "In progress" },
+  { key: "completed", label: "Completed" },
+]
 
 // Dates are ISO strings; deadlines are UTC calendar dates, so format everything in UTC.
 function formatDate(v: Value) {
@@ -27,7 +33,7 @@ function formatDate(v: Value) {
   return new Date(String(v)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })
 }
 
-function progressOf(pct: number): Exclude<Progress, ""> {
+function progressOf(pct: number): Progress {
   if (pct >= 100) return "completed"
   return pct > 0 ? "in_progress" : "not_started"
 }
@@ -66,7 +72,8 @@ export function PeopleTable({
   empty: string
 }) {
   const [search, setSearch] = useState("")
-  const [progress, setProgress] = useState<Progress>("")
+  // Several can be picked (e.g. Not started + In progress = everyone who hasn't finished).
+  const [progress, setProgress] = useState<Set<Progress>>(new Set())
   const [colFilters, setColFilters] = useState<Record<string, string>>({})
   const [exporting, setExporting] = useState(false)
 
@@ -84,13 +91,22 @@ export function PeopleTable({
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
       if (q && !(String(r.name ?? "").toLowerCase().includes(q) || String(r.email ?? "").toLowerCase().includes(q))) return false
-      if (progress && progressOf(Number(r[progressKey] ?? 0)) !== progress) return false
+      if (progress.size && !progress.has(progressOf(Number(r[progressKey] ?? 0)))) return false
       for (const [key, value] of Object.entries(colFilters)) if (value && String(r[key] ?? "") !== value) return false
       return true
     })
   }, [rows, search, progress, colFilters, progressKey])
 
-  const filtering = !!(search || progress || Object.values(colFilters).some(Boolean))
+  const filtering = !!(search || progress.size || Object.values(colFilters).some(Boolean))
+
+  function toggleProgress(key: Progress) {
+    setProgress((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
   const shown = columns.filter((c) => !c.exportOnly)
 
   async function handleExport() {
@@ -130,12 +146,26 @@ export function PeopleTable({
             className="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <select value={progress} onChange={(e) => setProgress(e.target.value as Progress)} className={selectCls} aria-label="Completion">
-          <option value="">All progress</option>
-          <option value="completed">Completed</option>
-          <option value="in_progress">In progress</option>
-          <option value="not_started">Not started</option>
-        </select>
+        <div className="flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="Progress (pick one or more)">
+          {PROGRESS_OPTIONS.map((o, i) => {
+            const on = progress.has(o.key)
+            return (
+              <button
+                key={o.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggleProgress(o.key)}
+                title={on ? `Stop showing ${o.label.toLowerCase()}` : `Show ${o.label.toLowerCase()}`}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-sm ${i > 0 ? "border-l border-slate-200" : ""} ${
+                  on ? "bg-blue-50 font-medium text-blue-700" : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {on && <Check size={12} />}
+                {o.label}
+              </button>
+            )
+          })}
+        </div>
         {filterColumns.map((c) => (
           <select
             key={c.key}
@@ -150,7 +180,7 @@ export function PeopleTable({
         ))}
         {filtering && (
           <button
-            onClick={() => { setSearch(""); setProgress(""); setColFilters({}) }}
+            onClick={() => { setSearch(""); setProgress(new Set()); setColFilters({}) }}
             className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
           >
             <X size={12} /> Clear

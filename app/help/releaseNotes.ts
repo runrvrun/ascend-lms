@@ -12,6 +12,7 @@ export const RELEASE_NOTES: ReleaseDay[] = [
   {
     date: "2026-11-26",
     changes: [
+      { kind: "improved", text: "In Analytics, the progress filter on a pathway's or cohort's people list now lets you pick more than one option, such as Not started and In progress together to list everyone who hasn't finished yet." },
       { kind: "improved", text: "Mass emails such as the weekly learning reminder now go out more slowly (at most 10 a minute) to stay within the mail server's sending limits. The weekly reminder takes a few hours to reach everyone instead of about two." },
       { kind: "improved", text: "Analytics now has its own item in the left menu, just above Help, instead of one under each role's menu. Everyone sees the same page, showing only what their roles cover: admins everything, managers their team, trainers and SMEs their courses, and pathway owners their pathways." },
       { kind: "new", text: "In Analytics, opening a pathway now lists everyone enrolled, how they were enrolled (self-enrolled, by a manager, by an admin, or through a cohort) and their progress. Filter it by completed, in progress or not started, and export it to Excel." },
