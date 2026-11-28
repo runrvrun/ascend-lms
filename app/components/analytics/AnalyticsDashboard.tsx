@@ -542,6 +542,28 @@ export async function AnalyticsDashboard({
                 </Card>
               )}
             </div>
+            <div className="mt-6">
+              <PeopleTable
+                title="Enrolled People"
+                empty="No one is taking this course yet."
+                fileName={`${fileSlug(d.row.name)}-learners.xlsx`}
+                sheetName="Learners"
+                rows={d.people.map((p) => ({ id: p.userId, ...p }))}
+                columns={[
+                  { key: "name", label: "Name", sub: "email" },
+                  { key: "email", label: "Email", exportOnly: true },
+                  { key: "office", label: "Office", filter: true },
+                  { key: "division", label: "Division", filter: true },
+                  { key: "title", label: "Title", exportOnly: true },
+                  { key: "pathways", label: "Pathway", filter: true },
+                  { key: "via", label: "Enrolled via", filter: true },
+                  { key: "pct", label: "Progress", kind: "pct" },
+                  { key: "itemsDone", label: "Items done" },
+                  { key: "itemsTotal", label: "Required items", exportOnly: true },
+                  { key: "enrolledAt", label: "Enrolled", kind: "date" },
+                ]}
+              />
+            </div>
           </>
         )
       })()}

@@ -10,6 +10,12 @@ export type ReleaseDay = {
 
 export const RELEASE_NOTES: ReleaseDay[] = [
   {
+    date: "2026-11-28",
+    changes: [
+      { kind: "new", text: "In Analytics, opening a course now lists everyone taking it, the pathway they take it through, how they were enrolled and their progress. Search it, filter it by progress, office, division, pathway or how they were enrolled, and export it to Excel." },
+    ],
+  },
+  {
     date: "2026-11-26",
     changes: [
       { kind: "improved", text: "The Pathways, Courses and Cohorts tables in Analytics have a search box to find one by name." },

@@ -129,10 +129,28 @@ export type CohortDetail = {
   members: CohortMember[]
 }
 
+// One learner in a course drill-down: anyone with an approved enrollment in a pathway
+// containing the course. With more than one such pathway, their furthest progress counts.
+export type CoursePerson = {
+  userId: string
+  name: string
+  email: string
+  office: string
+  division: string
+  title: string
+  pathways: string // the pathway(s) they take the course through
+  via: string // how they were enrolled in the pathway with their furthest progress
+  pct: number
+  itemsDone: number
+  itemsTotal: number
+  enrolledAt: string // ISO, earliest of those enrollments
+}
+
 export type CourseDetail = {
   row: CourseRow
   items: { id: string; title: string; kind: "content" | "test"; done: number }[]
   tests: { id: string; title: string; attempted: number; passed: number; avgScore: number | null }[]
+  people: CoursePerson[]
 }
 
 export type AnalyticsData = {
@@ -596,7 +614,48 @@ export async function loadAnalytics({
       ...selectedCourse.contents.map((x) => ({ id: x.id, title: x.title, order: x.order ?? 0, kind: "content" as const })),
       ...selectedCourse.tests.map((x) => ({ id: x.id, title: x.title, order: x.order ?? 0, kind: "test" as const })),
     ].sort((a, b) => a.order - b.order)
+
+    // Pathway names (a deleted pathway's enrollments still count toward the course).
+    const pathwayNames: Record<string, string> = Object.fromEntries(pathways.map((p) => [p.id, p.name]))
+    const unnamed = [...new Set(takers.map((e) => e.pathwayId))].filter((id) => !(id in pathwayNames))
+    if (unnamed.length) {
+      for (const p of await prisma.pathway.findMany({ where: { id: { in: unnamed } }, select: { id: true, name: true } })) pathwayNames[p.id] = p.name
+    }
+    const byUser: Record<string, { e: (typeof takers)[number]; pct: number; done: number; total: number; pathwayIds: string[]; enrolledAt: Date }> = {}
+    for (const e of takers) {
+      const r = courseItemsDone(e.userId, e.pathwayId, selectedCourse.id)
+      const value = courseDone.has(`${e.userId}:${e.pathwayId}:${selectedCourse.id}`) ? 100 : Math.min(99, pct(r.done, r.total))
+      const cur = byUser[e.userId]
+      if (!cur) {
+        byUser[e.userId] = { e, pct: value, done: r.done, total: r.total, pathwayIds: [e.pathwayId], enrolledAt: e.createdAt }
+        continue
+      }
+      cur.pathwayIds.push(e.pathwayId)
+      if (e.createdAt < cur.enrolledAt) cur.enrolledAt = e.createdAt
+      if (value > cur.pct) Object.assign(cur, { e, pct: value, done: r.done, total: r.total })
+    }
+    const people: CoursePerson[] = Object.entries(byUser)
+      .map(([uid, b]) => {
+        const u = userMap[uid]
+        return {
+          userId: uid,
+          name: u?.name ?? u?.email ?? "Unknown",
+          email: u?.email ?? "",
+          office: u?.office?.name ?? "",
+          division: u ? (u.division === "NA" ? "N/A" : u.division) : "",
+          title: u ? formatEnum(u.title) : "",
+          pathways: b.pathwayIds.map((id) => pathwayNames[id] ?? "Unknown pathway").sort().join(", "),
+          via: enrollmentSource(b.e),
+          pct: b.pct,
+          itemsDone: b.done,
+          itemsTotal: b.total,
+          enrolledAt: b.enrolledAt.toISOString(),
+        }
+      })
+      .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name))
+
     courseDetail = {
+      people,
       row: courseRows.find((r) => r.id === selectedCourse.id)!,
       items: items.map((item) => ({
         id: item.id,
